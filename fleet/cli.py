@@ -1,7 +1,7 @@
 import argparse
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import datetime
 
 from . import ledger, launcher, telemetry
 from . import send as send_mod
@@ -58,7 +58,9 @@ def cmd_status(args):
 
 
 def cmd_telemetry(args):
-    day = args.day or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    # LOCAL today: telemetry days are local days (see telemetry._day_bounds),
+    # and the nightly launchd job fires at 23:55 local.
+    day = args.day or datetime.now().strftime("%Y-%m-%d")
     for r in telemetry.derive_day(day):
         print(json.dumps(r, sort_keys=True))
     return 0

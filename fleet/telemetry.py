@@ -1,6 +1,6 @@
 import json
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from . import cost, ledger, transcript
@@ -24,8 +24,18 @@ def _priced(model: str) -> bool:
 
 
 def _day_bounds(day: str) -> tuple[float, float]:
-    start = datetime.strptime(day, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp()
-    return start, start + 86400
+    """[local midnight, next local midnight) as epoch seconds.
+
+    A fleet day is a LOCAL day: the operator works in local time and the
+    nightly derivation fires at 23:55 local. Under UTC bounds a 23:00-local
+    turn west of Greenwich belongs to the NEXT UTC day, so the nightly job
+    wrote the wrong file and most evening turns were never derived at all.
+
+    `hi` is the next calendar day's local midnight rather than lo + 86400, so
+    a 23- or 25-hour DST day still covers exactly itself.
+    """
+    midnight = datetime.strptime(day, "%Y-%m-%d")  # naive -> local
+    return midnight.astimezone().timestamp(), (midnight + timedelta(days=1)).astimezone().timestamp()
 
 
 def derive_day(day: str, registry: Registry | None = None, events: list[dict] | None = None,

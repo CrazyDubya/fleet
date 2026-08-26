@@ -2,7 +2,7 @@ import json
 import shutil
 import tempfile
 import unittest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fleet import telemetry, paths
@@ -12,6 +12,7 @@ FX = Path(__file__).parent / "fixtures" / "small.jsonl"
 # The fixture's last assistant turn, 2026-08-26T04:05:00Z. Days are LOCAL
 # (the nightly job fires at 23:55 local), so derive the day name from it
 # rather than hard-coding one that is only right in some timezones.
+FX_FIRST_TS = 1787716810.0  # 2026-08-26T04:00:10Z, the "m1" turn
 FX_LAST_TS = 1787717100.0
 
 
@@ -30,18 +31,25 @@ class TelemetryTests(unittest.TestCase):
         self.reg.save({"haiku-fs": Entry(name="haiku-fs", session_id="fx", cwd=str(self.cwd),
                                          model="claude-haiku-4-5", status="running", spec_hash="h", spawned_at=0.0)})
         self.out = Path(self.tmp.name) / "telemetry"
+        # Pegged to the fixture's own turns (m1 at FX_FIRST_TS, m2 at
+        # FX_LAST_TS) rather than to absolute UTC literals: days are local, and
+        # the fixture's turns sit just after local midnight here, so literals
+        # a few minutes "before m2" in UTC fell into the PREVIOUS local day.
+        # The intent is unchanged - a wake between the two turns, a respawn and
+        # its miss just after the last one, one handoff sent in between.
         self.events = [
-            {"ev": "wake", "thread": "haiku-fs", "t": 1787716500.0},        # 04:01:40Z, before m2 at 04:05 → cold? no: gap from m1 (04:00:10) is 4.8 min < 5-min TTL? TTL observed = 60 → hot; not a cold wake
-            {"ev": "respawn", "thread": "haiku-fs", "t": 1787716800.0},
-            {"ev": "miss", "thread": "haiku-fs", "reason": "respawn", "t": 1787716800.0},
-            {"ev": "send", "thread": "opus", "from": "haiku-fs", "bytes": 120, "t": 1787716650.0},
+            {"ev": "wake", "thread": "haiku-fs", "t": FX_FIRST_TS + 60},
+            {"ev": "respawn", "thread": "haiku-fs", "t": FX_LAST_TS + 60},
+            {"ev": "miss", "thread": "haiku-fs", "reason": "respawn", "t": FX_LAST_TS + 60},
+            {"ev": "send", "thread": "opus", "from": "haiku-fs", "bytes": 120, "t": FX_FIRST_TS + 120},
         ]
 
     def tearDown(self):
         shutil.rmtree(self.tdir, ignore_errors=True); self.tmp.cleanup()
 
     def test_derive_day_numbers(self):
-        recs = telemetry.derive_day("2026-08-26", registry=self.reg, events=self.events, out_dir=self.out)
+        day = _fixture_day()
+        recs = telemetry.derive_day(day, registry=self.reg, events=self.events, out_dir=self.out)
         [r] = recs
         self.assertEqual(r["turns"], 2)
         # hit_ratio = read / (input + read + written) over the day = 1000 / (15 + 1000 + 1200)
@@ -51,14 +59,14 @@ class TelemetryTests(unittest.TestCase):
         self.assertEqual(r["misses"], {"respawn": 1})
         self.assertEqual(r["handoffs_sent"], 1)
         self.assertAlmostEqual(r["output_per_handoff"], 80.0)
-        self.assertTrue((self.out / "2026-08-26.jsonl").exists())
-        self.assertEqual(json.loads((self.out / "2026-08-26.jsonl").read_text().splitlines()[0])["thread"], "haiku-fs")
+        self.assertTrue((self.out / f"{day}.jsonl").exists())
+        self.assertEqual(json.loads((self.out / f"{day}.jsonl").read_text().splitlines()[0])["thread"], "haiku-fs")
 
     def test_events_without_an_ev_key_do_not_crash_the_day(self):
         # ledger.read_events() returns whatever parsed; a record missing "ev"
         # (hand-edited line, older writer) must be skipped, not raise KeyError.
         events = [*self.events, {"t": 1787716800.0, "thread": "haiku-fs"}]
-        [r] = telemetry.derive_day("2026-08-26", registry=self.reg, events=events, out_dir=self.out)
+        [r] = telemetry.derive_day(_fixture_day(), registry=self.reg, events=events, out_dir=self.out)
         self.assertEqual(r["respawns"], 1)
 
     def test_unknown_model_marks_dollars_unknown_instead_of_crashing(self):
@@ -71,7 +79,7 @@ class TelemetryTests(unittest.TestCase):
         self.assertEqual(r["cold_wake_usd"], telemetry.UNKNOWN_USD)
 
     def test_report_mentions_three_questions(self):
-        telemetry.derive_day("2026-08-26", registry=self.reg, events=self.events, out_dir=self.out)
+        telemetry.derive_day(_fixture_day(), registry=self.reg, events=self.events, out_dir=self.out)
         text = telemetry.report(out_dir=self.out)
         for q in ("hot tier", "dormant tiers", "tool-threads"):
             self.assertIn(q, text)
@@ -83,6 +91,64 @@ def _assistant_line(msg_id: str, ts: str, **usage) -> str:
     return json.dumps({"type": "assistant", "timestamp": ts,
                         "message": {"id": msg_id, "model": "claude-haiku-4-5", "stop_reason": "end_turn",
                                     "usage": base}})
+
+
+def _local(day: str, hh: int, mm: int = 0) -> str:
+    """A transcript timestamp (ISO-8601 Z) for a wall-clock LOCAL time.
+
+    Telemetry days are local - the nightly launchd job fires at 23:55 local -
+    so fixtures that probe day boundaries must be written in local wall-clock
+    terms and converted, not hand-written as Z strings that only land on the
+    intended day in some timezones.
+    """
+    naive = datetime.strptime(day, "%Y-%m-%d") + timedelta(hours=hh, minutes=mm)
+    return naive.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+
+class LocalDayTests(unittest.TestCase):
+    """`fleet telemetry` days are LOCAL days. The launchd job fires at 23:55
+    local; with UTC bounds a 23:00-local turn (03:00Z the next day, west of
+    Greenwich) fell outside the day being derived, so the late-evening turns
+    - most of the fleet's day - were never derived at all."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.cwd = Path(self.tmp.name) / "late"; self.cwd.mkdir()
+        self.tdir = paths.transcript_path(self.cwd, "late").parent
+        self.tdir.mkdir(parents=True, exist_ok=True)
+        (self.tdir / "late.jsonl").write_text(
+            _assistant_line("l1", _local("2026-03-10", 23, 0)) + "\n"
+            + _assistant_line("l2", _local("2026-03-10", 0, 30)) + "\n")
+        self.reg = Registry(Path(self.tmp.name) / "registry.json")
+        self.reg.save({"late": Entry(name="late", session_id="late", cwd=str(self.cwd),
+                                     model="claude-haiku-4-5", status="running",
+                                     spec_hash="h", spawned_at=0.0)})
+        self.out = Path(self.tmp.name) / "telemetry"
+
+    def tearDown(self):
+        shutil.rmtree(self.tdir, ignore_errors=True); self.tmp.cleanup()
+
+    def test_a_2300_local_turn_lands_in_that_local_day(self):
+        [r] = telemetry.derive_day("2026-03-10", registry=self.reg, events=[],
+                                   out_dir=self.out, default_ttl=60)
+        self.assertEqual(r["turns"], 2)  # 00:30 and 23:00, both local 2026-03-10
+
+    def test_neither_neighbouring_day_claims_those_turns(self):
+        for day in ("2026-03-09", "2026-03-11"):
+            [r] = telemetry.derive_day(day, registry=self.reg, events=[],
+                                       out_dir=self.out, default_ttl=60)
+            self.assertEqual(r["turns"], 0, day)
+
+    def test_bounds_are_exactly_local_midnight_to_local_midnight(self):
+        lo, hi = telemetry._day_bounds("2026-03-10")
+        self.assertEqual(datetime.fromtimestamp(lo).isoformat(), "2026-03-10T00:00:00")
+        self.assertEqual(datetime.fromtimestamp(hi).isoformat(), "2026-03-11T00:00:00")
+
+    def test_a_dst_day_is_not_assumed_to_be_86400_seconds(self):
+        # US DST starts 2026-03-08; that local day is 23 hours long. Building
+        # `hi` as lo + 86400 would swallow the first hour of 03-09.
+        lo, hi = telemetry._day_bounds("2026-03-08")
+        self.assertEqual(datetime.fromtimestamp(hi).isoformat(), "2026-03-09T00:00:00")
 
 
 class OvernightColdWakeTests(unittest.TestCase):
@@ -98,11 +164,11 @@ class OvernightColdWakeTests(unittest.TestCase):
         self.cwd = Path(self.tmp.name) / "overnight"; self.cwd.mkdir()
         self.tdir = paths.transcript_path(self.cwd, "ovn").parent
         self.tdir.mkdir(parents=True, exist_ok=True)
-        # 2026-08-25T23:00Z (previous day) -> 2026-08-26T00:30Z (next day):
-        # a 90-minute gap, >= the 60-minute TTL passed to derive_day below.
+        # 23:00 LOCAL on the previous day -> 00:30 LOCAL on the next: a
+        # 90-minute gap, >= the 60-minute TTL passed to derive_day below.
         lines = [
-            _assistant_line("a1", "2026-08-25T23:00:00.000Z"),
-            _assistant_line("a2", "2026-08-26T00:30:00.000Z"),
+            _assistant_line("a1", _local("2026-08-25", 23, 0)),
+            _assistant_line("a2", _local("2026-08-26", 0, 30)),
         ]
         (self.tdir / "ovn.jsonl").write_text("\n".join(lines) + "\n")
         self.reg = Registry(Path(self.tmp.name) / "registry.json")
