@@ -1,0 +1,48 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rg *)",
+      "Bash(grep *)",
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(find *)",
+      "Bash(wc *)",
+      "Bash(git log *)",
+      "Bash(git status *)",
+      "Bash(git show *)",
+      "Bash(git diff *)",
+      "Bash(/Users/pup/fleet/bin/fleet miss *)",
+      "Bash(/Users/pup/fleet/bin/fleet status *)",
+      "Bash(/Users/pup/fleet/bin/fleet ls)",
+      "Read(//Users/pup/fleet/**)",
+      "Write(//Users/pup/fleet/ledger/handoffs/**)",
+      "Edit(//Users/pup/fleet/ledger/handoffs/**)"
+    ],
+    "deny": [
+      "Bash(rm *)",
+      "Bash(sudo *)",
+      "Bash(chmod *)",
+      "Bash(curl *)",
+      "Bash(ssh *)",
+      "Bash(git push *)",
+      "Bash(git commit *)",
+      "Bash(/Users/pup/fleet/bin/fleet up *)",
+      "Bash(/Users/pup/fleet/bin/fleet park *)",
+      "Bash(/Users/pup/fleet/bin/fleet wake *)",
+      "Bash(/Users/pup/fleet/bin/fleet respawn *)",
+      "Bash(/Users/pup/fleet/bin/fleet fork *)",
+      "Bash(/Users/pup/fleet/bin/fleet send *)",
+      "Read(//Users/pup/.ssh/**)",
+      "Read(//Users/pup/.aws/**)",
+      "Read(.env)",
+      "Write(//Users/pup/fleet/fleet.toml)",
+      "Edit(//Users/pup/fleet/fleet.toml)",
+      "Write(//Users/pup/fleet/briefs/**)",
+      "Edit(//Users/pup/fleet/briefs/**)",
+      "Write(//Users/pup/fleet/state/**)",
+      "Edit(//Users/pup/fleet/state/**)"
+    ]
+  }
+}

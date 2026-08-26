@@ -102,7 +102,7 @@ window per thread.
 
 | verb | effect |
 |---|---|
-| `fleet up <t>` | mint UUID; `cd <t>/ && claude --model … --name <t> --session-id <uuid> --append-system-prompt-file … [--mcp-config mcp/<set>.json --strict-mcp-config] [--add-dir …] [--permission-mode …]` in a new tmux window; registry: running |
+| `fleet up <t>` | mint UUID; `cd <t>/ && claude --model … --name <t> --session-id <uuid> --append-system-prompt-file … [--mcp-config mcp/<set>.json --strict-mcp-config] [--add-dir …] [--permission-mode …]` in a new tmux window; registry: running. Implementation ruling: `--strict-mcp-config` is ALWAYS passed — without it `claude` auto-discovers `.mcp.json` in ancestor dirs (`/Users/pup/.mcp.json`) and blocks on a first-run trust dialog, and the prefix would depend on files outside the spec |
 | `fleet park <t>` | kill the window; registry keeps session_id; status parked |
 | `fleet wake <t>` | same command with `--resume <session_id>` from the same cwd; status running |
 | `fleet fork <parent> <new> --brief briefs/<new>.md` | `--resume <parent_id> --fork-session --name <new> --append-system-prompt-file briefs/<new>.md`; registry entry with `fork_of` |
@@ -137,7 +137,10 @@ Rates ($/M, input / output): sonnet 2/10, opus 5/25, fable 10/50, haiku 1/5.
 
 Derived per thread from its transcript (`~/.claude/projects/<cwd-key>/<session_id>.jsonl`,
 per-turn `usage`: `input_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens`,
-`output_tokens`):
+`output_tokens`). Verified 2026-08-26: a child spawned with `--resume <parent> --fork-session`
+writes its transcript under the PARENT cwd's project key, not its own cwd; status/telemetry
+resolve forked threads via `fork_of` (pending ids = newest transcript in the parent's dir that
+is not the parent's own).
 
 - **warmth** — minutes since last assistant turn: hot < 45, cooling 45–60, cold > 60.
 - **context size** ≈ last turn's `input + cache_read + cache_creation` (the current prefix).
@@ -152,7 +155,8 @@ and the last handoff is already in the ledger; `"trajectory"` resumes without as
 ## 8. Status view
 
 `fleet status` prints one row per registered thread: name, model, tier, state
-(running/busy/idle/parked), warmth with minutes, context tokens, session $ (cached / written /
+(new/busy/idle/parked/archived — state is derived, so "running" never appears; a registry
+entry says running, the transcript says busy or idle), warmth with minutes, context tokens, session $ (cached / written /
 output), spec-stale flag, last handoff path. `--watch` refreshes every 10 s. Busy/idle comes
 from the transcript's last record type; alive comes from the tmux window. No API calls.
 
@@ -200,6 +204,16 @@ Unit-level pure functions (spec hashing, usage summation, warmth, cost) get plai
 - `send` from outside Claude is tmux paste, not a helper model call.
 - Location `/Users/pup/fleet`; the four model dirs move under it.
 - TOML over YAML: stdlib, zero dependencies.
+
+## 12a. Open after first bring-up (2026-08-26)
+
+- **Permission mode for unattended tiers.** `fleet.toml` spawns every thread with
+  `permission_mode = "default"`, so opus's first Bash call (reading the ledger, per its brief)
+  stalled on an interactive approval nobody was watching; the sonnet→opus `SendMessage` leg
+  worked. Options: `acceptEdits` (still prompts on Bash), a per-thread `--settings` allowlist
+  for read-only Bash + writes under `ledger/handoffs/<thread>/`, or `bypassPermissions` for
+  opus/fable/haiku-fs. Security-sensitive — operator's call. Changing it changes `spec_hash`,
+  so it lands as a respawn.
 
 ## 13. Telemetry the fleet emits, what `cognitive` can use, and how quality is judged over time
 

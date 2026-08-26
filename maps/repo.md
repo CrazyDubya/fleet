@@ -1,0 +1,76 @@
+# Map of /Users/pup (regenerate with this block, then `fleet respawn haiku-fs`)
+
+## Top-level projects (dirs with a git repo or README)
+- `Agenda/` — AgendaBox
+- `ChessAlive/` — ChessAlive
+- `InfiniteQ/` — InfiniteQ Planning Harness
+- `LisaSimpson/` — Web Application Project
+- `Loop/` — Loop Engine
+- `RDX/` — BALL STREET
+- `SurgeProtocol/` — Surge Protocol
+- `TinyTroupe/` — TinyTroupe 🤠🤓🥸🧐
+- `active-state-lab/` — active-state-lab
+- `ai-team-games/` — THE SUMMIT - Multiplayer Climate Negotiation Game
+- `ameobapplets/` — ameobapplets
+- `assembly-game/` — 
+- `azure/` — React + TypeScript + Vite
+- `blender/` — 
+- `block/` — Marble Block
+- `blogatom/` — Independent Web Discovery Toy
+- `bowling/` — 
+- `bulletheaven/` — Bullet Heaven: Ashfall
+- `castmembersonly/` — 
+- `codex-minicity/` — Codex MiniCity V2
+- `command-center/` — ⚡ Command Center Dashboard
+- `crane/` — Crane Machine
+- `crownshards/` — 
+- `cyoa/` — 
+- `designa-crudiverse/` — Crudiverse
+- `doc-review/` — Document Review GUI
+- `dolldress/` — 
+- `emergency-preparedness/` — 
+- `fleet/` — 
+- `fun-house/` — Fun House CLI Playground
+- `genMail/` — EmailVerse
+- `idlethoughts/` — IdleThoughts
+- `imagecheck/` — ImageCheck Cloudflare-First Scaffolding
+- `kidmodel/` — Kid-Safe Mistral-7B
+- `kiss-protocol/` — KISS Project State Protocol
+- `learn/` — 
+- `marble/` — Marble Forge
+- `minicity/` — 
+- `monte/` — Monte - LLM Optimization System
+- `muse/` — 
+- `nlm/` — nlm
+- `notebooklm-mcp-cli/` — Gemini Notebook (formerly Google NotebookLM) CLI & MCP Server
+- `pachinko/` — 
+- `paint/` — Colorstorm Studio
+- `pet/` — 
+- `prison/` — Eternal Lockdown
+- `research/` — 
+- `riverloop/` — Riverloop — Series Bible
+- `scrape/` — 🛡️ Agentic Watchdog & RAM-Native Gazette System (v3.5)
+- `shell/` — 
+- `sliceofpi/` — 
+- `steward/` — 
+- `synthetic-doc-factory/` — Synthetic Doc Factory
+- `task-conductor/` — Task Conductor
+- `theater-critics-system/` — 🎭 Theater Critics System
+- `theater-stage/` — 
+- `three/` — Three.js RPG + Ollama MVP
+- `threejs-solar-system-demo/` — Three.js Solar System Demo
+- `touvhgame/` — NEON//BREACH
+- `vultr-fun/` — Vultr Collaborative Canvas + Chat
+- `whisper/` — 
+- `wifidense/` — WiFi DensePose
+- `wordsalad/` — WordSaladTest
+- `xpull/` — xpull - Elected Official Analyzer (MVP)
+- `zai/` — CAR (codex-autorunner) Setup Guide Implementation
+
+## Fleet
+- `/Users/pup/fleet/` — this fleet: fleet.toml, briefs/, maps/, ledger/, state/
+- `/Users/pup/cognitive/project1` — Harness Observatory (evidence corpus); `project2` — Cognitive Torture Rig
+
+## Conventions
+- Claude Code transcripts: ~/.claude/projects/<cwd with / replaced by ->/<session>.jsonl
+- Memory: ~/.claude/projects/-Users-pup/memory/ (MEMORY.md is the index)

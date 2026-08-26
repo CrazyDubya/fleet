@@ -1,0 +1,7 @@
+#!/bin/sh
+# Threads run from /Users/pup/fleet/<thread>/, so `fleet` must work from any
+# cwd: resolve the repo root from this script's own location rather than
+# relying on cwd being on sys.path (protocol rule 4 calls `fleet miss` from
+# inside a thread dir).
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
+exec env PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}" python3 -m fleet.cli "$@"

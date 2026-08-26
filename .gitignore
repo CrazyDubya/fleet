@@ -1,0 +1,7 @@
+__pycache__/
+state/
+ledger/
+sonnet/.claude/
+opus/.claude/
+fable/.claude/
+haiku-fs/.claude/
