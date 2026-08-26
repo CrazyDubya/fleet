@@ -199,3 +199,61 @@ Unit-level pure functions (spec hashing, usage summation, warmth, cost) get plai
 - `send` from outside Claude is tmux paste, not a helper model call.
 - Location `/Users/pup/fleet`; the four model dirs move under it.
 - TOML over YAML: stdlib, zero dependencies.
+
+## 13. Telemetry the fleet emits, what `cognitive` can use, and how quality is judged over time
+
+The fleet is a live, daily-use instance of exactly what P1 probes and P2 simulates. Its
+transcripts and ledger are therefore evidence, provided they are recorded in a shape the
+other projects can consume without re-deriving.
+
+### 13.1 What is captured (all derived from files; nothing self-reported by a model)
+
+Per thread, per turn (from the session jsonl): timestamp, `input`, `cache_read`,
+`cache_creation`, `output`, thinking tokens, model, tool-call count, and whether the turn was
+the first after an idle gap and how long that gap was. Per thread, per lifecycle event (from
+`ledger/events.jsonl`): spawn/park/wake/fork/respawn/compact/miss with reason, spec hash,
+session lineage. Per handoff (from `ledger/handoffs/`): from-thread, to-thread, packet bytes,
+time to reply, path of the deliverable.
+
+Derived, appended nightly to `ledger/telemetry/YYYY-MM-DD.jsonl`:
+
+| metric | meaning | who uses it |
+|---|---|---|
+| cache hit ratio per thread per day | `cache_read / (input + cache_read + cache_creation)` | fleet status; P1 as observed resume/idle behaviour on real cadence |
+| cost of each cold wake | tokens rewritten × 2 × rate, tied to the idle gap that caused it | validates the resume-vs-respawn estimator; P2's resume/fresh cost model |
+| packet size vs reply latency vs handoff outcome | is the "packets not transcripts" rule actually cheaper and no worse | P2 context-manifest sizing; the parent prompt's Q6 (smallest useful durable state) |
+| deliberate-miss log | reason distribution: compaction / respawn / fresh-for-independence | P2 continuity-choice policy evidence |
+| respawn count per Haiku thread and context at respawn | when tool-thread context bloats and how fast | sizing `maps/`; P1 phenotype persistence-scope evidence |
+| fork fidelity | did an expert forked from Opus need re-briefing (measured by an explicit `rebrief` event) | P1 branching evidence on real use |
+| spec-stale days | how long a thread runs on a baseline that has since changed | prefix-freezing discipline compliance |
+
+### 13.2 Long-term quality assessment
+
+The fleet's quality is not "did the layer work" — that is the test suite — but whether the
+tiering pays off over weeks. Three questions, each answerable from the telemetry alone:
+
+1. **Is Sonnet's context doing what a hot tier should?** Its cache hit ratio should stay
+   high (> 0.8) between compactions and its compaction cadence should be days, not hours. If
+   compactions cluster, the daily driver is absorbing work that belongs in Haiku tools or
+   handoff files — the metric to watch is Sonnet's output tokens per handoff sent.
+2. **Are dormant tiers actually cheap?** Fable/Opus cold-wake cost per consult vs the
+   consult's handoff size. If cold wakes dominate, `resume_policy` should flip to
+   packet-first (or already is and is being overridden — the `miss` log shows which).
+3. **Do tool-threads earn their standing context?** Haiku respawn frequency vs work done
+   between respawns; a tool that respawns every few calls has a baseline too small to be
+   worth caching and should be a subagent instead.
+
+A monthly `fleet report` prints these three with the trend; the decision each one drives is
+written in the report (rebalance tiers, resize baselines, demote a tool-thread). Quality
+regressions are expected to show up as cache hit ratio falling or cold-wake cost rising
+before they show up as the operator noticing slowness.
+
+### 13.3 Data quality caveats, stated up front
+
+- Transcript `usage` is authoritative for tokens but silent on TTL: warmth is inferred from
+  timestamps against a known 1-hour TTL, so if the account's TTL changes, the estimator is
+  wrong until `fleet.toml` says otherwise (`cache_ttl_minutes`, default 60).
+- Busy/idle is inferred from the last transcript record; a thread mid-tool-call looks busy,
+  a thread waiting on a permission prompt looks idle. Acceptable for status, not for billing.
+- Nothing is sampled; every turn is recorded. Retention: raw transcripts are Claude Code's
+  (its own retention); the fleet keeps derived telemetry indefinitely — it is small.
