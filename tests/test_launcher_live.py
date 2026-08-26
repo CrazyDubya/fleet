@@ -68,10 +68,20 @@ class LauncherLiveTests(unittest.TestCase):
         with self.assertRaises(launcher.LaunchError):
             launcher.up("haiku-fs")
 
-    @unittest.skip("needs Task 9")
     def test_fork_opus_child_gets_brief(self):
         self._skip_if_live("opus")
-        launcher.up("opus")
+        e = launcher.up("opus")
+        # --resume needs a session claude has actually recorded at least one
+        # turn for; a freshly-spawned window has no transcript yet (verified
+        # by hand: ~/.claude/projects/.../opus/ doesn't exist until the first
+        # reply lands), so send a throwaway message and wait for it, the same
+        # way test_up_park_wake_respawn_cycle does above.
+        tmux.paste("opus", "Reply with just: ready.")
+        tp = paths.transcript_path(Path(e.cwd), e.session_id)
+        deadline = time.time() + 120
+        while time.time() < deadline and not tp.exists():
+            time.sleep(2)
+        self.assertTrue(tp.exists(), "opus transcript never appeared; claude did not start")
         brief = paths.ROOT / "briefs" / "expert-test.md"
         brief.write_text("# expert-test\nYou are a test expert.\n")
         try:
@@ -89,4 +99,6 @@ class LauncherLiveTests(unittest.TestCase):
             for w in ("expert-test", "opus"):
                 if tmux.window_exists(w): tmux.kill_window(w)
             brief.unlink(missing_ok=True)
-            reg = Registry(); entries = reg.load(); entries.pop("expert-test", None); reg.save(entries)
+            reg = Registry(); entries = reg.load()
+            entries.pop("expert-test", None); entries.pop("opus", None)
+            reg.save(entries)

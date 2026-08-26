@@ -3,6 +3,7 @@ import sys
 
 from . import ledger, launcher
 from . import send as send_mod
+from . import status as status_mod
 from .registry import Registry
 
 
@@ -46,6 +47,14 @@ def cmd_send(args):
     print(f"sent {n} bytes to {args.thread}"); return 0
 
 
+def cmd_status(args):
+    if args.watch:
+        status_mod.watch(args.interval)
+    else:
+        print(status_mod.render(status_mod.rows()))
+    return 0
+
+
 def _build_parser():
     p = argparse.ArgumentParser(prog="fleet")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -55,6 +64,7 @@ def _build_parser():
         s = sub.add_parser(verb); s.add_argument("thread"); s.set_defaults(fn=fn)
     f = sub.add_parser("fork"); f.add_argument("parent"); f.add_argument("new"); f.add_argument("--brief", required=True); f.set_defaults(fn=cmd_fork)
     s = sub.add_parser("send"); s.add_argument("thread"); s.add_argument("text", nargs="+"); s.add_argument("--from", dest="sender", default="operator"); s.set_defaults(fn=cmd_send)
+    s = sub.add_parser("status"); s.add_argument("--watch", action="store_true"); s.add_argument("--interval", type=int, default=10); s.set_defaults(fn=cmd_status)
     return p
 
 
