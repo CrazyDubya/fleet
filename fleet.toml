@@ -1,0 +1,32 @@
+[settings]
+cache_ttl_minutes = 60
+
+[thread.sonnet]
+model = "claude-sonnet-5"
+tier = "hot"
+persist = "singular"
+baseline = ["briefs/sonnet.md"]
+mcp = "core"
+dirs = ["/Users/pup"]
+permission_mode = "default"
+
+[thread.opus]
+model = "claude-opus-5"
+tier = "warm"
+persist = "on-demand"
+baseline = ["briefs/opus.md"]
+forkable = true
+
+[thread.fable]
+model = "claude-fable-5"
+tier = "dormant"
+persist = "on-demand"
+baseline = ["briefs/fable.md"]
+resume_policy = "packet-first"
+
+[thread.haiku-fs]
+model = "claude-haiku-4-5"
+tier = "tool"
+persist = "respawn"
+baseline = ["briefs/haiku-fs.md", "maps/repo.md"]
+effort = "low"
