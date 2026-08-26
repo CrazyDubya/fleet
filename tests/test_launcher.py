@@ -16,8 +16,13 @@ class ArgvTests(unittest.TestCase):
             "claude", "--model", "claude-haiku-4-5", "--name", "haiku-fs", "--session-id", "u1",
             "--append-system-prompt-file", "/r/briefs/haiku-fs.md",
             "--append-system-prompt-file", "/r/maps/repo.md",
+            "--strict-mcp-config",
             "--permission-mode", "default", "--effort", "low",
         ])
+        # thread.mcp is None here, but --strict-mcp-config must still be present -
+        # it's what stops claude from discovering an ancestor .mcp.json and
+        # blocking on a first-run trust dialog.
+        self.assertIn("--strict-mcp-config", argv)
 
     def test_mcp_dirs_and_resume_fork(self):
         t = Thread(name="sonnet", model="claude-sonnet-5", tier="hot", persist="singular",

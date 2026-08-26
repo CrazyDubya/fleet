@@ -25,7 +25,13 @@ class LauncherLiveTests(unittest.TestCase):
             del entries["haiku-fs"]
             reg.save(entries)
 
+    def _skip_if_live(self, name):
+        e = Registry().load().get(name)
+        if e and e.status == "running" and tmux.window_exists(name):
+            self.skipTest(f"{name} already registered as running - not touching a live thread")
+
     def test_up_park_wake_respawn_cycle(self):
+        self._skip_if_live("haiku-fs")
         reg = Registry()
         e = launcher.up("haiku-fs")
         self.assertTrue(tmux.window_exists("haiku-fs"))
@@ -57,12 +63,14 @@ class LauncherLiveTests(unittest.TestCase):
         self.assertIn(old, new.lineage)
 
     def test_up_twice_is_an_error(self):
+        self._skip_if_live("haiku-fs")
         launcher.up("haiku-fs")
         with self.assertRaises(launcher.LaunchError):
             launcher.up("haiku-fs")
 
     @unittest.skip("needs Task 9")
     def test_fork_opus_child_gets_brief(self):
+        self._skip_if_live("opus")
         launcher.up("opus")
         brief = paths.ROOT / "briefs" / "expert-test.md"
         brief.write_text("# expert-test\nYou are a test expert.\n")

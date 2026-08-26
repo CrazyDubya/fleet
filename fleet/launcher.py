@@ -27,7 +27,8 @@ def build_argv(thread: Thread, root: Path, session_id: str | None = None, resume
     for b in [*thread.baseline, *extra_baseline]:
         argv += ["--append-system-prompt-file", str(root / b)]
     if thread.mcp:
-        argv += ["--mcp-config", str(root / "mcp" / f"{thread.mcp}.json"), "--strict-mcp-config"]
+        argv += ["--mcp-config", str(root / "mcp" / f"{thread.mcp}.json")]
+    argv += ["--strict-mcp-config"]
     for d in thread.dirs:
         argv += ["--add-dir", d]
     argv += ["--permission-mode", thread.permission_mode]
@@ -44,7 +45,7 @@ def _spawn(thread: Thread, argv: list[str]) -> None:
     tmux.new_window(thread.name, cwd, shlex.join(argv))
     time.sleep(SPAWN_GRACE_SECONDS)
     if not tmux.window_exists(thread.name):
-        ledger.event("spawn_failed", thread=thread.name, argv=argv[:-0] or argv)
+        ledger.event("spawn_failed", thread=thread.name, argv=argv)
         raise LaunchError(f"{thread.name}: claude exited within {SPAWN_GRACE_SECONDS}s (window closed)")
 
 
@@ -82,7 +83,8 @@ def park(name: str) -> Entry:
         e = entries[name]
         if e.status == "parked":
             print(f"{name} already parked"); return e
-        tmux.kill_window(name)
+        if tmux.window_exists(name):
+            tmux.kill_window(name)
         e.status = "parked"; reg.save(entries)
     ledger.event("park", thread=name, session_id=e.session_id)
     return e
@@ -147,7 +149,16 @@ def respawn(name: str) -> Entry:
         if old and tmux.window_exists(name):
             tmux.kill_window(name)
         sid = str(uuid.uuid4())
-        _spawn(t, build_argv(t, ROOT, session_id=sid))
+        try:
+            _spawn(t, build_argv(t, ROOT, session_id=sid))
+        except LaunchError:
+            if old:
+                # window is gone (or never came up); don't leave the registry
+                # claiming "running" for a dead window. Old session id and
+                # lineage are untouched - only the status reflects reality.
+                old.status = "parked"
+                reg.save(entries)
+            raise
         e = Entry(name=name, session_id=sid, cwd=str(thread_dir(name)), model=t.model, status="running",
                   spec_hash=spec_hash(t), spawned_at=time.time(),
                   lineage=(old.lineage + [old.session_id]) if old else [])
