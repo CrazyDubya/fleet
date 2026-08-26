@@ -1,4 +1,3 @@
-import shlex
 import subprocess
 import tempfile
 from pathlib import Path
@@ -16,7 +15,7 @@ def ensure_session() -> None:
 
 
 def _target(name: str) -> str:
-    return f"{SESSION}:{name}"
+    return f"{SESSION}:={name}"
 
 
 def window_exists(name: str) -> bool:
@@ -30,14 +29,19 @@ def new_window(name: str, cwd: Path, command: str) -> None:
 
 
 def kill_window(name: str) -> None:
-    _run("kill-window", "-t", _target(name), check=False, capture=True)
+    if not window_exists(name):
+        return
+    _run("kill-window", "-t", _target(name))
 
 
 def paste(name: str, text: str) -> None:
     with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as f:
         f.write(text); path = f.name
-    _run("load-buffer", "-b", "fleet-paste", path)
-    _run("paste-buffer", "-b", "fleet-paste", "-t", _target(name), "-d")
+    try:
+        _run("load-buffer", "-b", "fleet-paste", path)
+        _run("paste-buffer", "-b", "fleet-paste", "-t", _target(name), "-d")
+    finally:
+        Path(path).unlink()
     _run("send-keys", "-t", _target(name), "Enter")
 
 

@@ -5,12 +5,15 @@ from pathlib import Path
 from fleet import tmux
 
 W = "fleet-test-window"
+WA = "fleet-t-a"
+WAB = "fleet-t-ab"
 
 
 class TmuxLiveTests(unittest.TestCase):
     def tearDown(self):
-        if tmux.window_exists(W):
-            tmux.kill_window(W)
+        for name in (W, WA, WAB):
+            if tmux.window_exists(name):
+                tmux.kill_window(name)
 
     def test_window_lifecycle_and_paste(self):
         tmux.ensure_session()
@@ -25,3 +28,15 @@ class TmuxLiveTests(unittest.TestCase):
         self.assertIn("second line", out)
         tmux.kill_window(W)
         self.assertFalse(tmux.window_exists(W))
+
+    def test_kill_window_exact_match_does_not_hit_prefix_match(self):
+        tmux.ensure_session()
+        tmux.new_window(WA, Path("/tmp"), "cat")
+        tmux.new_window(WAB, Path("/tmp"), "cat")
+        time.sleep(0.5)
+        self.assertTrue(tmux.window_exists(WA))
+        self.assertTrue(tmux.window_exists(WAB))
+        tmux.kill_window(WA)
+        time.sleep(0.5)
+        self.assertFalse(tmux.window_exists(WA))
+        self.assertTrue(tmux.window_exists(WAB))
