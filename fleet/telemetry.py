@@ -29,13 +29,21 @@ def derive_day(day: str, registry: Registry | None = None, events: list[dict] | 
         # dir (see status.resolve_pending_fork_ids) - not the child's own cwd.
         parent = entries.get(e.fork_of) if e.fork_of else None
         transcript_cwd = Path(parent.cwd) if parent else Path(e.cwd)
-        turns = [t for t in transcript.parse(transcript_path(transcript_cwd, e.session_id)).turns if lo <= t.ts < hi]
+        all_turns = transcript.parse(transcript_path(transcript_cwd, e.session_id)).turns
+        turns = [t for t in all_turns if lo <= t.ts < hi]
         ttl = cost.observed_ttl_minutes(turns, default_ttl)
         uncached = sum(t.input for t in turns); read = sum(t.cache_read for t in turns)
         written = sum(t.cache_5m + t.cache_1h for t in turns); output = sum(t.output for t in turns)
         denom = uncached + read + written
         cold_wakes, cold_usd = 0, 0.0
-        for prev, cur in zip(turns, turns[1:]):
+        # A cold wake is "the first turn after a gap ≥ TTL" - including the
+        # overnight boundary, where the previous turn belongs to an earlier
+        # day. Anchor the gap sequence on the last turn before `lo` (if any)
+        # so that boundary-crossing gap is counted against *this* day, while
+        # turns/spend/hit_ratio stay strictly day-scoped (`turns` above).
+        prior = [t for t in all_turns if t.ts < lo]
+        seq = ([prior[-1]] if prior else []) + turns
+        for prev, cur in zip(seq, seq[1:]):
             if (cur.ts - prev.ts) / 60 >= ttl:
                 cold_wakes += 1
                 cold_usd += cost.resume_cost(cur.cache_5m + cur.cache_1h, e.model, ttl)

@@ -52,5 +52,54 @@ class TelemetryTests(unittest.TestCase):
             self.assertIn(q, text)
 
 
+def _assistant_line(msg_id: str, ts: str, **usage) -> str:
+    base = {"input_tokens": 5, "cache_read_input_tokens": 0, "output_tokens": 10, "cache_creation": {}}
+    base.update(usage)
+    return json.dumps({"type": "assistant", "timestamp": ts,
+                        "message": {"id": msg_id, "model": "claude-haiku-4-5", "stop_reason": "end_turn",
+                                    "usage": base}})
+
+
+class OvernightColdWakeTests(unittest.TestCase):
+    """derive_day must count a cold wake at the day boundary: a turn just
+    after midnight that follows a >=TTL gap from the PREVIOUS day's last
+    turn is the exact case the cold-wake metric exists for, and it was being
+    dropped because the turn list was filtered to [lo, hi) before the gap
+    loop ran - so the previous day's turn was never available to compare
+    against."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.cwd = Path(self.tmp.name) / "overnight"; self.cwd.mkdir()
+        self.tdir = paths.transcript_path(self.cwd, "ovn").parent
+        self.tdir.mkdir(parents=True, exist_ok=True)
+        # 2026-08-25T23:00Z (previous day) -> 2026-08-26T00:30Z (next day):
+        # a 90-minute gap, >= the 60-minute TTL passed to derive_day below.
+        lines = [
+            _assistant_line("a1", "2026-08-25T23:00:00.000Z"),
+            _assistant_line("a2", "2026-08-26T00:30:00.000Z"),
+        ]
+        (self.tdir / "ovn.jsonl").write_text("\n".join(lines) + "\n")
+        self.reg = Registry(Path(self.tmp.name) / "registry.json")
+        self.reg.save({"overnight": Entry(name="overnight", session_id="ovn", cwd=str(self.cwd),
+                                          model="claude-haiku-4-5", status="running", spec_hash="h", spawned_at=0.0)})
+        self.out = Path(self.tmp.name) / "telemetry"
+
+    def tearDown(self):
+        shutil.rmtree(self.tdir, ignore_errors=True); self.tmp.cleanup()
+
+    def test_boundary_gap_counted_against_the_day_it_wakes_into(self):
+        recs = telemetry.derive_day("2026-08-26", registry=self.reg, events=[], out_dir=self.out, default_ttl=60)
+        [r] = recs
+        self.assertEqual(r["turns"], 1)  # only the 00:30 turn is in-day; the 23:00 turn is not
+        self.assertEqual(r["cold_wakes"], 1)
+
+    def test_prior_day_itself_shows_no_cold_wake_it_has_no_predecessor(self):
+        recs = telemetry.derive_day("2026-08-25", registry=self.reg, events=[], out_dir=self.out, default_ttl=60)
+        [r] = recs
+        self.assertEqual(r["turns"], 1)  # the 23:00 turn
+        self.assertEqual(r["cold_wakes"], 0)  # no turn before it to gap against
+
+
 if __name__ == "__main__":
     unittest.main()
