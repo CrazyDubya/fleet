@@ -2,6 +2,7 @@ import argparse
 import sys
 
 from . import ledger, launcher
+from . import send as send_mod
 from .registry import Registry
 
 
@@ -37,6 +38,14 @@ def cmd_miss(args):
     return 0
 
 
+def cmd_send(args):
+    try:
+        n = send_mod.send(args.thread, " ".join(args.text), sender=args.sender)
+    except send_mod.SendError as exc:
+        print(f"error: {exc}", file=sys.stderr); return 1
+    print(f"sent {n} bytes to {args.thread}"); return 0
+
+
 def _build_parser():
     p = argparse.ArgumentParser(prog="fleet")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -45,6 +54,7 @@ def _build_parser():
     for verb, fn in (("up", cmd_up), ("park", cmd_park), ("wake", cmd_wake), ("respawn", cmd_respawn)):
         s = sub.add_parser(verb); s.add_argument("thread"); s.set_defaults(fn=fn)
     f = sub.add_parser("fork"); f.add_argument("parent"); f.add_argument("new"); f.add_argument("--brief", required=True); f.set_defaults(fn=cmd_fork)
+    s = sub.add_parser("send"); s.add_argument("thread"); s.add_argument("text", nargs="+"); s.add_argument("--from", dest="sender", default="operator"); s.set_defaults(fn=cmd_send)
     return p
 
 
