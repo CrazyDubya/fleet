@@ -6,7 +6,7 @@ Daily: `tmux attach -t fleet`; type in the `sonnet` window. `fleet status --watc
 |---|---|
 | start the day | `fleet up sonnet && fleet up haiku-fs` (opus/fable on demand) |
 | consult fable | `fleet up fable` (or `fleet wake fable` if parked) → sonnet sends a packet → `fleet park fable` after |
-| domain expert | write `briefs/<expert>.md`, then `fleet fork opus <expert> --brief briefs/<expert>.md` |
+| domain expert | write `briefs/<expert>.md`, then `fleet fork opus <expert> --brief briefs/<expert>.md`. This **appends a `[thread.<expert>]` stanza to `fleet.toml`** (parent's model/tier/mcp/dirs/permission_mode/effort, parent's baselines + the new brief, `fork_of`, `forkable = false`) so `wake`/`respawn`/`status` treat it like any other thread. Delete the stanza when you retire the expert. |
 | haiku is bloated | `fleet respawn haiku-fs` |
 | regenerate the map | run the block in `maps/repo.md`'s header, then `fleet respawn haiku-fs` |
 | about to compact | `fleet miss <thread> compaction` (threads do this themselves per brief) |

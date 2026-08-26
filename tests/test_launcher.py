@@ -36,3 +36,29 @@ class ArgvTests(unittest.TestCase):
         # x.md is the last baseline, appended after the thread's own
         self.assertEqual(argv[argv.index("/r/briefs/x.md") - 1], "--append-system-prompt-file")
         self.assertGreater(argv.index("/r/briefs/x.md"), argv.index("/r/briefs/sonnet.md"))
+
+
+class ThreadNameTests(unittest.TestCase):
+    """A thread name becomes a tmux window name, a directory under ROOT, a
+    transcript dir key and a TOML bare key. Reject anything that would be a
+    surprise in any of those before it reaches the filesystem."""
+
+    GOOD = ["sonnet", "haiku-fs", "expert-test", "a", "a1", "x" * 31]
+    BAD = ["", "-lead", "Opus", "has space", "dot.name", "under_score", "../escape",
+           "slash/name", "x" * 32, "ünicode"]
+
+    def test_accepts_the_names_the_fleet_actually_uses(self):
+        for n in self.GOOD:
+            with self.subTest(n=n):
+                launcher.validate_name(n)  # must not raise
+
+    def test_rejects_names_that_would_surprise_tmux_the_fs_or_toml(self):
+        for n in self.BAD:
+            with self.subTest(n=n):
+                with self.assertRaises(launcher.LaunchError):
+                    launcher.validate_name(n)
+
+    def test_fork_rejects_a_bad_new_name_before_touching_anything(self):
+        with self.assertRaises(launcher.LaunchError) as cm:
+            launcher.fork("opus", "../escape", "briefs/opus.md")
+        self.assertIn("escape", str(cm.exception))

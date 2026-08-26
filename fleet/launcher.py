@@ -1,3 +1,4 @@
+import re
 import shlex
 import time
 import uuid
@@ -6,7 +7,7 @@ from pathlib import Path
 from . import ledger, tmux
 from .paths import ROOT, thread_dir
 from .registry import Entry, Registry
-from .spec import Thread, load_specs, spec_hash
+from .spec import Thread, append_thread, load_specs, spec_hash
 
 SPAWN_GRACE_SECONDS = 3
 SPAWN_TAIL_LINES = 20
@@ -65,7 +66,18 @@ def _tail(name: str) -> str:
     return "\n".join(lines[-SPAWN_TAIL_LINES:])
 
 
+NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,30}$")
+
+
+def validate_name(name: str) -> None:
+    """A thread name is a tmux window name, a directory under ROOT, part of a
+    transcript directory key and a TOML bare key. Keep it boring."""
+    if not NAME_RE.fullmatch(name):
+        raise LaunchError(f"invalid thread name {name!r}: must match {NAME_RE.pattern}")
+
+
 def _thread(name: str) -> Thread:
+    validate_name(name)
     specs = load_specs()
     if name not in specs:
         raise LaunchError(f"no thread named {name!r} in fleet.toml")
@@ -137,11 +149,14 @@ def wake(name: str) -> Entry:
 
 
 def fork(parent: str, new: str, brief: str) -> Entry:
+    validate_name(new)
     pt = _thread(parent)
     if not pt.forkable:
         raise LaunchError(f"{parent} is not forkable (set forkable = true in fleet.toml)")
     if not (ROOT / brief).exists():
         raise LaunchError(f"brief not found: {brief}")
+    if new in load_specs():
+        raise LaunchError(f"[thread.{new}] already exists in fleet.toml")
     reg = Registry()
     with reg.locked():
         entries = reg.load()
@@ -151,8 +166,21 @@ def fork(parent: str, new: str, brief: str) -> Entry:
             raise LaunchError(f"{new} is already running")
         child = Thread(name=new, model=pt.model, tier=pt.tier, persist="on-demand",
                        baseline=[*pt.baseline, brief], mcp=pt.mcp, dirs=pt.dirs,
-                       permission_mode=pt.permission_mode, effort=pt.effort, fork_of=parent)
-        _spawn(child, build_argv(child, ROOT, resume_id=entries[parent].session_id, fork=True))
+                       permission_mode=pt.permission_mode, effort=pt.effort,
+                       forkable=False, fork_of=parent, resume_policy=pt.resume_policy)
+        # Register the child in fleet.toml BEFORE spawning (spec §4): without
+        # a [thread.<new>] stanza the child lives only in the registry, so
+        # wake/respawn answer "no thread named", status shows tier `?` and
+        # spec drift is never detected. Rolled back if the spawn fails, so a
+        # failed fork does not leave a half-thread behind.
+        toml = ROOT / "fleet.toml"
+        before = toml.read_text()
+        append_thread(child, toml)
+        try:
+            _spawn(child, build_argv(child, ROOT, resume_id=entries[parent].session_id, fork=True))
+        except LaunchError:
+            toml.write_text(before)
+            raise
         e = Entry(name=new, session_id="pending", cwd=str(thread_dir(new)), model=child.model, status="running",
                   spec_hash=spec_hash(child), spawned_at=time.time(), fork_of=parent)
         entries[new] = e; reg.save(entries)

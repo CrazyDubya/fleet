@@ -1,4 +1,5 @@
 import hashlib
+import json
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -35,6 +36,42 @@ def load_specs(path: Path | None = None) -> dict[str, Thread]:
 def load_settings(path: Path | None = None) -> dict:
     data = _read(path)
     return {"cache_ttl_minutes": data.get("settings", {}).get("cache_ttl_minutes", 60)}
+
+
+def _toml_value(v) -> str:
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, str):
+        return json.dumps(v)  # TOML basic strings and JSON strings escape alike
+    if isinstance(v, list):
+        return "[" + ", ".join(_toml_value(x) for x in v) + "]"
+    raise TypeError(f"cannot render {v!r} as TOML")
+
+
+def render_stanza(t: Thread) -> str:
+    """`[thread.<name>]` for a thread created at runtime.
+
+    Spec §4: "Experts and extra tools are new [thread.<name>] entries with
+    fork_of = ...". Without the stanza a forked child exists only in the
+    registry, so wake/respawn answer "no thread named", status shows tier
+    `?`, spec_stale is never computed and respawn_usd is 0. Fields that are
+    None are omitted rather than written as a null TOML has no word for.
+    """
+    fields: list[tuple[str, object]] = [
+        ("model", t.model), ("tier", t.tier), ("persist", t.persist), ("baseline", t.baseline),
+        ("mcp", t.mcp), ("dirs", t.dirs or None), ("permission_mode", t.permission_mode),
+        ("effort", t.effort), ("forkable", t.forkable), ("fork_of", t.fork_of),
+        ("resume_policy", t.resume_policy)]
+    body = "".join(f"{k} = {_toml_value(v)}\n" for k, v in fields if v is not None)
+    return f"[thread.{t.name}]\n{body}"
+
+
+def append_thread(t: Thread, path: Path | None = None) -> None:
+    """Append `t`'s stanza to fleet.toml. Refuses to shadow an existing one."""
+    p = path or ROOT / "fleet.toml"
+    if t.name in load_specs(p):
+        raise ValueError(f"[thread.{t.name}] already exists in {p}")
+    p.write_text(p.read_text().rstrip("\n") + "\n\n" + render_stanza(t))
 
 
 def spec_hash(thread: Thread, root: Path = ROOT) -> str:
