@@ -1,7 +1,9 @@
 import argparse
+import json
 import sys
+from datetime import datetime, timezone
 
-from . import ledger, launcher
+from . import ledger, launcher, telemetry
 from . import send as send_mod
 from . import status as status_mod
 from .registry import Registry
@@ -55,6 +57,17 @@ def cmd_status(args):
     return 0
 
 
+def cmd_telemetry(args):
+    day = args.day or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    for r in telemetry.derive_day(day):
+        print(json.dumps(r, sort_keys=True))
+    return 0
+
+
+def cmd_report(args):
+    print(telemetry.report()); return 0
+
+
 def _build_parser():
     p = argparse.ArgumentParser(prog="fleet")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -65,6 +78,8 @@ def _build_parser():
     f = sub.add_parser("fork"); f.add_argument("parent"); f.add_argument("new"); f.add_argument("--brief", required=True); f.set_defaults(fn=cmd_fork)
     s = sub.add_parser("send"); s.add_argument("thread"); s.add_argument("text", nargs="+"); s.add_argument("--from", dest="sender", default="operator"); s.set_defaults(fn=cmd_send)
     s = sub.add_parser("status"); s.add_argument("--watch", action="store_true"); s.add_argument("--interval", type=int, default=10); s.set_defaults(fn=cmd_status)
+    t = sub.add_parser("telemetry"); t.add_argument("--day"); t.set_defaults(fn=cmd_telemetry)
+    sub.add_parser("report").set_defaults(fn=cmd_report)
     return p
 
 
