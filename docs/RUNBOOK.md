@@ -44,8 +44,8 @@ launchctl load ~/Library/LaunchAgents/com.pup.fleet.telemetry.plist
 ## Unattended permissions (opt-in, operator's call)
 
 `settings/unattended.json` is a read-only-Bash allowlist plus writes under
-`ledger/handoffs/**`. **Nothing uses it yet.** To put a thread on it, add to that thread's
-stanza in `fleet.toml`:
+`ledger/handoffs/**`. **opus, fable, and haiku-fs are opted in; sonnet (the attended pane)
+is not.** To put another thread on it, add to that thread's stanza in `fleet.toml`:
 
 ```toml
 settings = "settings/unattended.json"

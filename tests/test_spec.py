@@ -69,8 +69,10 @@ class SettingsHashTests(unittest.TestCase):
         rules = data["permissions"]["allow"] + data["permissions"]["deny"]
         for r in rules:
             self.assertRegex(r, r"^[A-Z][A-Za-z]*\(.+\)$", f"malformed permission rule {r!r}")
-        # nothing opts in: P1 ships the mechanism, the operator sets the policy
-        self.assertFalse([t for t in spec.load_specs().values() if t.settings])
+        # P2: opus/fable/haiku-fs opt in (unattended tiers); sonnet stays attended
+        opted_in = {t.name for t in spec.load_specs().values() if t.settings}
+        self.assertEqual(opted_in, {"opus", "fable", "haiku-fs"})
+        self.assertIsNone(spec.load_specs()["sonnet"].settings)
 
 
 class AppendThreadTests(unittest.TestCase):

@@ -16,6 +16,7 @@ tier = "warm"
 persist = "on-demand"
 baseline = ["briefs/opus.md"]
 forkable = true
+settings = "settings/unattended.json"
 
 [thread.fable]
 model = "claude-fable-5"
@@ -23,6 +24,7 @@ tier = "dormant"
 persist = "on-demand"
 baseline = ["briefs/fable.md"]
 resume_policy = "packet-first"
+settings = "settings/unattended.json"
 
 [thread.haiku-fs]
 model = "claude-haiku-4-5"
@@ -30,3 +32,4 @@ tier = "tool"
 persist = "respawn"
 baseline = ["briefs/haiku-fs.md", "maps/projects.md", "maps/conventions.md"]
 effort = "low"
+settings = "settings/unattended.json"
