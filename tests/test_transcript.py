@@ -13,7 +13,7 @@ class TranscriptTests(unittest.TestCase):
         self.assertEqual(p.turns[0].cache_1h, 1000)
         self.assertEqual(p.turns[1].cache_read, 1000)
         self.assertEqual(p.turns[1].stop_reason, "tool_use")
-        self.assertEqual(p.errors, 1)
+        self.assertEqual(p.errors, 2)
 
     def test_last_record_state(self):
         p = transcript.parse(FX)

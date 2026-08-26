@@ -44,6 +44,10 @@ def parse(path: Path) -> Parsed:
             except json.JSONDecodeError:
                 out.errors += 1
                 continue
+            # Treat non-dict records (null, arrays, numbers, etc.) as malformed
+            if not isinstance(r, dict):
+                out.errors += 1
+                continue
             t = r.get("type")
             ts = _ts(r.get("timestamp"))
             if t in ("user", "assistant") and ts is not None:
