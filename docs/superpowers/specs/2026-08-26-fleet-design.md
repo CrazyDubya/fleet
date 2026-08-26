@@ -44,7 +44,8 @@ token in a delegation is Sonnet's output composing the prompt, not Haiku's input
   state/registry.json   name -> session_id, cwd, tmux target, spec_hash, status, lineage
   ledger/events.jsonl   spawn / park / wake / fork / respawn / compact / send / miss-reason
   ledger/handoffs/      deliverables written by consulted threads (their memory)
-  sonnet/ opus/ fable/ haiku/   thread cwds (moved from /Users/pup/{sonnet,opus,fable,haiku})
+  <thread>/             one cwd per thread, named exactly as the thread (sonnet/ opus/ fable/ haiku-fs/ …);
+                        the existing /Users/pup/{sonnet,opus,fable,haiku} move here, haiku → haiku-fs
   bin/fleet             the CLI
   fleet/                python package: spec, registry, launcher, status, send, ledger
 ```
