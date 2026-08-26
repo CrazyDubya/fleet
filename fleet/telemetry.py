@@ -10,6 +10,18 @@ from .spec import load_settings
 
 OUT = LEDGER / "telemetry"
 
+# Mirrors status.UNKNOWN_USD: a model with no published rate yields `?`
+# rather than a plausible-looking 0.00.
+UNKNOWN_USD = -1.0
+
+
+def _priced(model: str) -> bool:
+    try:
+        cost.resume_cost(0, model, 60)
+    except ValueError:
+        return False
+    return True
+
 
 def _day_bounds(day: str) -> tuple[float, float]:
     start = datetime.strptime(day, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp()
@@ -32,7 +44,8 @@ def derive_day(day: str, registry: Registry | None = None, events: list[dict] | 
         uncached = sum(t.input for t in turns); read = sum(t.cache_read for t in turns)
         written = sum(t.cache_5m + t.cache_1h for t in turns); output = sum(t.output for t in turns)
         denom = uncached + read + written
-        cold_wakes, cold_usd = 0, 0.0
+        priced = _priced(e.model)
+        cold_wakes, cold_usd = 0, (0.0 if priced else UNKNOWN_USD)
         # A cold wake is "the first turn after a gap ≥ TTL" - including the
         # overnight boundary, where the previous turn belongs to an earlier
         # day. Anchor the gap sequence on the last turn before `lo` (if any)
@@ -43,7 +56,8 @@ def derive_day(day: str, registry: Registry | None = None, events: list[dict] | 
         for prev, cur in zip(seq, seq[1:]):
             if (cur.ts - prev.ts) / 60 >= ttl:
                 cold_wakes += 1
-                cold_usd += cost.resume_cost(cur.cache_5m + cur.cache_1h, e.model, ttl)
+                if priced:
+                    cold_usd += cost.resume_cost(cur.cache_5m + cur.cache_1h, e.model, ttl)
         day_events = [x for x in events if lo <= x.get("t", 0) < hi]
         respawns = sum(1 for x in day_events if x.get("ev") == "respawn" and x.get("thread") == name)
         misses = Counter(x.get("reason", "?") for x in day_events if x.get("ev") == "miss" and x.get("thread") == name)
@@ -54,7 +68,7 @@ def derive_day(day: str, registry: Registry | None = None, events: list[dict] | 
             "cold_wakes": cold_wakes, "cold_wake_usd": cold_usd, "respawns": respawns,
             "misses": dict(misses), "handoffs_sent": sent,
             "output_per_handoff": (output / sent) if sent else 0.0,
-            "dollars": cost.spend(turns, e.model).dollars,
+            "dollars": cost.spend(turns, e.model).dollars if priced else UNKNOWN_USD,
         })
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / f"{day}.jsonl").write_text("".join(json.dumps(r, sort_keys=True) + "\n" for r in recs))

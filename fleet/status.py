@@ -7,6 +7,10 @@ from .paths import ROOT, transcript_path
 from .registry import Entry, Registry, RegistryLocked, transcript_for
 from .spec import load_settings, load_specs, spec_hash
 
+# Sentinel for "this model has no published rate", so a dollar field is never
+# a plausible-looking 0.00. render() shows it as `?`.
+UNKNOWN_USD = -1.0
+
 
 @dataclass
 class Row:
@@ -86,6 +90,28 @@ def _baseline_bytes(thread) -> int:
     return sum((ROOT / b).stat().st_size for b in thread.baseline if (ROOT / b).exists())
 
 
+def _money(turns, ctx: int, model: str, ttl: int, baseline_bytes: int):
+    """Spend + resume/respawn estimates, tolerating a model with no rate.
+
+    cost._rate raises for an unpublished or mistyped model id. One such row
+    must not take down `fleet status` for the whole fleet, and it must not
+    render as $0.00 either - the dollar fields become UNKNOWN_USD, which
+    render() shows as `?`. Token counts are rate-free and stay exact.
+    """
+    try:
+        return (cost.spend(turns, model), cost.resume_cost(ctx, model, ttl),
+                cost.respawn_cost(baseline_bytes, model, ttl))
+    except ValueError:
+        sp = cost.Spend(read=sum(t.cache_read for t in turns),
+                        written=sum(t.cache_5m + t.cache_1h for t in turns),
+                        output=sum(t.output for t in turns), dollars=UNKNOWN_USD)
+        return sp, UNKNOWN_USD, UNKNOWN_USD
+
+
+def _usd(v: float) -> str:
+    return "      ?" if v == UNKNOWN_USD else f"{v:7.2f}"
+
+
 def rows(now: float | None = None, registry: Registry | None = None, specs=None,
          entries: dict[str, Entry] | None = None) -> list[Row]:
     """Rows for every registered thread.
@@ -119,8 +145,8 @@ def rows(now: float | None = None, registry: Registry | None = None, specs=None,
             state = "busy"
         else:
             state = "idle" if tmux.window_exists(name) else "parked"
-        sp = cost.spend(turns, e.model)
         ctx = cost.context_size(turns)
+        sp, resume_usd, respawn_usd = _money(turns, ctx, e.model, ttl, _baseline_bytes(t) if t else 0)
         miss = ledger.last_miss(name)
         hand = ledger.last_handoff(name)
         out.append(Row(
@@ -129,8 +155,7 @@ def rows(now: float | None = None, registry: Registry | None = None, specs=None,
             spec_stale=bool(t) and spec_hash(t) != e.spec_hash,
             last_handoff=(str(hand.relative_to(ROOT)) if hand else None),
             miss_reason=(miss["reason"] if miss and miss["t"] > (last_turn_ts or 0) else None),
-            resume_usd=cost.resume_cost(ctx, e.model, ttl),
-            respawn_usd=cost.respawn_cost(_baseline_bytes(t) if t else 0, e.model, ttl),
+            resume_usd=resume_usd, respawn_usd=respawn_usd,
             errors=parsed.errors,
         ))
     return out
@@ -144,7 +169,8 @@ def render(rs: list[Row]) -> str:
             "STALE-SPEC" if r.spec_stale else "", f"miss:{r.miss_reason}" if r.miss_reason else "",
             f"handoff:{r.last_handoff}" if r.last_handoff else "", f"parse-errors:{r.errors}" if r.errors else "") if x)
         lines.append(f"{r.name:10} {r.tier:8} {r.state:7} {r.warmth:8} {r.idle_minutes:>5} {r.context:>8} {r.read:>9} "
-                     f"{r.written:>8} {r.output:>7} {r.dollars:>7.2f} {r.resume_usd:>8.2f} {r.respawn_usd:>9.2f} {flags}")
+                     f"{r.written:>8} {r.output:>7} {_usd(r.dollars):>7} {_usd(r.resume_usd):>8} "
+                     f"{_usd(r.respawn_usd):>9} {flags}")
     return "\n".join(lines)
 
 

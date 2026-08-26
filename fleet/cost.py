@@ -17,7 +17,10 @@ def _rate(model: str) -> tuple[float, float]:
     for k, v in RATES.items():
         if model.startswith(k):
             return v
-    return (0.0, 0.0)
+    # Returning (0.0, 0.0) rendered an unknown model as "$0.00 spent", i.e.
+    # "this thread is free" - the single number the layer exists to make
+    # visible. Fail loudly; callers decide how to show "unknown".
+    raise ValueError(f"no rate for model {model}")
 
 
 def _write_mult(ttl_minutes: int) -> float:

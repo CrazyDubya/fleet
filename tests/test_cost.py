@@ -43,6 +43,17 @@ class CostTests(unittest.TestCase):
         s = cost.spend([], "claude-sonnet-5")
         self.assertAlmostEqual(s.dollars, 0.0, places=6)
 
+    def test_unknown_model_raises_instead_of_silently_costing_zero(self):
+        # (0.0, 0.0) made a typo'd or brand-new model id render as "$0.00
+        # spent", which reads as "this thread is free" - the one number the
+        # layer exists to show. Callers decide how to display "unknown".
+        for fn in (lambda: cost.spend([turn(output=10)], "claude-nope-9"),
+                   lambda: cost.resume_cost(1000, "claude-nope-9", 60),
+                   lambda: cost.respawn_cost(1000, "claude-nope-9", 60)):
+            with self.assertRaises(ValueError) as cm:
+                fn()
+            self.assertIn("claude-nope-9", str(cm.exception))
+
     def test_resume_vs_respawn(self):
         # fable $10/M in; 1h TTL write = 2×. 300k context → $6.00; 20kB baseline ≈ 5k tokens → $0.10
         self.assertAlmostEqual(cost.resume_cost(300_000, "claude-fable-5", 60), 6.0, places=6)

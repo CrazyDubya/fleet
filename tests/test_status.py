@@ -117,6 +117,37 @@ class ResolvePendingForkTests(unittest.TestCase):
         self.assertEqual(self.reg.load()["expert-test"].session_id, "child-session")
 
 
+class UnknownModelTests(unittest.TestCase):
+    """A model id with no published rate must not crash `fleet status`, and
+    must not render as $0.00 (which reads as "free") - it renders as `?`."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.cwd = Path(self.tmp.name) / "haiku-fs"; self.cwd.mkdir()
+        self.tdir = paths.transcript_path(self.cwd, "fx").parent
+        self.tdir.mkdir(parents=True, exist_ok=True)
+        shutil.copy(FX, self.tdir / "fx.jsonl")
+        self.reg = Registry(Path(self.tmp.name) / "registry.json")
+        self.reg.save({"haiku-fs": Entry(name="haiku-fs", session_id="fx", cwd=str(self.cwd),
+                                         model="claude-unpublished-9", status="parked",
+                                         spec_hash="x", spawned_at=0.0)})
+
+    def tearDown(self):
+        shutil.rmtree(self.tdir, ignore_errors=True); self.tmp.cleanup()
+
+    def test_row_marks_dollars_unknown_and_keeps_token_counts(self):
+        [r] = status.rows(now=LAST_TURN_TS + 60, registry=self.reg)
+        self.assertEqual((r.read, r.written, r.output), (1000, 1200, 80))
+        self.assertEqual(r.dollars, status.UNKNOWN_USD)
+        self.assertEqual(r.resume_usd, status.UNKNOWN_USD)
+        self.assertEqual(r.respawn_usd, status.UNKNOWN_USD)
+
+    def test_render_shows_a_question_mark_not_a_zero(self):
+        text = status.render(status.rows(now=LAST_TURN_TS + 60, registry=self.reg))
+        self.assertNotIn("0.00", text)
+        self.assertIn("?", text)
+
+
 class ResolveUnderLockTests(ResolvePendingForkTests):
     """rows() must persist a resolution under the registry lock (spec §9),
     and must not persist at all when the caller already holds it - otherwise

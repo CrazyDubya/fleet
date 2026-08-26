@@ -61,6 +61,15 @@ class TelemetryTests(unittest.TestCase):
         [r] = telemetry.derive_day("2026-08-26", registry=self.reg, events=events, out_dir=self.out)
         self.assertEqual(r["respawns"], 1)
 
+    def test_unknown_model_marks_dollars_unknown_instead_of_crashing(self):
+        entries = self.reg.load()
+        entries["haiku-fs"].model = "claude-unpublished-9"
+        self.reg.save(entries)
+        [r] = telemetry.derive_day(_fixture_day(), registry=self.reg, events=[], out_dir=self.out)
+        self.assertEqual(r["turns"], 2)
+        self.assertEqual(r["dollars"], telemetry.UNKNOWN_USD)
+        self.assertEqual(r["cold_wake_usd"], telemetry.UNKNOWN_USD)
+
     def test_report_mentions_three_questions(self):
         telemetry.derive_day("2026-08-26", registry=self.reg, events=self.events, out_dir=self.out)
         text = telemetry.report(out_dir=self.out)
