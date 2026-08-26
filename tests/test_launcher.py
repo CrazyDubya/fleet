@@ -10,12 +10,14 @@ ROOT = Path("/r")
 class ArgvTests(unittest.TestCase):
     def test_fresh_spawn_argv_is_frozen_order(self):
         t = Thread(name="haiku-fs", model="claude-haiku-4-5", tier="tool", persist="respawn",
-                   baseline=["briefs/haiku-fs.md", "maps/repo.md"], effort="low")
+                   baseline=["briefs/haiku-fs.md", "maps/projects.md", "maps/conventions.md"],
+                   effort="low")
         argv = launcher.build_argv(t, ROOT, session_id="u1")
         self.assertEqual(argv, [
             "claude", "--model", "claude-haiku-4-5", "--name", "haiku-fs", "--session-id", "u1",
             "--append-system-prompt-file", "/r/briefs/haiku-fs.md",
-            "--append-system-prompt-file", "/r/maps/repo.md",
+            "--append-system-prompt-file", "/r/maps/projects.md",
+            "--append-system-prompt-file", "/r/maps/conventions.md",
             "--strict-mcp-config",
             "--permission-mode", "default", "--effort", "low",
         ])

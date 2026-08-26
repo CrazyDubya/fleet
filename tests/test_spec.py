@@ -23,7 +23,7 @@ class SpecTests(unittest.TestCase):
     def test_hash_changes_when_baseline_changes(self):
         t = spec.load_specs()["haiku-fs"]
         before = spec.spec_hash(t)
-        p = paths.ROOT / "maps" / "repo.md"
+        p = paths.ROOT / "maps" / "projects.md"
         original = p.read_text()
         try:
             p.write_text(original + "\nchanged\n")

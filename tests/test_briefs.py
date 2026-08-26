@@ -45,4 +45,6 @@ class BriefTests(unittest.TestCase):
             self.assertIn(f"## Role: {name}", (ROOT / "briefs" / f"{name}.md").read_text())
 
     def test_map_exists_and_is_nontrivial(self):
-        self.assertGreater(len((ROOT / "maps" / "repo.md").read_text()), 500)
+        self.assertGreater(len((ROOT / "maps" / "projects.md").read_text()), 200)
+        self.assertGreater(len((ROOT / "maps" / "conventions.md").read_text()), 100)
+        self.assertGreater(len((ROOT / "maps" / "fleet.md").read_text()), 100)
