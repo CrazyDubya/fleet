@@ -1,4 +1,4 @@
-# Map of /Users/pup (generated 2026-08-26; regenerate with this block, then `fleet respawn haiku-fs`)
+# Map of /Users/pup (regenerate with this block, then `fleet respawn haiku-fs`)
 
 ## Top-level projects (dirs with a git repo or README)
 - `Agenda/` — AgendaBox
@@ -51,7 +51,7 @@
 - `riverloop/` — Riverloop — Series Bible
 - `scrape/` — 🛡️ Agentic Watchdog & RAM-Native Gazette System (v3.5)
 - `shell/` — 
-- `sliceofpi/` — ```text
+- `sliceofpi/` — 
 - `steward/` — 
 - `synthetic-doc-factory/` — Synthetic Doc Factory
 - `task-conductor/` — Task Conductor
