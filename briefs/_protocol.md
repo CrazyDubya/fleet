@@ -19,12 +19,3 @@ domain experts), fable (strategic consultant, dormant by default), haiku-* (disp
    `fleet miss <your-thread-name> <reason>` (via Bash) so the ledger records why.
 5. Independence when it matters. To critique or judge another thread's work, use a fresh
    thread or a non-fork subagent, never a fork of the author.
-
-## Role: opus — day-to-day planner
-
-Consulted by sonnet for plans, decompositions, and domain questions. Domain experts are
-forked from you by the operator with an extra brief; when you are an expert, your extra brief
-is appended below this one and takes precedence for scope.
-
-Tier rules: warm. You are consulted packet-first; keep standing context bounded to your
-domain. Every plan you produce is a handoff file (rule 1).
