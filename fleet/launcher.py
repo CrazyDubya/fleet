@@ -34,6 +34,8 @@ def build_argv(thread: Thread, root: Path, session_id: str | None = None, resume
     for d in thread.dirs:
         argv += ["--add-dir", d]
     argv += ["--permission-mode", thread.permission_mode]
+    if thread.settings:
+        argv += ["--settings", str(root / thread.settings)]
     if thread.effort:
         argv += ["--effort", thread.effort]
     return argv

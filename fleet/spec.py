@@ -17,6 +17,10 @@ class Thread:
     mcp: str | None = None
     dirs: list[str] = field(default_factory=list)
     permission_mode: str = "default"
+    # Path (relative to ROOT) of a Claude Code settings JSON passed as
+    # --settings. Part of the frozen prefix: its bytes go into spec_hash, so
+    # editing the file flags the thread STALE-SPEC until it is respawned.
+    settings: str | None = None
     effort: str | None = None
     forkable: bool = False
     fork_of: str | None = None
@@ -60,7 +64,7 @@ def render_stanza(t: Thread) -> str:
     fields: list[tuple[str, object]] = [
         ("model", t.model), ("tier", t.tier), ("persist", t.persist), ("baseline", t.baseline),
         ("mcp", t.mcp), ("dirs", t.dirs or None), ("permission_mode", t.permission_mode),
-        ("effort", t.effort), ("forkable", t.forkable), ("fork_of", t.fork_of),
+        ("settings", t.settings), ("effort", t.effort), ("forkable", t.forkable), ("fork_of", t.fork_of),
         ("resume_policy", t.resume_policy)]
     body = "".join(f"{k} = {_toml_value(v)}\n" for k, v in fields if v is not None)
     return f"[thread.{t.name}]\n{body}"
@@ -84,5 +88,10 @@ def spec_hash(thread: Thread, root: Path = ROOT) -> str:
     for d in thread.dirs:
         h.update(d.encode())
     h.update(thread.permission_mode.encode())
+    if thread.settings:
+        # The settings file is part of the prefix's meaning: editing an
+        # allowlist changes what the thread may do, so it must show up as
+        # STALE-SPEC until the operator respawns.
+        h.update(thread.settings.encode()); h.update((root / thread.settings).read_bytes())
     h.update((thread.effort or "").encode())
     return h.hexdigest()

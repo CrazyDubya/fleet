@@ -38,6 +38,29 @@ class ArgvTests(unittest.TestCase):
         self.assertGreater(argv.index("/r/briefs/x.md"), argv.index("/r/briefs/sonnet.md"))
 
 
+class SettingsArgvTests(unittest.TestCase):
+    """--settings is part of the frozen prefix, at a fixed position right
+    after --permission-mode (P1: mechanism only; no thread opts in here)."""
+
+    def _thread(self, **kw):
+        return Thread(name="opus", model="claude-opus-5", tier="warm", persist="on-demand",
+                      baseline=["briefs/opus.md"], **kw)
+
+    def test_absent_by_default(self):
+        self.assertNotIn("--settings", launcher.build_argv(self._thread(), ROOT, session_id="u1"))
+
+    def test_sits_immediately_after_permission_mode(self):
+        argv = launcher.build_argv(self._thread(settings="settings/unattended.json", effort="low"),
+                                   ROOT, session_id="u1")
+        i = argv.index("--permission-mode")
+        self.assertEqual(argv[i:i + 5], ["--permission-mode", "default",
+                                         "--settings", "/r/settings/unattended.json", "--effort"])
+
+    def test_path_is_resolved_against_the_root(self):
+        argv = launcher.build_argv(self._thread(settings="settings/unattended.json"), ROOT)
+        self.assertEqual(argv[argv.index("--settings") + 1], "/r/settings/unattended.json")
+
+
 class ThreadNameTests(unittest.TestCase):
     """A thread name becomes a tmux window name, a directory under ROOT, a
     transcript dir key and a TOML bare key. Reject anything that would be a

@@ -1,3 +1,4 @@
+import json
 import shutil
 import tempfile
 import unittest
@@ -34,6 +35,42 @@ class SpecTests(unittest.TestCase):
     def test_transcript_path_key(self):
         p = paths.transcript_path(Path("/Users/pup/haiku"), "abc")
         self.assertTrue(str(p).endswith("/.claude/projects/-Users-pup-haiku/abc.jsonl"))
+
+
+class SettingsHashTests(unittest.TestCase):
+    """A --settings file changes what a thread is allowed to do, so it is
+    part of the frozen prefix: editing it must flag STALE-SPEC until the
+    operator respawns."""
+
+    def _thread(self, settings=None):
+        return spec.Thread(name="opus", model="claude-opus-5", tier="warm", persist="on-demand",
+                           baseline=["briefs/opus.md"], settings=settings)
+
+    def test_adding_settings_changes_the_hash(self):
+        self.assertNotEqual(spec.spec_hash(self._thread()),
+                            spec.spec_hash(self._thread("settings/unattended.json")))
+
+    def test_editing_the_settings_file_changes_the_hash(self):
+        t = self._thread("settings/unattended.json")
+        p = paths.ROOT / "settings" / "unattended.json"
+        original = p.read_text()
+        before = spec.spec_hash(t)
+        try:
+            p.write_text(original.replace('"allow": [', '"allow": [\n      "Bash(date *)",'))
+            self.assertNotEqual(before, spec.spec_hash(t))
+        finally:
+            p.write_text(original)
+        self.assertEqual(before, spec.spec_hash(t))
+
+    def test_the_shipped_allowlist_is_valid_json_with_the_documented_shape(self):
+        data = json.loads((paths.ROOT / "settings" / "unattended.json").read_text())
+        self.assertEqual(set(data), {"permissions"})
+        self.assertLessEqual(set(data["permissions"]), {"allow", "deny", "ask", "defaultMode"})
+        rules = data["permissions"]["allow"] + data["permissions"]["deny"]
+        for r in rules:
+            self.assertRegex(r, r"^[A-Z][A-Za-z]*\(.+\)$", f"malformed permission rule {r!r}")
+        # nothing opts in: P1 ships the mechanism, the operator sets the policy
+        self.assertFalse([t for t in spec.load_specs().values() if t.settings])
 
 
 class AppendThreadTests(unittest.TestCase):
