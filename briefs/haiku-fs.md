@@ -1,1 +1,1 @@
-# haiku-fs brief
+# haiku-fs brief (placeholder; written in Task 10)
