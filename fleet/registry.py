@@ -4,7 +4,7 @@ from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from .paths import STATE
+from .paths import STATE, transcript_path
 
 
 class RegistryLocked(RuntimeError):
@@ -22,6 +22,20 @@ class Entry:
     spawned_at: float
     fork_of: str | None = None
     lineage: list[str] = field(default_factory=list)
+
+
+def transcript_for(entry: Entry, entries: dict[str, Entry]) -> Path:
+    """Where this entry's session transcript actually lives.
+
+    `claude --resume <parent> --fork-session` writes the child's transcript
+    into the PARENT's project directory (keyed off the parent's cwd), never
+    the child's own - verified by hand against a live opus -> expert-test
+    fork. Every reader (status.rows, telemetry.derive_day,
+    status.resolve_pending_fork_ids) must agree on this, so it lives here.
+    """
+    parent = entries.get(entry.fork_of) if entry.fork_of else None
+    cwd = Path(parent.cwd) if parent else Path(entry.cwd)
+    return transcript_path(cwd, entry.session_id)
 
 
 class Registry:

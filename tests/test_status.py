@@ -117,5 +117,78 @@ class ResolvePendingForkTests(unittest.TestCase):
         self.assertEqual(self.reg.load()["expert-test"].session_id, "child-session")
 
 
+class ResolveUnderLockTests(ResolvePendingForkTests):
+    """rows() must persist a resolution under the registry lock (spec §9),
+    and must not persist at all when the caller already holds it - otherwise
+    launcher.wake's own save reverts the resolution back to "pending"."""
+
+    def _registered(self):
+        self._touch(self.pdir / "parent-session.jsonl", 100.0)
+        self._touch(self.pdir / "child-session.jsonl", 200.0)
+        return {
+            "opus": Entry(name="opus", session_id="parent-session", cwd=str(self.parent_cwd),
+                          model="claude-opus-5", status="parked", spec_hash="x", spawned_at=0.0),
+            "expert-test": Entry(name="expert-test", session_id="pending", cwd=str(self.child_cwd),
+                                 model="claude-opus-5", status="parked", spec_hash="x", spawned_at=1.0,
+                                 fork_of="opus"),
+        }
+
+    def test_rows_persists_the_resolution(self):
+        self.reg.save(self._registered())
+        status.rows(now=1.0, registry=self.reg, specs={})
+        self.assertEqual(self.reg.load()["expert-test"].session_id, "child-session")
+
+    def test_a_locked_registry_does_not_break_status(self):
+        self.reg.save(self._registered())
+        with self.reg.locked():
+            rs = {r.name: r for r in status.rows(now=1.0, registry=self.reg, specs={})}
+        self.assertEqual(rs["expert-test"].name, "expert-test")
+        # not written while someone else held the lock
+        self.assertEqual(self.reg.load()["expert-test"].session_id, "pending")
+
+    def test_caller_owned_entries_are_resolved_in_place_and_not_written(self):
+        entries = self._registered()
+        self.reg.save(entries)
+        entries = self.reg.load()
+        with self.reg.locked():  # what launcher.wake holds
+            status.rows(now=1.0, registry=self.reg, specs={}, entries=entries)
+            self.assertEqual(entries["expert-test"].session_id, "child-session")
+            self.reg.save(entries)  # wake's own save now carries the resolution
+        self.assertEqual(self.reg.load()["expert-test"].session_id, "child-session")
+
+
+class ForkedRowTests(unittest.TestCase):
+    """A fork's transcript lives under the PARENT's cwd project dir.
+    resolve_pending_fork_ids already knew that; rows() did not, so every
+    forked thread showed context 0 / $0 / warmth new."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.parent_cwd = Path(self.tmp.name) / "opus"; self.parent_cwd.mkdir()
+        self.child_cwd = Path(self.tmp.name) / "expert-test"; self.child_cwd.mkdir()
+        self.pdir = paths.transcript_path(self.parent_cwd, "x").parent
+        self.pdir.mkdir(parents=True, exist_ok=True)
+        shutil.copy(FX, self.pdir / "child.jsonl")
+        self.reg = Registry(Path(self.tmp.name) / "registry.json")
+        self.reg.save({
+            "expert-test": Entry(name="expert-test", session_id="child", cwd=str(self.child_cwd),
+                                 model="claude-opus-5", status="running", spec_hash="x",
+                                 spawned_at=0.0, fork_of="opus"),
+            "opus": Entry(name="opus", session_id="parent", cwd=str(self.parent_cwd),
+                          model="claude-opus-5", status="running", spec_hash="x", spawned_at=0.0),
+        })
+
+    def tearDown(self):
+        shutil.rmtree(self.pdir, ignore_errors=True); self.tmp.cleanup()
+
+    def test_forked_row_reads_the_transcript_from_the_parents_dir(self):
+        rows = {r.name: r for r in status.rows(now=LAST_TURN_TS + 60, registry=self.reg)}
+        self.assertEqual(rows["expert-test"].context, 5 + 1000 + 200)
+        self.assertEqual(rows["expert-test"].read, 1000)
+        self.assertGreater(rows["expert-test"].dollars, 0.0)
+        # the parent has no transcript file of its own in this fixture
+        self.assertEqual(rows["opus"].context, 0)
+
+
 if __name__ == "__main__":
     unittest.main()

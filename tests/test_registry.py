@@ -3,7 +3,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from fleet.registry import Entry, Registry, RegistryLocked
+from fleet.paths import transcript_path
+from fleet.registry import Entry, Registry, RegistryLocked, transcript_for
 
 
 class RegistryTests(unittest.TestCase):
@@ -25,6 +26,20 @@ class RegistryTests(unittest.TestCase):
         self.assertEqual(self.reg.load()["sonnet"], e)
         self.assertFalse((self.path.parent / "registry.json.tmp").exists())
         self.assertIn("sonnet", json.loads(self.path.read_text()))
+
+    def test_transcript_for_uses_the_parents_cwd_for_a_fork(self):
+        parent = Entry(name="opus", session_id="p1", cwd="/x/opus", model="claude-opus-5",
+                       status="running", spec_hash="h", spawned_at=0.0)
+        child = Entry(name="expert", session_id="c1", cwd="/x/expert", model="claude-opus-5",
+                      status="running", spec_hash="h", spawned_at=1.0, fork_of="opus")
+        entries = {"opus": parent, "expert": child}
+        self.assertEqual(transcript_for(child, entries), transcript_path(Path("/x/opus"), "c1"))
+        self.assertEqual(transcript_for(parent, entries), transcript_path(Path("/x/opus"), "p1"))
+
+    def test_transcript_for_falls_back_to_own_cwd_when_parent_is_gone(self):
+        child = Entry(name="expert", session_id="c1", cwd="/x/expert", model="claude-opus-5",
+                      status="running", spec_hash="h", spawned_at=1.0, fork_of="opus")
+        self.assertEqual(transcript_for(child, {"expert": child}), transcript_path(Path("/x/expert"), "c1"))
 
     def test_lock_is_exclusive(self):
         with self.reg.locked():

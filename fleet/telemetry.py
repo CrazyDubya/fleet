@@ -4,8 +4,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import cost, ledger, transcript
-from .paths import LEDGER, transcript_path
-from .registry import Registry
+from .paths import LEDGER
+from .registry import Registry, transcript_for
 from .spec import load_settings
 
 OUT = LEDGER / "telemetry"
@@ -25,11 +25,8 @@ def derive_day(day: str, registry: Registry | None = None, events: list[dict] | 
     entries = registry.load()
     recs = []
     for name, e in sorted(entries.items()):
-        # Forked children's transcripts live under the PARENT's cwd project
-        # dir (see status.resolve_pending_fork_ids) - not the child's own cwd.
-        parent = entries.get(e.fork_of) if e.fork_of else None
-        transcript_cwd = Path(parent.cwd) if parent else Path(e.cwd)
-        all_turns = transcript.parse(transcript_path(transcript_cwd, e.session_id)).turns
+        # transcript_for: a fork's transcript lives under the PARENT's cwd.
+        all_turns = transcript.parse(transcript_for(e, entries)).turns
         turns = [t for t in all_turns if lo <= t.ts < hi]
         ttl = cost.observed_ttl_minutes(turns, default_ttl)
         uncached = sum(t.input for t in turns); read = sum(t.cache_read for t in turns)

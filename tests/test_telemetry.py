@@ -2,12 +2,21 @@ import json
 import shutil
 import tempfile
 import unittest
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from fleet import telemetry, paths
 from fleet.registry import Entry, Registry
 
 FX = Path(__file__).parent / "fixtures" / "small.jsonl"
+# The fixture's last assistant turn, 2026-08-26T04:05:00Z. Days are LOCAL
+# (the nightly job fires at 23:55 local), so derive the day name from it
+# rather than hard-coding one that is only right in some timezones.
+FX_LAST_TS = 1787717100.0
+
+
+def _fixture_day() -> str:
+    return datetime.fromtimestamp(FX_LAST_TS).strftime("%Y-%m-%d")
 
 
 class TelemetryTests(unittest.TestCase):
@@ -106,6 +115,39 @@ class OvernightColdWakeTests(unittest.TestCase):
         [r] = recs
         self.assertEqual(r["turns"], 1)  # the 23:00 turn
         self.assertEqual(r["cold_wakes"], 0)  # no turn before it to gap against
+
+
+class ForkedThreadTests(unittest.TestCase):
+    """Same seam as ForkedRowTests in test_status: derive_day must read a
+    fork's transcript from the parent's project dir, via the one shared
+    registry.transcript_for helper."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.parent_cwd = Path(self.tmp.name) / "opus"; self.parent_cwd.mkdir()
+        self.child_cwd = Path(self.tmp.name) / "expert-test"; self.child_cwd.mkdir()
+        self.pdir = paths.transcript_path(self.parent_cwd, "x").parent
+        self.pdir.mkdir(parents=True, exist_ok=True)
+        shutil.copy(FX, self.pdir / "child.jsonl")
+        self.reg = Registry(Path(self.tmp.name) / "registry.json")
+        self.reg.save({
+            "expert-test": Entry(name="expert-test", session_id="child", cwd=str(self.child_cwd),
+                                 model="claude-opus-5", status="running", spec_hash="x",
+                                 spawned_at=0.0, fork_of="opus"),
+            "opus": Entry(name="opus", session_id="parent", cwd=str(self.parent_cwd),
+                          model="claude-opus-5", status="running", spec_hash="x", spawned_at=0.0),
+        })
+        self.out = Path(self.tmp.name) / "telemetry"
+
+    def tearDown(self):
+        shutil.rmtree(self.pdir, ignore_errors=True); self.tmp.cleanup()
+
+    def test_forked_thread_turns_are_derived(self):
+        recs = {r["thread"]: r for r in
+                telemetry.derive_day(_fixture_day(), registry=self.reg, events=[], out_dir=self.out)}
+        self.assertEqual(recs["expert-test"]["turns"], 2)
+        self.assertGreater(recs["expert-test"]["dollars"], 0.0)
+        self.assertEqual(recs["opus"]["turns"], 0)  # no transcript of its own here
 
 
 if __name__ == "__main__":

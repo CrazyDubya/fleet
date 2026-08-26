@@ -4,7 +4,7 @@ from pathlib import Path
 
 from . import cost, ledger, tmux, transcript
 from .paths import ROOT, transcript_path
-from .registry import Registry
+from .registry import Entry, Registry, RegistryLocked, transcript_for
 from .spec import load_settings, load_specs, spec_hash
 
 
@@ -29,16 +29,23 @@ class Row:
     errors: int
 
 
-def resolve_pending_fork_ids(registry: Registry) -> None:
-    # `claude --resume <parent-session> --fork-session` writes the child's
-    # transcript into the *parent's* project directory (keyed off the
-    # parent's original cwd), not the child's own cwd - verified by hand: a
-    # forked "expert-test" child's session lands under
-    # ~/.claude/projects/-Users-pup-fleet-opus/, alongside opus's own
-    # transcript, never under -Users-pup-fleet-expert-test/. So look there,
-    # and skip the parent's own already-known session file when picking the
-    # newest candidate.
-    entries = registry.load()
+def resolve_pending(entries: dict[str, Entry]) -> bool:
+    """Fill in the session id of any fork still registered as "pending".
+
+    Pure: mutates `entries` in place and reports whether anything changed.
+    Persisting is the caller's job, because the caller is the one that knows
+    whether it already holds the registry lock (spec §9) - the lock is not
+    reentrant.
+
+    `claude --resume <parent-session> --fork-session` writes the child's
+    transcript into the *parent's* project directory (keyed off the parent's
+    original cwd), not the child's own cwd - verified by hand: a forked
+    "expert-test" child's session lands under
+    ~/.claude/projects/-Users-pup-fleet-opus/, alongside opus's own
+    transcript, never under -Users-pup-fleet-expert-test/. So look there, and
+    skip the parent's own already-known session file when picking the newest
+    candidate.
+    """
     changed = False
     for e in entries.values():
         if e.session_id != "pending":
@@ -51,24 +58,55 @@ def resolve_pending_fork_ids(registry: Registry) -> None:
                         key=lambda p: p.stat().st_mtime) if d.is_dir() else []
         if files:
             e.session_id = files[-1].stem; changed = True
-    if changed:
-        registry.save(entries)
+    return changed
+
+
+def _resolve_and_persist(registry: Registry) -> dict[str, Entry]:
+    """Resolve pending forks and write them back under the registry lock.
+
+    If another fleet process holds the lock, skip the write and use the
+    in-memory resolution for this render: it is idempotent and the next
+    `fleet status` will persist it.
+    """
+    entries = registry.load()
+    if resolve_pending(entries):
+        try:
+            with registry.locked():
+                registry.save(entries)
+        except RegistryLocked:
+            pass
+    return entries
+
+
+def resolve_pending_fork_ids(registry: Registry) -> None:
+    _resolve_and_persist(registry)
 
 
 def _baseline_bytes(thread) -> int:
     return sum((ROOT / b).stat().st_size for b in thread.baseline if (ROOT / b).exists())
 
 
-def rows(now: float | None = None, registry: Registry | None = None, specs=None) -> list[Row]:
+def rows(now: float | None = None, registry: Registry | None = None, specs=None,
+         entries: dict[str, Entry] | None = None) -> list[Row]:
+    """Rows for every registered thread.
+
+    Pass `entries` when you already hold the registry lock (launcher.wake
+    does): the resolution is then applied to *your* dict and persisted by
+    your own save, instead of being written behind your back and then
+    reverted by it.
+    """
     now = now or time.time()
     registry = registry or Registry()
     specs = specs or load_specs()
     default_ttl = load_settings()["cache_ttl_minutes"]
-    resolve_pending_fork_ids(registry)
+    if entries is None:
+        entries = _resolve_and_persist(registry)
+    else:
+        resolve_pending(entries)
     out = []
-    for name, e in sorted(registry.load().items()):
+    for name, e in sorted(entries.items()):
         t = specs.get(name)
-        parsed = transcript.parse(transcript_path(Path(e.cwd), e.session_id))
+        parsed = transcript.parse(transcript_for(e, entries))
         turns = parsed.turns
         ttl = cost.observed_ttl_minutes(turns, default_ttl)
         last_turn_ts = turns[-1].ts if turns else None

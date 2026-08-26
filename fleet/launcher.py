@@ -106,7 +106,11 @@ def wake(name: str) -> Entry:
             except ModuleNotFoundError:
                 rows = None  # Task 9 not yet landed; advisory warning is skipped, not fatal
             if rows is not None:
-                for r in rows(registry=reg):
+                # Pass our own `entries`: we hold the lock (it is not
+                # reentrant), and any fork-id resolution rows() performs must
+                # land in the dict our own reg.save() below writes back -
+                # otherwise that save reverts it to "pending".
+                for r in rows(registry=reg, entries=entries):
                     if r.name == name and r.warmth == "cold" and r.resume_usd > r.respawn_usd and r.last_handoff:
                         print(f"warning: {name} is cold; resume ${r.resume_usd:.2f} > respawn ${r.respawn_usd:.2f} "
                               f"and its last handoff is already in {r.last_handoff} - consider `fleet respawn {name}`")
