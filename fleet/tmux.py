@@ -34,12 +34,26 @@ def kill_window(name: str) -> None:
     _run("kill-window", "-t", _target(name))
 
 
+def paste_argv(name: str, buffer: str = "fleet-paste") -> list[str]:
+    """`paste-buffer` args for delivering one packet as a single input event.
+
+    `-p` is load-bearing: it wraps the paste in bracketed-paste escapes when
+    the receiving application has asked for that mode. Claude Code has, and
+    without the brackets it treats every newline as a submit - so a
+    multi-line packet arrives as N separate messages, each answered before
+    the rest of the packet has even been read. `-d` deletes the buffer after
+    pasting; the Enter that follows is still sent explicitly, because a
+    bracketed paste deliberately does not submit by itself.
+    """
+    return ["paste-buffer", "-b", buffer, "-t", _target(name), "-d", "-p"]
+
+
 def paste(name: str, text: str) -> None:
     with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as f:
         f.write(text); path = f.name
     try:
         _run("load-buffer", "-b", "fleet-paste", path)
-        _run("paste-buffer", "-b", "fleet-paste", "-t", _target(name), "-d")
+        _run(*paste_argv(name))
     finally:
         Path(path).unlink()
     _run("send-keys", "-t", _target(name), "Enter")

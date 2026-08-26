@@ -9,6 +9,18 @@ WA = "fleet-t-a"
 WAB = "fleet-t-ab"
 
 
+class PasteArgvTests(unittest.TestCase):
+    """`cat` never requests bracketed-paste mode, so the live paste test
+    below cannot observe the brackets. Pin the flag structurally instead:
+    without -p, Claude Code submits a multi-line packet line by line."""
+
+    def test_paste_uses_bracketed_paste(self):
+        argv = tmux.paste_argv("thing")
+        self.assertEqual(argv[0], "paste-buffer")
+        self.assertIn("-p", argv)
+        self.assertEqual(argv[argv.index("-t") + 1], "fleet:=thing")
+
+
 class TmuxLiveTests(unittest.TestCase):
     def tearDown(self):
         for name in (W, WA, WAB):
