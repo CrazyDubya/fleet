@@ -48,9 +48,9 @@ def derive_day(day: str, registry: Registry | None = None, events: list[dict] | 
                 cold_wakes += 1
                 cold_usd += cost.resume_cost(cur.cache_5m + cur.cache_1h, e.model, ttl)
         day_events = [x for x in events if lo <= x.get("t", 0) < hi]
-        respawns = sum(1 for x in day_events if x["ev"] == "respawn" and x.get("thread") == name)
-        misses = Counter(x.get("reason", "?") for x in day_events if x["ev"] == "miss" and x.get("thread") == name)
-        sent = sum(1 for x in day_events if x["ev"] == "send" and x.get("from") == name)
+        respawns = sum(1 for x in day_events if x.get("ev") == "respawn" and x.get("thread") == name)
+        misses = Counter(x.get("reason", "?") for x in day_events if x.get("ev") == "miss" and x.get("thread") == name)
+        sent = sum(1 for x in day_events if x.get("ev") == "send" and x.get("from") == name)
         recs.append({
             "day": day, "thread": name, "model": e.model, "turns": len(turns),
             "hit_ratio": (read / denom) if denom else 0.0,

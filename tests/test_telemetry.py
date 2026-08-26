@@ -45,6 +45,13 @@ class TelemetryTests(unittest.TestCase):
         self.assertTrue((self.out / "2026-08-26.jsonl").exists())
         self.assertEqual(json.loads((self.out / "2026-08-26.jsonl").read_text().splitlines()[0])["thread"], "haiku-fs")
 
+    def test_events_without_an_ev_key_do_not_crash_the_day(self):
+        # ledger.read_events() returns whatever parsed; a record missing "ev"
+        # (hand-edited line, older writer) must be skipped, not raise KeyError.
+        events = [*self.events, {"t": 1787716800.0, "thread": "haiku-fs"}]
+        [r] = telemetry.derive_day("2026-08-26", registry=self.reg, events=events, out_dir=self.out)
+        self.assertEqual(r["respawns"], 1)
+
     def test_report_mentions_three_questions(self):
         telemetry.derive_day("2026-08-26", registry=self.reg, events=self.events, out_dir=self.out)
         text = telemetry.report(out_dir=self.out)

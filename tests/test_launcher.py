@@ -33,5 +33,6 @@ class ArgvTests(unittest.TestCase):
         i = argv.index("--mcp-config"); self.assertEqual(argv[i + 1], "/r/mcp/core.json")
         self.assertIn("--strict-mcp-config", argv)
         self.assertEqual(argv[argv.index("--add-dir") + 1], "/Users/pup")
-        self.assertEqual(argv[-3:-2], ["/r/briefs/x.md"][0:0] or argv[-3:-2])  # x.md is last baseline
+        # x.md is the last baseline, appended after the thread's own
         self.assertEqual(argv[argv.index("/r/briefs/x.md") - 1], "--append-system-prompt-file")
+        self.assertGreater(argv.index("/r/briefs/x.md"), argv.index("/r/briefs/sonnet.md"))
