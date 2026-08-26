@@ -8,7 +8,8 @@ EVENTS = LEDGER / "events.jsonl"
 HANDOFFS = LEDGER / "handoffs"
 
 
-def event(kind: str, path: Path = EVENTS, **fields) -> dict:
+def event(kind: str, path: Path | None = None, **fields) -> dict:
+    path = path or EVENTS  # resolved per call so tests can pass a temp path
     rec = {"ev": kind, "t": time.time(), **fields}
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "a") as f:

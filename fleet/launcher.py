@@ -9,6 +9,7 @@ from .registry import Entry, Registry
 from .spec import Thread, load_specs, spec_hash
 
 SPAWN_GRACE_SECONDS = 3
+SPAWN_TAIL_LINES = 20
 
 
 class LaunchError(RuntimeError):
@@ -37,16 +38,31 @@ def build_argv(thread: Thread, root: Path, session_id: str | None = None, resume
     return argv
 
 
-def _spawn(thread: Thread, argv: list[str]) -> None:
+def _spawn(thread: Thread, argv: list[str], events_path: Path | None = None) -> None:
     cwd = thread_dir(thread.name)
     cwd.mkdir(parents=True, exist_ok=True)
     if tmux.window_exists(thread.name):
         raise LaunchError(f"{thread.name}: tmux window already exists")
-    tmux.new_window(thread.name, cwd, shlex.join(argv))
+    # remain-on-exit keeps the pane readable if claude dies inside the grace
+    # window, so spec §9's "spawn_failed with stderr tail" has something to
+    # report - a bad model id or a refused dialog otherwise vanished with the
+    # window and the operator saw only "window closed".
+    tmux.new_window(thread.name, cwd, shlex.join(argv), remain_on_exit=True)
     time.sleep(SPAWN_GRACE_SECONDS)
-    if not tmux.window_exists(thread.name):
-        ledger.event("spawn_failed", thread=thread.name, argv=argv)
-        raise LaunchError(f"{thread.name}: claude exited within {SPAWN_GRACE_SECONDS}s (window closed)")
+    alive = tmux.window_exists(thread.name)
+    if not alive or tmux.pane_dead(thread.name):
+        tail = _tail(thread.name) if alive else "(window vanished; no output captured)"
+        ledger.event("spawn_failed", path=events_path, thread=thread.name, argv=argv, tail=tail)
+        tmux.kill_window(thread.name)
+        raise LaunchError(f"{thread.name}: claude exited within {SPAWN_GRACE_SECONDS}s\n{tail}")
+    # Only the spawn needed the pane pinned; leaving it on would turn a later
+    # crash into a zombie window that `up` refuses to replace.
+    tmux.clear_remain_on_exit(thread.name)
+
+
+def _tail(name: str) -> str:
+    lines = [l for l in tmux.capture(name, lines=SPAWN_TAIL_LINES).splitlines() if l.strip()]
+    return "\n".join(lines[-SPAWN_TAIL_LINES:])
 
 
 def _thread(name: str) -> Thread:

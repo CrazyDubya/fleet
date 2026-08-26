@@ -23,9 +23,35 @@ def window_exists(name: str) -> bool:
     return r.returncode == 0 and name in r.stdout.split("\n")
 
 
-def new_window(name: str, cwd: Path, command: str) -> None:
+def new_window(name: str, cwd: Path, command: str, remain_on_exit: bool = False) -> None:
+    """Create a detached window running `command` in `cwd`.
+
+    With remain_on_exit the pane survives the command exiting, so a spawn
+    that dies immediately can still have its stderr read back (spec §9). It
+    is set in the SAME tmux invocation as new-window: a separate call would
+    race a command that exits before the option lands.
+    """
     ensure_session()
-    _run("new-window", "-d", "-t", f"{SESSION}:", "-n", name, "-c", str(cwd), command)
+    args = ["new-window", "-d", "-t", f"{SESSION}:", "-n", name, "-c", str(cwd), command]
+    if remain_on_exit:
+        args += [";", "set-option", "-w", "-t", _target(name), "remain-on-exit", "on"]
+    _run(*args)
+
+
+def remain_on_exit(name: str) -> str:
+    """The window's *effective* remain-on-exit (inherited value included)."""
+    r = _run("display", "-p", "-t", _target(name), "#{remain-on-exit}", check=False, capture=True)
+    return r.stdout.strip() if r.returncode == 0 else ""
+
+
+def clear_remain_on_exit(name: str) -> None:
+    _run("set-option", "-w", "-t", _target(name), "-u", "remain-on-exit", check=False)
+
+
+def pane_dead(name: str) -> bool:
+    """True when the window's command has exited but the pane is being kept."""
+    r = _run("display", "-p", "-t", _target(name), "#{pane_dead}", check=False, capture=True)
+    return r.returncode == 0 and r.stdout.strip() == "1"
 
 
 def kill_window(name: str) -> None:
