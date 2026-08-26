@@ -15,6 +15,7 @@ class CostTests(unittest.TestCase):
         now = 10_000.0
         self.assertEqual(cost.warmth(None, now, 60), ("new", 0))
         self.assertEqual(cost.warmth(now - 10 * 60, now, 60), ("hot", 10))
+        self.assertEqual(cost.warmth(now - 45 * 60, now, 60), ("cooling", 45))  # exactly 0.75·TTL boundary
         self.assertEqual(cost.warmth(now - 50 * 60, now, 60), ("cooling", 50))
         self.assertEqual(cost.warmth(now - 61 * 60, now, 60), ("cold", 61))
 
@@ -23,6 +24,8 @@ class CostTests(unittest.TestCase):
         self.assertEqual(cost.observed_ttl_minutes([turn(cache_5m=5)], 60), 5)
         self.assertEqual(cost.observed_ttl_minutes([turn()], 7), 7)
         self.assertEqual(cost.observed_ttl_minutes([], 60), 60)
+        # Any turn with cache_1h takes priority: [cache_1h, cache_5m] → 60
+        self.assertEqual(cost.observed_ttl_minutes([turn(cache_1h=1), turn(cache_5m=1)], 60), 60)
 
     def test_context_size_is_last_turn_prefix(self):
         turns = [turn(input=1, cache_1h=100), turn(input=5, cache_read=100, cache_1h=20)]
@@ -35,6 +38,10 @@ class CostTests(unittest.TestCase):
         s = cost.spend([t], "claude-haiku-4-5")
         self.assertEqual((s.read, s.written, s.output), (1_000_000, 1_000_000, 200_000))
         self.assertAlmostEqual(s.dollars, 3.20, places=6)
+
+    def test_spend_empty(self):
+        s = cost.spend([], "claude-sonnet-5")
+        self.assertAlmostEqual(s.dollars, 0.0, places=6)
 
     def test_resume_vs_respawn(self):
         # fable $10/M in; 1h TTL write = 2×. 300k context → $6.00; 20kB baseline ≈ 5k tokens → $0.10

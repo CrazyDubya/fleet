@@ -36,11 +36,10 @@ def warmth(last_turn_ts: float | None, now: float, ttl_minutes: int) -> tuple[st
 
 
 def observed_ttl_minutes(turns: list[Turn], default: int) -> int:
-    for t in reversed(turns):
-        if t.cache_1h > 0:
-            return 60
-        if t.cache_5m > 0:
-            return 5
+    if any(t.cache_1h > 0 for t in turns):
+        return 60
+    if any(t.cache_5m > 0 for t in turns):
+        return 5
     return default
 
 
