@@ -36,11 +36,23 @@ class PromptsWidgetTests(unittest.TestCase):
         self.assertEqual(prompts.pending("v2"), [])
 
     def test_keypress_validates(self):
-        with mock.patch("gui.widgets.prompts.server.tmux._run") as run:
+        with mock.patch("gui.widgets.prompts.server.tmux._run") as run, \
+                mock.patch("gui.widgets.prompts.server.tmux.window_exists", return_value=True):
             psrv.keypress(ctx("POST", body={"thread": "sonnet2", "key": "1"}))
             run.assert_called_once()
         with self.assertRaises(Exception):
             psrv.keypress(ctx("POST", body={"thread": "sonnet2", "key": "rm -rf"}))
+
+    def test_get_filters_malformed_thread_names(self):
+        prompts.open_prompt("<img src=x onerror=alert(1)>", "Bash", "x", "/c", "v2")
+        out = psrv.get(ctx())
+        self.assertEqual(out["items"], [])
+
+    def test_keypress_dead_window_404(self):
+        with mock.patch("gui.widgets.prompts.server.tmux.window_exists", return_value=False):
+            with self.assertRaises(psrv.HttpError) as cm:
+                psrv.keypress(ctx("POST", body={"thread": "sonnet2", "key": "1"}))
+            self.assertEqual(cm.exception.code, 404)
 
 
 class HooksWidgetTests(unittest.TestCase):
@@ -54,3 +66,9 @@ class HooksWidgetTests(unittest.TestCase):
                 out = hsrv.get(ctx(query={"n": "10"}))
         self.assertEqual([e["hook"] for e in out["events"]], ["perm", "gate"])
         self.assertEqual(out["counts"]["sonnet2"], {"allow": 1, "escalate": 1})
+
+
+class WidgetJsStaticTests(unittest.TestCase):
+    def test_widget_js_has_no_innerhtml(self):
+        js = (Path(__file__).resolve().parents[1] / "gui" / "widgets" / "prompts" / "widget.js").read_text()
+        self.assertNotIn("innerHTML", js)

@@ -17,6 +17,8 @@ def _profile() -> str:
 def get(ctx):
     items = []
     for rec in prompts.pending(_profile()):
+        if not NAME.fullmatch(rec.get("thread", "")) or not re.fullmatch(r"[0-9a-f]{16}", rec.get("id", "")):
+            continue
         try:
             pane = [l for l in tmux.capture(rec["thread"], lines=12).splitlines() if l.strip()][-12:]
         except Exception:
@@ -27,7 +29,7 @@ def get(ctx):
 
 def decide(ctx):
     b = ctx.json(); thread, pid, decision = b.get("thread", ""), b.get("id", ""), b.get("decision", "")
-    if not NAME.match(thread) or decision not in ("allow", "deny") or not re.fullmatch(r"[0-9a-f]{16}", pid):
+    if not NAME.fullmatch(thread) or decision not in ("allow", "deny") or not re.fullmatch(r"[0-9a-f]{16}", pid):
         raise HttpError(400, "bad thread/id/decision")
     try:
         prompts.record_decision(thread, pid, decision, _profile())
@@ -40,8 +42,10 @@ def decide(ctx):
 
 def keypress(ctx):
     b = ctx.json(); thread, key = b.get("thread", ""), b.get("key", "")
-    if not NAME.match(thread) or key not in KEYS:
+    if not NAME.fullmatch(thread) or key not in KEYS:
         raise HttpError(400, "bad thread/key")
+    if not tmux.window_exists(thread):
+        raise HttpError(404, "no such window")
     tmux._run("send-keys", "-t", tmux._target(thread), key)
     ledger.event("keypress", thread=thread, key=key, via="gui")
     return {"ok": True}
