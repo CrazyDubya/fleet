@@ -171,6 +171,22 @@ def cmd_ask(args):
     return 0
 
 
+def cmd_bench(args):
+    if args.bench_cmd == "run":
+        from fleet.bench import run as brun
+        arms = args.arms.split(",")
+        bad = [a for a in arms if a not in ("fable", "sonnet", "fleet")]
+        if bad:
+            print(f"error: unknown arm(s): {', '.join(bad)}", file=sys.stderr); return 1
+        ids = None if args.task == "all" else [args.task]
+        brun.run_many(ids, arms, repeat=args.repeat)
+        return 0
+    from fleet.bench import report as breport, run as brun
+    since = datetime.strptime(args.since, "%Y-%m-%d").timestamp() if args.since else None
+    print(breport.render(breport.summarize(breport.load(brun.RUNS, since))))
+    return 0
+
+
 def _build_parser():
     p = argparse.ArgumentParser(prog="fleet")
     p.add_argument("--profile", default=None)
@@ -199,6 +215,10 @@ def _build_parser():
     h.add_argument("ms", type=int); h.add_argument("why", nargs="*"); h.set_defaults(fn=cmd_hook_event)
     pd = sub.add_parser("perm-decide"); pd.add_argument("thread"); pd.add_argument("cwd"); pd.add_argument("command"); pd.set_defaults(fn=cmd_perm_decide)
     pc = sub.add_parser("perm-check"); pc.add_argument("command"); pc.set_defaults(fn=cmd_perm_check)
+    b = sub.add_parser("bench"); bs = b.add_subparsers(dest="bench_cmd", required=True)
+    br = bs.add_parser("run"); br.add_argument("task"); br.add_argument("--arms", default="fable,sonnet,fleet")
+    br.add_argument("--repeat", type=int, default=1); br.set_defaults(fn=cmd_bench)
+    bp = bs.add_parser("report"); bp.add_argument("--since"); bp.set_defaults(fn=cmd_bench)
     return p
 
 
