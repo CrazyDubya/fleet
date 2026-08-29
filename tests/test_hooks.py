@@ -40,6 +40,23 @@ class GateTests(unittest.TestCase):
         r = run("gate.sh", {"cwd": "/Users/pup/elsewhere", "tool_name": "SendMessage", "tool_input": {"to": "haiku-fs2", "message": "x"}})
         self.assertEqual(r.returncode, 0)
 
+    def test_thread_from_transcript_path_when_cwd_is_root(self):
+        r = run("gate.sh", {
+            "cwd": str(ROOT),
+            "transcript_path": "/Users/pup/.claude/projects/-Users-pup-fleet-sonnet2/x.jsonl",
+            "tool_name": "Bash",
+            "tool_input": {"command": "ls"},
+        })
+        self.assertEqual(r.returncode, 0)
+        ev = ledger.read_events()[-1]
+        self.assertEqual(ev["thread"], "sonnet2")
+
+    def test_thread_falls_back_to_cwd_without_transcript_path(self):
+        r = run("gate.sh", {"cwd": self.cwd, "tool_name": "Bash", "tool_input": {"command": "ls"}})
+        self.assertEqual(r.returncode, 0)
+        ev = ledger.read_events()[-1]
+        self.assertEqual(ev["thread"], "sonnet2")
+
 
 class HoldTests(unittest.TestCase):
     def test_blocks_when_pending(self):
@@ -67,6 +84,18 @@ class PermTests(unittest.TestCase):
     def test_non_bash_falls_through(self):
         r = run("perm.sh", {"cwd": str(ROOT / "sonnet2"), "tool_name": "Write", "tool_input": {}})
         self.assertEqual((r.returncode, r.stdout), (0, ""))
+
+    def test_perm_decides_when_cwd_is_root(self):
+        r = run("perm.sh", {
+            "cwd": str(ROOT),
+            "transcript_path": "/Users/pup/.claude/projects/-Users-pup-fleet-sonnet2/x.jsonl",
+            "tool_name": "Bash",
+            "tool_input": {"command": "ls /Users/pup/fleet/gui"},
+        })
+        self.assertEqual(json.loads(r.stdout)["hookSpecificOutput"]["decision"]["behavior"], "allow")
+
+    def test_perm_script_has_no_diag_line(self):
+        self.assertNotIn("TEMP DIAG", (HOOKS / "perm.sh").read_text())
 
 
 class RouterTests(unittest.TestCase):
