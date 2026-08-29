@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 
 from fleet.bench import tasks
@@ -36,6 +37,20 @@ class TaskTests(unittest.TestCase):
         self.assertEqual(r.target, "bench/work/abc123/out")
         self.assertEqual(r.check, "grep -q handoffs bench/work/abc123/out/reply.txt")
         self.assertIn("/r/ledger/handoffs", r.packet); self.assertIn("maps/projects.md", r.packet)
+
+    def test_expect_is_optional_and_substituted(self):
+        t = tasks.load_task(self.dir / "lookup-newest.toml")
+        self.assertIsNone(t.expect)
+        (self.dir / "e.toml").write_text(TOML + '\nexpect = "cd {root} && ls -t ledger/handoffs | head -1"\n')
+        e = tasks.substitute(tasks.load_task(self.dir / "e.toml"), "abc123", Path("/r"))
+        self.assertEqual(e.expect, "cd /r && ls -t ledger/handoffs | head -1")
+
+    def test_with_expect_fills_check_and_cleanup(self):
+        t = tasks.load_task(self.dir / "lookup-newest.toml")
+        r = tasks.with_expect(tasks.substitute(replace(t, check='test "$(cat {target}/reply.txt)" = "{expect}"',
+                                                       cleanup="rm -rf {target}"), "abc123", Path("/r")), "ledger/handoffs/a.md")
+        self.assertEqual(r.check, 'test "$(cat bench/work/abc123/out/reply.txt)" = "ledger/handoffs/a.md"')
+        self.assertEqual(r.cleanup, "rm -rf bench/work/abc123/out")
 
     def test_load_all_sorted_and_rejects_bad_lane(self):
         (self.dir / "a-build.toml").write_text(TOML.replace('id = "lookup-newest"', 'id = "a-build"').replace('lane = "lookup"', 'lane = "build"'))

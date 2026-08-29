@@ -26,6 +26,7 @@ class SingleTurnTests(unittest.TestCase):
             self.assertEqual((wd / "stdout.txt").read_text(), "hello\n")
             self.assertEqual(calls[0][1]["cwd"], str(wd)); self.assertEqual(calls[0][1]["timeout"], 30)
             self.assertTrue(str(r.transcripts[0]).endswith(".jsonl"))
+            self.assertEqual(r.threads, ["bench-work-run1"])  # hooks/v2/_lib.sh derives this from the transcript dir
 
     def test_run_single_turn_timeout(self):
         def spawn(argv, **kw):
@@ -52,6 +53,12 @@ class FleetWaitTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             ok = arms.fleet_wait_done("run77", 0.0, 5, Path(d), capture=lambda: "", sleep=lambda s: None, clock=iter([1.0, 3.0, 6.0]).__next__)
         self.assertFalse(ok)
+
+    def test_poll_is_one_second_so_t1_is_not_quantised(self):
+        slept = []
+        with tempfile.TemporaryDirectory() as d:
+            arms.fleet_wait_done("run77", 0.0, 5, Path(d), capture=lambda: "", sleep=slept.append, clock=iter([1.0, 6.0]).__next__)
+        self.assertEqual(slept, [1])
 
     def test_old_handoff_is_ignored(self):
         with tempfile.TemporaryDirectory() as d:

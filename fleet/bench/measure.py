@@ -50,10 +50,15 @@ def pool_split(usd: dict[str, float]) -> dict:
     return pools
 
 
-def interventions(events: list[dict], t0: float, t1: float) -> dict[str, int]:
+def interventions(events: list[dict], t0: float, t1: float, threads: set[str] | None = None) -> dict[str, int]:
+    """Count operator interventions in [t0, t1). `threads` (when given) restricts the
+    count to events from the threads this arm-run owns - the ledger is fleet-wide, so
+    without it an unrelated thread's escalation lands on the run being measured."""
     n = {"keypress": 0, "decide": 0, "escalate": 0, "block": 0}
     for e in events:
         if not (t0 <= e.get("t", -1) < t1):
+            continue
+        if threads is not None and e.get("thread") not in threads:
             continue
         if e.get("ev") in ("keypress", "decide"):
             n[e["ev"]] += 1

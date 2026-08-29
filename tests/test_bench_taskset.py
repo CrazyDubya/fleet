@@ -17,8 +17,10 @@ class TaskSetTests(unittest.TestCase):
         self.assertEqual(sorted(t.lane for t in ts), ["build", "judge", "lookup", "plan"])
         for t in ts:
             r = tasks.substitute(t, "deadbeefdeadbeef", ROOT)
-            for field in ("packet", "target", "check"):
+            for field in ("packet", "target", "check", "expect"):
                 value = getattr(r, field)
+                if value is None:
+                    continue
                 self.assertIsNone(
                     _PLACEHOLDER.search(value), f"{t.id}.{field} has an unresolved placeholder: {value!r}"
                 )

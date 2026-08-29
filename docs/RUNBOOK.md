@@ -113,4 +113,5 @@ Two live-bring-up findings worth knowing before tuning a v2 brief further:
 | one task, cheap arms | `fleet bench run lookup-newest-handoff --arms sonnet,fleet` |
 | the numbers | `fleet bench report [--since 2026-08-29]` — `$` is API-rate; `weekly$`/`fable$` split the same `$` by subscription pool (shares, not balances) |
 | add a task | drop `bench/tasks/<id>.toml` (see the four there); `check` must exit 0 on success; `judge` is optional |
+| what the fleet arm measures | the fleet arm enters at `sonnet2` (the fleet's front door); haiku/opus spend appears in its rows only when sonnet2 delegates — that is the fleet being measured, not a shortcut |
 | nightly | `cp ops/com.pup.fleet.bench.plist ~/Library/LaunchAgents/ && launchctl load ~/Library/LaunchAgents/com.pup.fleet.bench.plist` (sonnet + fleet arms; run the fable arm by hand) |

@@ -1,10 +1,10 @@
 id = "judge-two-widgets"
 lane = "judge"
-packet = "Compare gui/widgets/workspace/ and gui/widgets/workspace-r2/ against the design at {refs}. Write a verdict to {target}/verdict.md (create the directory) containing a scoring table, a '## Winner' section naming one of them, and file:line evidence. Reply with the path."
+packet = "Compare gui/widgets/workspace/ and gui/widgets/workspace-r2/ against the design at {refs}. Write a verdict to {target}/verdict.md (create the directory) containing a scoring table, a '## Winner' section whose first non-empty line is exactly the winning directory name (workspace or workspace-r2, nothing else on that line), and file:line evidence. Reply with the path."
 refs = ["ledger/handoffs/opus/20260829T021451Z-gui-design.md"]
 target = "bench/work/{run}/out"
-done = "{target}/verdict.md has a Winner section naming workspace or workspace-r2"
-check = "grep -q '## Winner' {target}/verdict.md && grep -Eq 'workspace(-r2)?' {target}/verdict.md"
+done = "the first non-empty line after '## Winner' in {target}/verdict.md is exactly workspace or workspace-r2"
+check = "awk '/^## Winner/{f=1;next} f&&NF{print;exit}' {target}/verdict.md | grep -Eq '^(gui/widgets/)?(workspace|workspace-r2)/?$'"
 judge = "bench/rubrics/review.md"
 timeout_s = 900
 cleanup = "rm -rf bench/work/{run}"

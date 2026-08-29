@@ -12,6 +12,7 @@ from fleet.paths import transcript_path
 
 ARMS = {"fable": "claude-fable-5", "sonnet": "claude-sonnet-5"}
 FLEET_TARGET = "sonnet2"
+POLL_S = 1  # done-detection poll: t1 is only as precise as this interval
 _WS = re.compile(r"\s+")
 
 
@@ -21,6 +22,7 @@ class ArmResult:
     transcripts: list[Path] = field(default_factory=list)
     stdout_path: Path | None = None
     note: str = ""
+    threads: list[str] = field(default_factory=list)  # ledger thread names this arm-run owns
 
 
 def single_turn_argv(model: str, session_id: str, packet: str, root: Path) -> list[str]:
@@ -34,14 +36,17 @@ def run_single_turn(model: str, packet: str, run: str, root: Path, timeout_s: in
     sid = str(uuid.uuid4())
     out = workdir / "stdout.txt"
     transcripts = [transcript_path(workdir, sid)]
+    # hooks/v2/_lib.sh derives THREAD from the transcript's project dir, so a cwd of
+    # <root>/bench/work/<run> reports as thread "bench-work-<run>".
+    threads = [f"bench-work-{run}"]
     try:
         r = spawn(single_turn_argv(model, sid, packet, root), cwd=str(workdir), capture_output=True, text=True, timeout=timeout_s)
     except subprocess.TimeoutExpired:
-        return ArmResult("timeout", transcripts, out, "claude -p exceeded timeout_s")
+        return ArmResult("timeout", transcripts, out, "claude -p exceeded timeout_s", threads)
     out.write_text(r.stdout or "")
     if r.returncode != 0:
-        return ArmResult("error", transcripts, out, f"claude -p exit {r.returncode}: {(r.stderr or '')[-300:]}")
-    return ArmResult("done", transcripts, out)
+        return ArmResult("error", transcripts, out, f"claude -p exit {r.returncode}: {(r.stderr or '')[-300:]}", threads)
+    return ArmResult("done", transcripts, out, "", threads)
 
 
 def _handoff_done(run: str, t0: float, handoff_dir: Path) -> bool:
@@ -63,20 +68,21 @@ def fleet_wait_done(run: str, t0: float, timeout_s: int, handoff_dir: Path, capt
             return True
         if clock() >= deadline:
             return False
-        sleep(5)
+        sleep(POLL_S)
 
 
 def run_fleet(packet_text: str, refs: list[str], done: str, run: str, root: Path, timeout_s: int, lane: str,
               profile: str, registry_entries: dict, send=send_mod.send_packet, capture=None, sleep=time.sleep, clock=time.time) -> ArmResult:
     from fleet.registry import transcript_for
     transcripts = [transcript_for(e, registry_entries) for e in registry_entries.values()]
+    threads = list(registry_entries.keys())
     p = packet_mod.Packet(to=FLEET_TARGET, sender="bench", lane=lane, effort=packet_mod.LANES[lane].effort, reply="file",
                           refs=refs, done=done, id=run, body=packet_text)
     t0 = clock()
     try:
         send(p, profile)
     except send_mod.SendError as exc:
-        return ArmResult("error", transcripts, None, str(exc))
+        return ArmResult("error", transcripts, None, str(exc), threads)
     cap = capture or (lambda: tmux.capture(FLEET_TARGET, lines=200, join=True))
     ok = fleet_wait_done(run, t0, timeout_s, root / "ledger" / "handoffs" / FLEET_TARGET, cap, sleep, clock)
-    return ArmResult("done" if ok else "timeout", transcripts, None, "" if ok else "no @re reply within timeout_s")
+    return ArmResult("done" if ok else "timeout", transcripts, None, "" if ok else "no @re reply within timeout_s", threads)

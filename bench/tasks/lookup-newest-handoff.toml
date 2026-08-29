@@ -4,6 +4,10 @@ packet = "Which file under {root}/ledger/handoffs/ (recursive) is newest by mtim
 refs = []
 target = "bench/work/{run}/out"
 done = "{target}/reply.txt names the newest handoff"
-check = "mkdir -p {target} && test \"$(cat {target}/reply.txt | tr -d '[:space:]')\" = \"$(cd {root} && ls -t ledger/handoffs/*/*.md | head -1)\""
+# The answer is pinned at t0, before the arm runs: the fleet arm's own reply=file
+# handoff (or anyone else's, mid-window) would otherwise make a correct answer fail.
+# `find | ls -t` because BSD find has no -printf; recursive, as the packet says.
+expect = "cd {root} && ls -t $(find ledger/handoffs -type f -name '*.md') | head -1"
+check = "test -f {target}/reply.txt && test \"$(tr -d '[:space:]' < {target}/reply.txt)\" = \"{expect}\""
 timeout_s = 180
 cleanup = "rm -rf bench/work/{run}"

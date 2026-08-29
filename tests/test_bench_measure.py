@@ -40,3 +40,10 @@ class MeasureTests(unittest.TestCase):
         ev = [{"ev": "hook", "hook": "perm", "decision": "escalate", "t": 5}, {"ev": "hook", "hook": "gate", "decision": "block", "t": 6},
               {"ev": "hook", "hook": "gate", "decision": "allow", "t": 6}, {"ev": "decide", "t": 7}, {"ev": "keypress", "t": 8}, {"ev": "keypress", "t": 50}]
         self.assertEqual(measure.interventions(ev, 0, 10), {"keypress": 1, "decide": 1, "escalate": 1, "block": 1})
+
+    def test_interventions_scoped_to_threads(self):
+        ev = [{"ev": "keypress", "t": 1, "thread": "sonnet2"}, {"ev": "keypress", "t": 2, "thread": "opus"},
+              {"ev": "hook", "decision": "escalate", "t": 3, "thread": "haiku1"}, {"ev": "decide", "t": 4}]
+        self.assertEqual(measure.interventions(ev, 0, 10, {"sonnet2", "haiku1"}),
+                         {"keypress": 1, "decide": 0, "escalate": 1, "block": 0})
+        self.assertEqual(measure.interventions(ev, 0, 10)["keypress"], 2)  # unscoped counts the whole ledger
