@@ -97,7 +97,10 @@ def _rm_denied(command: str, root: Path) -> str | None:
     are still detected -- shlex.split alone only isolates those as
     standalone tokens when whitespace surrounds them, and closing
     )/`/} characters are not split points so they land stuck to the
-    last argument token (cleaned up via _clean_arg before resolving).
+    last argument token. Such an argument is accepted only if BOTH its
+    raw form and its _clean_arg form resolve under <root>/state, so a
+    quoted literal path that really ends in ) or } (e.g. rm -rf "state)")
+    is denied rather than being truncated into an in-state path.
     """
     state_dir = os.path.normpath(str(root / "state"))
     for segment in SEGMENT_RE.split(command):
@@ -110,9 +113,15 @@ def _rm_denied(command: str, root: Path) -> str | None:
         has_recursive, has_force, args = _rm_flags_and_args(tokens[1:])
         if has_recursive and has_force:
             for a in args:
-                p = _resolve(_clean_arg(a), root)
-                if not (p == state_dir or p.startswith(state_dir + "/")):
-                    return "rm -rf outside state/"
+                # Fail safe: the argument must land under <root>/state in BOTH
+                # its raw form and its _clean_arg form. The cleaned form exists
+                # only to tolerate a closing delimiter left attached by the
+                # raw-text segment split; a literal filename that really ends
+                # in )/`/}/; must not benefit from that stripping.
+                for cand in (a, _clean_arg(a)):
+                    p = _resolve(cand, root)
+                    if not (p == state_dir or p.startswith(state_dir + "/")):
+                        return "rm -rf outside state/"
     return None
 
 

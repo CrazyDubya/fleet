@@ -75,6 +75,14 @@ class DecideAutoTests(unittest.TestCase):
         cmd = "(" + "rm -rf" + " state/x)"
         self.assertEqual(prompts.decide_auto(cmd, self.root)[0], "allow-auto")
 
+    def test_rm_quoted_trailing_delimiter_denied(self):
+        # A quoted literal path ending in a closing delimiter must not be
+        # truncated by _clean_arg into an in-state path.
+        rm = "rm -rf"
+        for cmd in [rm + ' "state)"', rm + ' "state}"',
+                    rm + ' "state))"', rm + " 'state);'"]:
+            self.assertEqual(prompts.decide_auto(cmd, self.root)[0], "deny", cmd)
+
 
 class PromptFilesTests(unittest.TestCase):
     def setUp(self):
