@@ -1,0 +1,10 @@
+cd /Users/pup/fleet && git log --oneline -15 && echo "--- 83568a0 files ---" && git show --stat 83568a0 | head -60
+for f in fleet/cli.py fleet/paths.py fleet/registry.py fleet/send.py fleet/ledger.py; do echo "===== $f ====="; cat "$f"; done
+python3 -c "from fleet import status; rs = status.rows(); print(len(rs), 'rows')"
+which tailscale && tailscale ip -4 2>/dev/null; ip=$(tailscale ip -4 2>/dev/null); echo "TSIP=$ip"
+mkdir -p /Users/pup/fleet/gui/static /Users/pup/fleet/gui/widgets/status
+python3 -c "import zlib; print('x')"; ls -la gui/static/*.png
+rm -f state/gui-token && python3 -m gui.server --port 8787 > /tmp/gui-server.log 2>&1 &
+TOKEN=$(cat state/gui-token); curl -s -o /dev/null -w "%{http_code}\n" -b "fleet_gui=$TOKEN" http://127.0.0.1:8787/api/widgets
+curl -s -b "fleet_gui=$TOKEN" -o /dev/null -w "%{http_code}\n" "http://127.0.0.1:8787/static/../server.py"
+TOKEN=$(cat state/gui-token); echo "$TOKEN"; curl -s -o /dev/null -w "SSE headers: %{http_code}\n" --max-time 1 -b "fleet_gui=$TOKEN" http://127.0.0.1:8787/api/events 2>&1 | tail -1

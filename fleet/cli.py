@@ -95,6 +95,16 @@ def cmd_report(args):
     print(telemetry.report()); return 0
 
 
+def cmd_decide(args):
+    from . import prompts as prompts_mod
+    try:
+        prompts_mod.record_decision(args.thread, args.id, args.decision, current_profile())
+    except FileNotFoundError:
+        print(f"error: no pending prompt {args.thread}-{args.id}", file=sys.stderr); return 1
+    ledger.event("decide", thread=args.thread, id=args.id, decision=args.decision)
+    print(f"{args.decision}: {args.thread} {args.id}"); return 0
+
+
 def cmd_ask(args):
     from . import ask as ask_mod
     try:
@@ -130,6 +140,7 @@ def _build_parser():
     a.add_argument("--from", dest="sender", default="operator")
     a.add_argument("--timeout", type=float, default=30.0)
     a.set_defaults(fn=cmd_ask)
+    d = sub.add_parser("decide"); d.add_argument("thread"); d.add_argument("id"); d.add_argument("decision", choices=["allow", "deny"]); d.set_defaults(fn=cmd_decide)
     return p
 
 
