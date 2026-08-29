@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from fleet import paths, spec, status, tmux
+from fleet import cli, paths, spec, status, tmux
 
 TOML = '''
 [settings]
@@ -93,6 +93,7 @@ class StatusSpecsProfileTests(unittest.TestCase):
 
     def test_v2_profile_resolves_sonnet2_as_hot(self):
         with mock.patch.dict(os.environ, {"FLEET_PROFILE": "v2"}), \
+             mock.patch.object(cli, "_SETTINGS", None), \
              mock.patch.object(spec, "_read", side_effect=self._redirected):
             specs = status._specs()
         self.assertEqual(specs["sonnet2"].tier, "hot")
@@ -100,6 +101,7 @@ class StatusSpecsProfileTests(unittest.TestCase):
     def test_v1_unaffected_when_no_profile_set(self):
         env = dict(os.environ); env.pop("FLEET_PROFILE", None)
         with mock.patch.dict(os.environ, env, clear=True), \
+             mock.patch.object(cli, "_SETTINGS", None), \
              mock.patch.object(spec, "_read", side_effect=self._redirected):
             specs = status._specs()
         self.assertEqual(set(specs), {"sonnet"})
@@ -114,7 +116,11 @@ class DefaultProfileTests(unittest.TestCase):
         toml = Path(tempfile.mkdtemp()) / "fleet.toml"
         toml.write_text('[settings]\ncache_ttl_minutes = 60\ndefault_profile = "v2"\n\n[thread.sonnet]\nmodel = "m"\ntier = "hot"\npersist = "singular"\n')
         with mock.patch("fleet.spec._read", lambda p=None: __import__("tomllib").loads(toml.read_text())), \
-             mock.patch.dict(os.environ, {}, clear=False):
+             mock.patch.dict(os.environ, {}, clear=False), \
+             mock.patch.object(cli, "_SETTINGS", None):
+            # cli.settings() memoizes fleet.toml's [settings] for the process;
+            # patch the memo away so this test reads the toml above and does
+            # not leak its answer into the next test.
             os.environ.pop("FLEET_PROFILE", None)
             self.assertEqual(spec.load_settings()["default_profile"], "v2")
             self.assertEqual(cli.current_profile(), "v2")

@@ -6,6 +6,7 @@ import sys
 from datetime import datetime
 
 from . import ledger, launcher, telemetry, tmux
+from . import packet as packet_mod
 from . import registry as registry_mod
 from . import send as send_mod
 from . import spec as spec_mod
@@ -14,18 +15,38 @@ from .paths import ROOT, profile_state
 from .registry import Registry
 
 
+_SETTINGS: dict | None = None
+
+
+def settings(refresh: bool = False) -> dict:
+    """fleet.toml `[settings]`, parsed once per process.
+
+    spec.load_settings() re-opens and re-parses fleet.toml on every call, and
+    current_profile() is asked from a dozen places (cmd_send, cmd_ask,
+    cmd_decide, status._specs, launcher._thread, the GUI prompts widget) - one
+    CLI invocation was parsing the same file several times over. Nothing
+    rewrites `[settings]` while a process runs; activate_profile() refreshes
+    the cache anyway so a long-lived host that re-activates picks up an edit.
+    """
+    global _SETTINGS
+    if refresh or _SETTINGS is None:
+        _SETTINGS = spec_mod.load_settings()
+    return _SETTINGS
+
+
 def current_profile() -> str:
     """FLEET_PROFILE wins; otherwise fleet.toml [settings] default_profile (v1 if unset)."""
     env = os.environ.get("FLEET_PROFILE")
     if env:
         return env
     try:
-        return spec_mod.load_settings()["default_profile"]
+        return settings()["default_profile"]
     except (OSError, KeyError):
         return "v1"
 
 
 def activate_profile(name: str) -> spec_mod.Profile:
+    settings()  # prime the per-process cache: every later current_profile() is free
     prof = spec_mod.load_profile(name)
     tmux.use_session(prof.session)
     registry_mod.DEFAULT_PATH = profile_state(name) / "registry.json"
@@ -70,8 +91,10 @@ def cmd_miss(args):
     # clearing the pending entry the Stop hook goes on blocking every turn and
     # the advice it prints is a dead end.
     m = ABANDONED_RE.match(reason.strip())
-    if m:
-        send_mod.clear_pending(args.thread, m.group(1), current_profile())
+    if m and send_mod.clear_pending(args.thread, m.group(1), current_profile()):
+        # Only when something was actually removed: "dropped pending reply
+        # <id>" printed for an id that was never in the list reads as a fix
+        # that did not happen.
         print(f"dropped pending reply {m.group(1)} for {args.thread}")
     print(f"recorded miss for {args.thread}: {reason}")
     return 0
@@ -83,7 +106,6 @@ def cmd_send(args):
         if not (args.lane or args.effort or args.reply or args.done or args.refs):
             n = send_mod.send(args.thread, text, sender=args.sender)
             print(f"sent {n} bytes to {args.thread}"); return 0
-        from . import packet as packet_mod
         lane = args.lane or "build"
         ln = packet_mod.LANES[lane]
         p = packet_mod.Packet(to=args.thread, sender=args.sender, lane=lane, effort=args.effort or ln.effort,

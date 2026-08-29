@@ -2,6 +2,7 @@
 pending reply, C3) and `perm-check` (the destructive gate's oracle, H4)."""
 import io
 import json
+import os
 import tempfile
 import unittest
 from contextlib import redirect_stdout
@@ -42,6 +43,76 @@ class MissTests(unittest.TestCase):
     def test_malformed_id_is_not_treated_as_abandoned(self):
         self._miss("abandoned-nothex")
         self.assertEqual([i["id"] for i in self._pending()], [self.pid])
+
+    def _miss_out(self, *reason):
+        out = io.StringIO()
+        with redirect_stdout(out):
+            cli.cmd_miss(SimpleNamespace(thread="sonnet2", reason=list(reason)))
+        return out.getvalue()
+
+    def test_dropped_line_printed_only_when_something_was_dropped(self):
+        self.assertIn("dropped pending reply", self._miss_out(f"abandoned-{self.pid}"))
+        # second time round the entry is already gone: claiming to have
+        # dropped it again is a fix that did not happen
+        self.assertNotIn("dropped pending reply", self._miss_out(f"abandoned-{self.pid}"))
+
+    def test_clear_pending_reports_whether_it_removed_anything(self):
+        self.assertTrue(send_mod.clear_pending("sonnet2", self.pid, "v2", state=self.state))
+        self.assertFalse(send_mod.clear_pending("sonnet2", self.pid, "v2", state=self.state))
+        self.assertFalse(send_mod.clear_pending("nobody", self.pid, "v2", state=self.state))
+
+
+class SendArgvTests(unittest.TestCase):
+    """`fleet send` argparse wiring: the flags must land on the Packet."""
+
+    def _main(self, argv):
+        with mock.patch("fleet.cli.activate_profile"), \
+                mock.patch("fleet.cli.send_mod.send_packet", return_value="deadbeef") as sp, \
+                mock.patch("fleet.cli.send_mod.send", return_value=7) as plain, \
+                redirect_stdout(io.StringIO()):
+            rc = cli.main(argv)
+        return rc, sp, plain
+
+    def test_flags_land_on_the_packet(self):
+        rc, sp, plain = self._main(["send", "sonnet2", "hello", "world", "--lane", "plan",
+                                    "--effort", "high", "--reply", "file", "--done", "ship it",
+                                    "--refs", "a", "b"])
+        self.assertEqual(rc, 0)
+        plain.assert_not_called()
+        p = sp.call_args.args[0]
+        self.assertEqual((p.to, p.sender, p.lane, p.effort, p.reply), ("sonnet2", "operator", "plan", "high", "file"))
+        self.assertEqual((p.done, p.refs, p.body), ("ship it", ["a", "b"], "hello world"))
+
+    def test_lane_alone_fills_the_rest_from_the_lane_table(self):
+        _, sp, _ = self._main(["send", "haiku-fs2", "newest handoff?", "--lane", "lookup"])
+        p = sp.call_args.args[0]
+        self.assertEqual((p.lane, p.effort, p.reply), ("lookup", "low", "inline"))
+
+    def test_no_flags_uses_the_plain_send_path(self):
+        rc, sp, plain = self._main(["send", "sonnet2", "just", "text"])
+        self.assertEqual(rc, 0)
+        sp.assert_not_called()
+        self.assertEqual(plain.call_args.args, ("sonnet2", "just text"))
+
+    def test_packet_module_is_imported_at_module_level(self):
+        from fleet import packet as packet_mod
+        self.assertIs(cli.packet_mod, packet_mod)
+
+
+class SettingsCacheTests(unittest.TestCase):
+    def test_settings_is_parsed_once_per_process(self):
+        with mock.patch.object(cli, "_SETTINGS", None), \
+                mock.patch("fleet.cli.spec_mod.load_settings",
+                           return_value={"default_profile": "v2", "cache_ttl_minutes": 60}) as ls:
+            self.assertEqual(cli.settings()["default_profile"], "v2")
+            cli.settings()
+            with mock.patch.dict(os.environ, {}, clear=False):
+                os.environ.pop("FLEET_PROFILE", None)
+                self.assertEqual(cli.current_profile(), "v2")
+                self.assertEqual(cli.current_profile(), "v2")
+            self.assertEqual(ls.call_count, 1)
+            cli.settings(refresh=True)
+            self.assertEqual(ls.call_count, 2)
 
 
 class PermCheckTests(unittest.TestCase):

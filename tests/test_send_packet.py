@@ -1,5 +1,7 @@
 import json
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -70,3 +72,57 @@ class SendPacketTests(unittest.TestCase):
         pid = self._send(self.p)
         ev = json.loads(self.events.read_text().splitlines()[-1])
         self.assertEqual((ev["ev"], ev["id"], ev["lane"], ev["thread"]), ("send", pid, "lookup", "haiku-fs2"))
+
+
+class PendingLockTests(unittest.TestCase):
+    """_add_pending is a read-modify-write: two senders in it at once used to
+    lose one entry, and a lost entry is a reply the Stop hook stops waiting
+    for."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.state = Path(self.tmp.name)
+        self.path = send_mod._pending_path("sonnet2", self.state)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _items(self):
+        return json.loads(self.path.read_text())
+
+    def test_two_concurrent_adds_both_land(self):
+        real = send_mod._read_pending
+
+        def slow_read(path):
+            out = real(path)
+            time.sleep(0.05)  # widen the read-modify-write window
+            return out
+
+        ready = threading.Barrier(2)
+
+        def add(pid):
+            ready.wait()
+            send_mod._add_pending("sonnet2", pid, "haiku-fs2", self.state)
+
+        with mock.patch("fleet.send._read_pending", slow_read):
+            ts = [threading.Thread(target=add, args=(pid,)) for pid in ("a" * 16, "b" * 16)]
+            for t in ts:
+                t.start()
+            for t in ts:
+                t.join(10)
+        self.assertEqual(sorted(i["id"] for i in self._items()), ["a" * 16, "b" * 16])
+
+    def test_lock_file_is_released(self):
+        send_mod._add_pending("sonnet2", "a" * 16, "haiku-fs2", self.state)
+        self.assertFalse(self.path.with_name(self.path.name + ".lock").exists())
+
+    def test_a_stale_lock_fails_open_rather_than_blocking_forever(self):
+        # A process killed between creating the lock and unlinking it must not
+        # make sending impossible for everyone after it.
+        lock = self.path.with_name(self.path.name + ".lock")
+        lock.parent.mkdir(parents=True, exist_ok=True)
+        lock.write_text("99999")
+        with mock.patch.object(send_mod, "PENDING_LOCK_TIMEOUT", 0.05):
+            send_mod._add_pending("sonnet2", "c" * 16, "haiku-fs2", self.state)
+        self.assertEqual([i["id"] for i in self._items()], ["c" * 16])
+        self.assertTrue(lock.exists())  # someone else's lock is left alone

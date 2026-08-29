@@ -1,6 +1,8 @@
 import hashlib
 import json
+import os
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
 from . import ledger, tmux
@@ -60,17 +62,72 @@ def _pending_path(sender: str, state: Path) -> Path:
     return state / "pending" / f"{sender}.json"
 
 
+PENDING_LOCK_TIMEOUT = 2.0
+
+
+@contextmanager
+def _pending_lock(path: Path, timeout: float | None = None, sleep=time.sleep):
+    """Exclusive-create lock file beside the pending file, same shape as
+    registry.Registry.locked.
+
+    _add_pending is a read-modify-write, and two threads of the same sender
+    can be inside it at once (a `fleet ask` from a pane while `fleet send`
+    runs from the operator's shell). Without the lock the later write is built
+    on a list read before the earlier one landed, so one pending entry is
+    lost - and a lost entry is a reply the Stop hook stops waiting for.
+
+    Fails open after `timeout`: a stale lock (a process killed between create
+    and unlink) must not make sending impossible.
+    """
+    lock = path.with_name(path.name + ".lock")
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    deadline = time.monotonic() + (PENDING_LOCK_TIMEOUT if timeout is None else timeout)
+    fd = None
+    while True:
+        try:
+            fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            break
+        except FileExistsError:
+            if time.monotonic() >= deadline:
+                break  # stale lock: proceed unlocked rather than refuse to send
+            sleep(0.02)
+    try:
+        if fd is not None:
+            os.write(fd, str(os.getpid()).encode()); os.close(fd)
+        yield
+    finally:
+        if fd is not None:
+            try:
+                os.unlink(lock)
+            except FileNotFoundError:
+                pass
+
+
+def _read_pending(path: Path) -> list[dict]:
+    try:
+        return json.loads(path.read_text())
+    except (FileNotFoundError, json.JSONDecodeError):
+        return []
+
+
 def _add_pending(sender: str, pid: str, to: str, state: Path) -> None:
     path = _pending_path(sender, state)
     path.parent.mkdir(parents=True, exist_ok=True)
-    items = json.loads(path.read_text()) if path.exists() else []
-    items.append({"id": pid, "to": to, "t": time.time()})
-    path.write_text(json.dumps(items))
+    with _pending_lock(path):
+        items = _read_pending(path)
+        items.append({"id": pid, "to": to, "t": time.time()})
+        path.write_text(json.dumps(items))
 
 
-def clear_pending(sender: str, pid: str, profile: str, state: Path | None = None) -> None:
+def clear_pending(sender: str, pid: str, profile: str, state: Path | None = None) -> bool:
+    """Drop `pid` from `sender`'s pending list; True if it was there."""
     path = _pending_path(sender, state or profile_state(profile))
     if not path.exists():
-        return
-    items = [i for i in json.loads(path.read_text()) if i["id"] != pid]
-    path.write_text(json.dumps(items))
+        return False
+    with _pending_lock(path):
+        items = _read_pending(path)
+        keep = [i for i in items if i.get("id") != pid]
+        if len(keep) == len(items):
+            return False
+        path.write_text(json.dumps(keep))
+        return True
