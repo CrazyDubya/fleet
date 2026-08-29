@@ -112,7 +112,10 @@ def _rm_flags_and_args(tokens: list[str]) -> tuple[bool, bool, list[str]]:
     has_recursive = False
     has_force = False
     args: list[str] = []
+    operands = set(_plain_args(tokens))  # redirections and their targets are not operands
     for tok in tokens:
+        if tok not in operands and not tok.startswith("-"):
+            continue
         if tok == "--recursive":
             has_recursive = True
         elif tok == "--force":
@@ -142,8 +145,23 @@ def _all_args_in_state(args: list[str], root: Path) -> bool:
     return True
 
 
+REDIRECT_RE = re.compile(r"^(\d*[<>]+&?\d*|&>)")
+
+
 def _plain_args(tokens: list[str]) -> list[str]:
-    return [t for t in tokens if t == "-" or not t.startswith("-")]
+    """Operands only: no option flags, no shell redirections (`2>/dev/null`,
+    `>x`, `2>&1`, `< list`) and no redirection *targets* when the operator
+    token stood alone (`2> /dev/null`)."""
+    out, skip = [], False
+    for t in tokens:
+        if skip:
+            skip = False; continue
+        if REDIRECT_RE.match(t):
+            skip = REDIRECT_RE.fullmatch(t) is not None  # bare operator: target is next token
+            continue
+        if t == "-" or not t.startswith("-"):
+            out.append(t)
+    return out
 
 
 def _delete_denied(command: str, root: Path) -> str | None:

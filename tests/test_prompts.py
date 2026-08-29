@@ -194,3 +194,8 @@ class ParkedFindingsTests(unittest.TestCase):
     def test_delete_verb_in_utility_position_still_denied(self):
         for cmd in ["cat list | xargs rm -rf", "xargs -0 rm -rf < list", "find . -exec rm -rf {} +", "find . -execdir unlink {} \;"]:
             self.assertEqual(prompts.decide_auto(cmd, self.root)[0], "deny", cmd)
+
+    def test_redirections_are_not_delete_arguments(self):
+        for cmd in ["rmdir state/x 2>/dev/null", "rm -rf state/x >/dev/null 2>&1", "unlink state/y.md 2> /dev/null", "find state/tmp -delete 2>/dev/null"]:
+            self.assertEqual(prompts.decide_auto(cmd, self.root)[0], "allow-auto", cmd)
+        self.assertEqual(prompts.decide_auto("rmdir gui 2>/dev/null", self.root)[0], "deny")
