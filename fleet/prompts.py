@@ -15,7 +15,6 @@ from . import packet as packet_mod
 from .paths import profile_state
 
 DENY = [
-    (re.compile(r"(^|[\s;&|])rm\s+(-[a-zA-Z]*r[a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*r)\s+(?!(/Users/pup/fleet/)?state/)"), "rm -rf outside state/"),
     (re.compile(r"(^|[\s;&|])git\s+push\b"), "git push"),
     (re.compile(r"(^|[\s;&|])git\s+reset\s+--hard\b"), "git reset --hard"),
     (re.compile(r"(^|[\s;&|])git\s+clean\s+-[a-zA-Z]*f"), "git clean -f"),
@@ -24,8 +23,8 @@ DENY = [
     (re.compile(r"(^|[\s;&|])chmod\s+[0-7]*7[0-7]*\b|chmod\s+.*\+x"), "chmod"),
 ]
 PATH_TOKEN = re.compile(r"^(~|/|\./|\.\./)")
-INSIDE = ("/Users/pup/fleet", "/tmp", "/private/tmp")
 DEV_OK = ("/dev/null", "/dev/stdin", "/dev/stdout", "/dev/stderr")
+SEPARATORS = (";", "&&", "||", "|")
 
 
 def _tokens(command: str) -> list[str]:
@@ -35,25 +34,76 @@ def _tokens(command: str) -> list[str]:
         return command.split()
 
 
+def _is_path_candidate(tok: str) -> bool:
+    return bool(PATH_TOKEN.match(tok)) or "/" in tok or ".." in tok
+
+
+def _resolve(tok: str, root: Path) -> str:
+    p = os.path.expanduser(tok)
+    return os.path.normpath(p if p.startswith("/") else os.path.join(str(root), p))
+
+
 def _path_ok(tok: str, root: Path) -> bool:
     # strip shell decorations: redirections, option=paths, trailing punctuation
     tok = tok.lstrip("<>=").rstrip(";&|)")
     if "=" in tok and not tok.startswith("/"):
         tok = tok.split("=", 1)[1]
-    if not PATH_TOKEN.match(tok):
+    if not _is_path_candidate(tok):
         return True  # not a path
-    p = os.path.expanduser(tok)
-    p = os.path.normpath(p if p.startswith("/") else os.path.join(str(root), p))
+    p = _resolve(tok, root)
     if p in DEV_OK:
         return True
-    return any(p == base or p.startswith(base + "/") for base in (str(root), *INSIDE))
+    inside = (str(root), "/tmp", "/private/tmp")
+    return any(p == base or p.startswith(base + "/") for base in inside)
+
+
+def _rm_denied(tokens: list[str], root: Path) -> str | None:
+    """Token-based rm -rf check: deny recursive+force rm unless every
+    non-flag argument resolves under <root>/state."""
+    state_dir = os.path.normpath(str(root / "state"))
+    n = len(tokens)
+    i = 0
+    while i < n:
+        if tokens[i] == "rm" and (i == 0 or tokens[i - 1] in SEPARATORS):
+            j = i + 1
+            has_recursive = False
+            has_force = False
+            args = []
+            while j < n and tokens[j] not in SEPARATORS:
+                tok = tokens[j]
+                if tok == "--recursive":
+                    has_recursive = True
+                elif tok == "--force":
+                    has_force = True
+                elif tok.startswith("-") and tok != "-":
+                    for ch in tok[1:]:
+                        if ch in "rR":
+                            has_recursive = True
+                        elif ch in "fF":
+                            has_force = True
+                else:
+                    args.append(tok)
+                j += 1
+            if has_recursive and has_force:
+                for a in args:
+                    p = _resolve(a, root)
+                    if not (p == state_dir or p.startswith(state_dir + "/")):
+                        return "rm -rf outside state/"
+            i = j
+        else:
+            i += 1
+    return None
 
 
 def decide_auto(command: str, root: Path) -> tuple[str, str]:
+    tokens = _tokens(command)
+    rm_why = _rm_denied(tokens, root)
+    if rm_why:
+        return "deny", rm_why
     for rx, why in DENY:
         if rx.search(command):
             return "deny", why
-    for tok in _tokens(command):
+    for tok in tokens:
         if not _path_ok(tok, root):
             return "escalate", f"path outside repo: {tok}"
     return "allow-auto", "in-repo, no deny match"
@@ -77,7 +127,7 @@ def pending(profile: str) -> list[dict]:
     for p in sorted(_dir(profile).glob("*.json")):
         try:
             rec = json.loads(p.read_text())
-        except json.JSONDecodeError:
+        except (FileNotFoundError, json.JSONDecodeError):
             continue
         if "decision" not in rec:
             out.append(rec)

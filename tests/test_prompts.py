@@ -34,6 +34,17 @@ class DecideAutoTests(unittest.TestCase):
     def test_tmp_is_inside(self):
         self.assertEqual(prompts.decide_auto("echo hi > /tmp/x.log", self.root)[0], "allow-auto")
 
+    def test_bare_relative_traversal_escalates(self):
+        d, why = prompts.decide_auto("cat gui/../../../etc/passwd", self.root)
+        self.assertEqual(d, "escalate", why)
+
+    def test_rm_decoy_and_case_denied(self):
+        for cmd in ["rm -rf state/bar gui/widgets", "rm -Rf /Users/pup/fleet/gui", "rm -RF gui"]:
+            self.assertEqual(prompts.decide_auto(cmd, self.root)[0], "deny", cmd)
+
+    def test_rm_rf_inside_state_allowed(self):
+        self.assertEqual(prompts.decide_auto("rm -rf state/v2/tmp state/x", self.root)[0], "allow-auto")
+
 
 class PromptFilesTests(unittest.TestCase):
     def setUp(self):
@@ -56,3 +67,8 @@ class PromptFilesTests(unittest.TestCase):
         path = prompts.open_prompt("sonnet2", "Bash", "x", "/Users/pup/fleet/sonnet2", "v2")
         self.assertIsNone(prompts.wait_decision(path, timeout=0.0, sleep=lambda s: None))
         self.assertFalse(path.exists())
+
+    def test_pending_tolerates_vanished_file(self):
+        prompts.open_prompt("sonnet2", "Bash", "x", "/Users/pup/fleet/sonnet2", "v2")
+        with mock.patch("pathlib.Path.read_text", side_effect=FileNotFoundError):
+            self.assertEqual(prompts.pending("v2"), [])
