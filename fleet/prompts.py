@@ -29,6 +29,25 @@ SEGMENT_RE = re.compile(r"\s*(?:;|&&|\|\||\||&|\n|\$\(|\(|`|\{)\s*")
 # Commands that delete. `rm` keeps its own recursive+force rule below; the
 # others delete unconditionally, so any path argument is enough.
 DELETE_VERBS = frozenset({"rm", "rmdir", "unlink"})
+EXEC_PRIMARIES = frozenset({"-exec", "-execdir", "-ok", "-okdir"})
+XARGS_OPTS_WITH_ARG = frozenset({"-n", "-I", "-L", "-P", "-s", "-d", "-E", "-a", "-J", "-R", "-S"})
+
+
+def _xargs_utility(rest: list[str]) -> str:
+    """The utility xargs will run: the first operand after its options.
+
+    Only that position is a deletion - `xargs grep -l rm` searches for the
+    word, it does not delete anything.
+    """
+    skip = False
+    for t in rest:
+        if skip:
+            skip = False; continue
+        if t.startswith("-"):
+            skip = t in XARGS_OPTS_WITH_ARG
+            continue
+        return t
+    return ""
 # A token that is the argument of one of these carries a whole program, which
 # decide_auto re-runs on itself rather than treating as an opaque string.
 CODE_OPTS = frozenset({"-c", "--command", "-e", "--eval"})
@@ -43,7 +62,7 @@ WS_IN_TOKEN = re.compile(r"\s")
 # harmless-looking tokens.
 QUOTED_DENY_RE = re.compile(
     r"\b(rm|rmdir|unlink|xargs|sudo|ssh|scp|rsync|curl|chmod)\b"
-    r"|shutil\.rmtree"
+    r"|shutil\.rmtree|\.rmtree\s*\(|\bunlink\s*\(|\bglob\s*\("
     r"|os\.(remove|unlink|rmdir|removedirs)"
     r"|\.unlink\s*\("
     r"|\bgit\s+(push|reset|clean)\b"
@@ -164,8 +183,9 @@ def _delete_denied(command: str, root: Path) -> str | None:
             if not _all_args_in_state(_plain_args(rest), root):
                 return f"{verb} outside state/"
         elif verb == "find":
-            deletes = "-delete" in rest or (
-                "-exec" in rest and any(_clean_arg(t) in DELETE_VERBS for t in rest)
+            deletes = "-delete" in rest or any(
+                t in EXEC_PRIMARIES and i + 1 < len(rest) and _clean_arg(rest[i + 1]) in DELETE_VERBS
+                for i, t in enumerate(rest)
             )
             if deletes:
                 # find's paths are its leading operands, before the first
@@ -182,7 +202,7 @@ def _delete_denied(command: str, root: Path) -> str | None:
             # Denied outright when the utility deletes: xargs' operands arrive
             # on stdin, so there is no path argument to check against state/
             # (`xargs rm -rf < list` names nothing dangerous inline).
-            if any(_clean_arg(t) in DELETE_VERBS for t in rest):
+            if _clean_arg(_xargs_utility(rest)) in DELETE_VERBS:
                 return "xargs delete (paths come from stdin; unverifiable)"
     return None
 
@@ -209,10 +229,13 @@ def _wrapped_verdict(command: str, root: Path, depth: int) -> tuple[str, str] | 
     """
     tokens = _tokens(command)
     for i, tok in enumerate(tokens):
-        if not WS_IN_TOKEN.search(tok):
-            continue
         prev = tokens[i - 1] if i else ""
-        if (prev in CODE_OPTS or prev in CODE_VERBS) and depth < MAX_WRAP_DEPTH:
+        is_code = prev in CODE_OPTS or prev in CODE_VERBS
+        # A code payload is judged whatever its shape: a space-free one-liner
+        # (`perl -e "unlink(glob('/x'))"`) is as executable as a spaced one.
+        if not is_code and not WS_IN_TOKEN.search(tok):
+            continue
+        if is_code and depth < MAX_WRAP_DEPTH:
             d, why = decide_auto(tok, root, _depth=depth + 1)
             if d != "allow-auto":
                 return d, f"wrapped code ({prev}): {why}"

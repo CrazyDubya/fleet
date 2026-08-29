@@ -168,3 +168,29 @@ class PromptFilesTests(unittest.TestCase):
         prompts.open_prompt("sonnet2", "Bash", "x", "/Users/pup/fleet/sonnet2", "v2")
         with mock.patch("pathlib.Path.read_text", side_effect=FileNotFoundError):
             self.assertEqual(prompts.pending("v2"), [])
+
+
+class ParkedFindingsTests(unittest.TestCase):
+    """Residuals from the fleet-v2 final re-review."""
+    root = Path("/Users/pup/fleet")
+
+    def test_whitespace_free_code_payload_not_auto_allowed(self):
+        for cmd in [
+            'perl -e "unlink(glob(\'/Users/pup/*\'))"',
+            'python3 -c "__import__(\'shutil\').rmtree(\'/Users/pup/Documents\')"',
+            "eval 'rm -rf /Users/pup/x'",
+        ]:
+            d, why = prompts.decide_auto(cmd, self.root)
+            self.assertIn(d, ("deny", "escalate"), f"{cmd!r}: {d} {why}")
+
+    def test_delete_verb_as_pattern_is_not_a_deletion(self):
+        for cmd in [
+            "ls | xargs grep -l rm",
+            "find . -name rm -exec cat {} \;",
+            "find . -name '*.py' -exec grep -l unlink {} +",
+        ]:
+            self.assertEqual(prompts.decide_auto(cmd, self.root)[0], "allow-auto", cmd)
+
+    def test_delete_verb_in_utility_position_still_denied(self):
+        for cmd in ["cat list | xargs rm -rf", "xargs -0 rm -rf < list", "find . -exec rm -rf {} +", "find . -execdir unlink {} \;"]:
+            self.assertEqual(prompts.decide_auto(cmd, self.root)[0], "deny", cmd)
