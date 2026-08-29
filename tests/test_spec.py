@@ -3,8 +3,9 @@ import shutil
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
-from fleet import spec, paths
+from fleet import launcher, spec, status, paths
 
 
 class SpecTests(unittest.TestCase):
@@ -150,3 +151,34 @@ class AppendThreadTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             spec.append_thread(spec.Thread(name="sonnet2", model="m", tier="hot", persist="singular"),
                                self.toml, profile="v2")
+
+
+class ActiveThreadsTests(unittest.TestCase):
+    """R2/deferred: status and launcher used to carry their own copy of
+    `load_profile(current_profile()).threads`. One definition now."""
+
+    def test_v1_resolves_to_load_specs(self):
+        self.assertEqual(set(spec.active_threads("v1")), set(spec.load_specs()))
+
+    def test_status_specs_goes_through_active_threads(self):
+        with mock.patch("fleet.status.active_threads", return_value={"x": "T"}) as at, \
+                mock.patch("fleet.cli.current_profile", return_value="v2"):
+            self.assertEqual(status._specs(), {"x": "T"})
+        at.assert_called_once_with("v2")
+
+    def test_launcher_thread_goes_through_active_threads(self):
+        t = spec.Thread(name="sonnet2", model="m", tier="hot", persist="singular")
+        with mock.patch("fleet.launcher.active_threads", return_value={"sonnet2": t}) as at, \
+                mock.patch("fleet.cli.current_profile", return_value="v2"):
+            self.assertIs(launcher._thread("sonnet2"), t)
+        at.assert_called_once_with("v2")
+
+    def test_launcher_fork_precheck_goes_through_active_threads(self):
+        t = spec.Thread(name="opus2", model="m", tier="warm", persist="on-demand", forkable=True)
+        with mock.patch("fleet.launcher._thread", return_value=t), \
+                mock.patch("fleet.launcher.active_threads", return_value={"expert-test": t}) as at, \
+                mock.patch.object(launcher.Path, "exists", return_value=True), \
+                mock.patch("fleet.cli.current_profile", return_value="v2"):
+            with self.assertRaises(launcher.LaunchError):
+                launcher.fork("opus2", "expert-test", "briefs/v2/expert-test.md")
+        at.assert_called_once_with("v2")

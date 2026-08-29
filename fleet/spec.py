@@ -61,6 +61,19 @@ def load_profile(name: str, path: Path | None = None) -> Profile:
     return Profile(name, body.get("session", f"fleet-{name}"), body.get("briefs", f"briefs/{name}"), threads)
 
 
+def active_threads(profile: str) -> dict[str, Thread]:
+    """The threads a profile actually runs, keyed by name.
+
+    One definition for every "which threads exist right now?" question -
+    status._specs() and launcher (_thread, fork) each had their own
+    `load_profile(current_profile()).threads`, so a change to how a profile
+    resolves its threads had to be made in three places or the fleet
+    disagreed with itself about what was running. v1 resolves to exactly
+    load_specs(), so callers that never touch profiles see no change.
+    """
+    return load_profile(profile).threads
+
+
 def _toml_value(v) -> str:
     if isinstance(v, bool):
         return "true" if v else "false"

@@ -1,7 +1,6 @@
 import contextlib
 import unittest
 from pathlib import Path
-from types import SimpleNamespace
 from unittest import mock
 
 from fleet import launcher
@@ -93,7 +92,7 @@ class ForkInheritanceTests(unittest.TestCase):
                 self.saved = entries
 
         with mock.patch.object(launcher, "_thread", return_value=parent), \
-             mock.patch.object(launcher, "load_profile", return_value=SimpleNamespace(threads={})), \
+             mock.patch.object(launcher, "active_threads", return_value={}), \
              mock.patch.object(launcher, "Registry", FakeReg), \
              mock.patch.object(launcher, "append_thread"), \
              mock.patch.object(launcher, "spec_hash", return_value="child-hash"), \

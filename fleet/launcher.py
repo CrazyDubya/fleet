@@ -7,7 +7,7 @@ from pathlib import Path
 from . import ledger, tmux
 from .paths import ROOT, thread_dir
 from .registry import Entry, Registry
-from .spec import Thread, append_thread, load_profile, spec_hash
+from .spec import Thread, active_threads, append_thread, spec_hash
 
 SPAWN_GRACE_SECONDS = 3
 SPAWN_TAIL_LINES = 20
@@ -81,7 +81,7 @@ def validate_name(name: str) -> None:
 def _thread(name: str) -> Thread:
     validate_name(name)
     from .cli import current_profile  # local: cli imports launcher
-    specs = load_profile(current_profile()).threads
+    specs = active_threads(current_profile())
     if name not in specs:
         raise LaunchError(f"no thread named {name!r} in fleet.toml (profile {current_profile()})")
     return specs[name]
@@ -159,7 +159,7 @@ def fork(parent: str, new: str, brief: str) -> Entry:
     if not (ROOT / brief).exists():
         raise LaunchError(f"brief not found: {brief}")
     from .cli import current_profile  # local: cli imports launcher
-    if new in load_profile(current_profile()).threads:
+    if new in active_threads(current_profile()):
         raise LaunchError(f"[thread.{new}] already exists in fleet.toml")
     reg = Registry()
     with reg.locked():

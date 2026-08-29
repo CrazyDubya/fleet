@@ -5,7 +5,7 @@ from pathlib import Path
 from . import cost, ledger, tmux, transcript
 from .paths import ROOT, transcript_path
 from .registry import Entry, Registry, RegistryLocked, transcript_for
-from .spec import load_profile, load_settings, spec_hash
+from .spec import Thread, active_threads, load_settings, spec_hash
 
 # Sentinel for "this model has no published rate", so a dollar field is never
 # a plausible-looking 0.00. render() shows it as `?`.
@@ -112,16 +112,15 @@ def _usd(v: float) -> str:
     return "      ?" if v == UNKNOWN_USD else f"{v:7.2f}"
 
 
-def _specs() -> dict:
+def _specs() -> dict[str, Thread]:
     """The active profile's threads, keyed by name.
 
     Local import to dodge the cli<->status cycle (cli imports status at
     module level for `fleet status`), same trick launcher._thread uses.
-    v1 (the default when FLEET_PROFILE is unset) resolves to exactly
-    `load_specs()`, so callers that never touch profiles see no change.
+    The resolution itself lives in spec.active_threads, shared with launcher.
     """
     from .cli import current_profile  # local: cli imports status
-    return load_profile(current_profile()).threads
+    return active_threads(current_profile())
 
 
 def rows(now: float | None = None, registry: Registry | None = None, specs=None,
