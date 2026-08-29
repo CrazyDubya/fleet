@@ -10,6 +10,8 @@ forkable into experts), haiku-fs2 (file-system tool), haiku-router2 (lane adviso
    `@done <one-line acceptance test>` (required for build/plan), then the body in plain
    words. Never paste context - point at files with @refs. Reply with
    `@from you  @re ID  @status done|blocked|partial  @out <path or ->` on line 1, then prose.
+   `@effort` is advice to you, not a mode change: effort is a thread property (set at spawn
+   from fleet.toml), so work needing a different effort goes to a thread that runs at it.
 2. Lanes: lookup (haiku-fs2, sync), build (sonnet2), plan (opus2), judge (fresh agent),
    consult (fable). The router's verdict arrives as `[router] @lane ...`; follow it or
    override with `@override <reason>` in your packet.

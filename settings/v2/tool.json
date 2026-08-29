@@ -1,6 +1,8 @@
 {
   "permissions": {
     "deny": ["Bash(git push *)", "Bash(ssh *)", "Bash(scp *)", "Bash(sudo *)",
+             "Bash(git reset --hard*)", "Bash(git clean -f*)",
+             "Bash(curl -X POST*)", "Bash(curl -X PUT*)", "Bash(curl --data*)",
              "Read(//Users/pup/.ssh/**)", "Read(//Users/pup/.aws/**)", "Read(**/.env)",
              "Write(//Users/pup/fleet/fleet.toml)", "Edit(//Users/pup/fleet/fleet.toml)"]
   },

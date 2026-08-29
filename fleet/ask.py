@@ -134,6 +134,14 @@ def ask(thread: str, body: str, sender: str, profile: str, timeout: float = 30.0
             clear(sender, pid, profile)
             return reply
         if time.monotonic() >= deadline:
+            # Drop the pending entry we just created. send_packet records one
+            # for every reply == "inline" packet and hold.sh (the Stop hook)
+            # blocks the caller's turn while one is outstanding - so a lookup
+            # that timed out used to arm hold.sh permanently, leaving the
+            # thread unable to end any turn until the operator ran
+            # `fleet miss`. The reply is no longer being waited for, so the
+            # entry has to go before the exception leaves.
+            clear(sender, pid, profile)
             tail = "\n".join(l for l in pane.splitlines() if l.strip())[-2000:]
             raise AskTimeout(f"no reply from {thread} within {timeout:.0f}s; pane tail:\n{tail}")
         sleep(0.2)

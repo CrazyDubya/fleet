@@ -19,9 +19,8 @@ class SendPacketTests(unittest.TestCase):
         self.tmp.cleanup()
 
     def _send(self, p):
-        # sleep= is faked here (never the real time.sleep) so this file
-        # doesn't burn a real 0.5s per test just because effort is set on
-        # self.p - review round 1, finding 1.
+        # send_keys= and sleep= are captured so the tests below can assert that
+        # send_packet types NOTHING into the pane before the paste (H1).
         with mock.patch("fleet.send.profile_state", return_value=self.state), \
              mock.patch("fleet.tmux.window_exists", return_value=True):
             return send_mod.send_packet(p, "v2", events_path=self.events,
@@ -36,16 +35,18 @@ class SendPacketTests(unittest.TestCase):
         self.assertIn(f"@id {pid}", text)
         self.assertTrue(text.endswith("newest handoff?"))
 
-    def test_effort_applied_before_paste(self):
+    def test_no_effort_keystroke_is_sent(self):
+        # H1 (found live): `/effort <level>` is a PERSISTENT Claude Code
+        # setting - "saved as your default for new sessions" - so sending it
+        # per packet rewrote the operator's own global default. Effort is set
+        # at spawn (--effort from fleet.toml); @effort in the header is advice.
         self._send(self.p)
-        self.assertEqual(self.keys[0], ("haiku-fs2", "/effort low"))
+        self.assertEqual(self.keys, [])
+        self.assertEqual(self.sleeps, [])
 
-    def test_settles_after_effort_before_pasting(self):
-        # Review round 1, finding 1 (Task 9 live bug): pasting immediately
-        # after the /effort send-keys races Claude Code's own handling of
-        # that slash command and the paste is silently dropped.
+    def test_effort_still_appears_in_the_header(self):
         self._send(self.p)
-        self.assertEqual(self.sleeps, [0.5])
+        self.assertIn("@effort low", self.pastes[0][1])
 
     def test_no_settle_sleep_without_effort(self):
         self.p.effort = None

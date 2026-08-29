@@ -2,6 +2,7 @@ import json
 import os
 import subprocess
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -57,19 +58,52 @@ class GateTests(unittest.TestCase):
         ev = ledger.read_events()[-1]
         self.assertEqual(ev["thread"], "sonnet2")
 
+    def test_gate_blocks_denied_bash(self):
+        # H4: the tool tier never reaches a PermissionRequest, so PreToolUse is
+        # the only place a destructive Bash command can be stopped.
+        r = run("gate.sh", {"cwd": self.cwd, "tool_name": "Bash",
+                            "tool_input": {"command": "git push origin main"}})
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("perm policy", r.stderr)
+        ev = ledger.read_events()[-1]
+        self.assertEqual((ev["hook"], ev["decision"]), ("gate", "block"))
+
+    def test_gate_allows_benign_bash(self):
+        r = run("gate.sh", {"cwd": self.cwd, "tool_name": "Bash", "tool_input": {"command": "ls"}})
+        self.assertEqual((r.returncode, r.stderr), (0, ""))
+
 
 class HoldTests(unittest.TestCase):
+    PEND = ROOT / "state" / "v2" / "pending" / "holdtest.json"
+
+    def _write(self, items):
+        self.PEND.parent.mkdir(parents=True, exist_ok=True)
+        self.PEND.write_text(json.dumps(items))
+
+    def tearDown(self):
+        self.PEND.unlink(missing_ok=True)
+
     def test_blocks_when_pending(self):
-        pend = ROOT / "state" / "v2" / "pending" / "holdtest.json"
-        pend.parent.mkdir(parents=True, exist_ok=True)
-        pend.write_text(json.dumps([{"id": "abc", "to": "haiku-fs2", "t": 0}]))
-        try:
-            r = run("hold.sh", {"cwd": str(ROOT / "holdtest"), "stop_hook_active": False})
-            self.assertEqual(r.returncode, 2); self.assertIn("fleet ask haiku-fs2", r.stderr)
-            r = run("hold.sh", {"cwd": str(ROOT / "holdtest"), "stop_hook_active": True})
-            self.assertEqual(r.returncode, 0)
-        finally:
-            pend.unlink()
+        self._write([{"id": "abc", "to": "haiku-fs2", "t": time.time()}])
+        r = run("hold.sh", {"cwd": str(ROOT / "holdtest"), "stop_hook_active": False})
+        self.assertEqual(r.returncode, 2); self.assertIn("fleet ask haiku-fs2", r.stderr)
+        r = run("hold.sh", {"cwd": str(ROOT / "holdtest"), "stop_hook_active": True})
+        self.assertEqual(r.returncode, 0)
+
+    def test_stale_entry_does_not_block(self):
+        # C3: an entry whose waiter died (t far in the past) must not hold the
+        # turn hostage - blocking forever on a reply that is never coming is
+        # worse than missing one.
+        self._write([{"id": "abc", "to": "haiku-fs2", "t": 0}])
+        r = run("hold.sh", {"cwd": str(ROOT / "holdtest"), "stop_hook_active": False})
+        self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_fresh_entry_beside_a_stale_one_still_blocks(self):
+        self._write([{"id": "old", "to": "haiku-fs2", "t": 0},
+                     {"id": "new", "to": "opus2", "t": time.time()}])
+        r = run("hold.sh", {"cwd": str(ROOT / "holdtest"), "stop_hook_active": False})
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("packet new", r.stderr)
 
 
 class PermTests(unittest.TestCase):

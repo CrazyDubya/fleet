@@ -1,7 +1,11 @@
+import contextlib
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
 
 from fleet import launcher
+from fleet.registry import Entry
 from fleet.spec import Thread
 
 ROOT = Path("/r")
@@ -61,6 +65,66 @@ class SettingsArgvTests(unittest.TestCase):
     def test_path_is_resolved_against_the_root(self):
         argv = launcher.build_argv(self._thread(settings="settings/unattended.json"), ROOT)
         self.assertEqual(argv[argv.index("--settings") + 1], "/r/settings/unattended.json")
+
+
+class ForkInheritanceTests(unittest.TestCase):
+    """H2: fork() built the child Thread without settings=, so a forked expert
+    spawned with no --settings - no tier allow/deny list, no hooks."""
+
+    def _fork(self, parent: Thread):
+        """Run fork() with the filesystem, tmux, registry and fleet.toml all
+        stubbed out, and return the argv it would have spawned."""
+        captured = {}
+
+        class FakeReg:
+            def __init__(self):
+                self.saved = None
+
+            @contextlib.contextmanager
+            def locked(self):
+                yield
+
+            def load(self):
+                return {parent.name: Entry(name=parent.name, session_id="parent-sid",
+                                           cwd=f"/r/{parent.name}", model=parent.model,
+                                           status="running", spec_hash="h", spawned_at=0.0)}
+
+            def save(self, entries):
+                self.saved = entries
+
+        with mock.patch.object(launcher, "_thread", return_value=parent), \
+             mock.patch.object(launcher, "load_profile", return_value=SimpleNamespace(threads={})), \
+             mock.patch.object(launcher, "Registry", FakeReg), \
+             mock.patch.object(launcher, "append_thread"), \
+             mock.patch.object(launcher, "spec_hash", return_value="child-hash"), \
+             mock.patch.object(launcher.ledger, "event"), \
+             mock.patch.object(launcher.Path, "exists", return_value=True), \
+             mock.patch.object(launcher.Path, "read_text", return_value=""), \
+             mock.patch.object(launcher, "thread_dir", side_effect=lambda n: Path(f"/r/{n}")), \
+             mock.patch.object(launcher, "_spawn",
+                               side_effect=lambda t, argv, **kw: captured.update(thread=t, argv=argv)):
+            launcher.fork(parent.name, "expert-test", "briefs/v2/expert-test.md")
+        return captured
+
+    def _parent(self, **kw):
+        return Thread(name="opus2", model="claude-opus-5", tier="warm", persist="on-demand",
+                      baseline=["briefs/v2/opus.md"], forkable=True, **kw)
+
+    def test_fork_inherits_the_parents_settings(self):
+        got = self._fork(self._parent(settings="settings/v2/warm.json", effort="high"))
+        self.assertEqual(got["thread"].settings, "settings/v2/warm.json")
+        argv = got["argv"]
+        self.assertEqual(argv[argv.index("--settings") + 1], str(launcher.ROOT / "settings/v2/warm.json"))
+
+    def test_fork_without_parent_settings_passes_none(self):
+        self.assertNotIn("--settings", self._fork(self._parent())["argv"])
+
+    def test_fork_still_carries_brief_and_fork_flags(self):
+        got = self._fork(self._parent(settings="settings/v2/warm.json"))
+        argv = got["argv"]
+        self.assertIn("--fork-session", argv)
+        self.assertIn("parent-sid", argv)
+        self.assertEqual(got["thread"].baseline[-1], "briefs/v2/expert-test.md")
 
 
 class ThreadNameTests(unittest.TestCase):

@@ -71,7 +71,7 @@ Two things to know before enabling it:
 | need | command |
 |---|---|
 | start | `fleet up haiku-fs2 && fleet up haiku-router2 && fleet up sonnet2` (opus2 on demand) |
-| send a task | `fleet send sonnet2 --lane build --done "<acceptance>" --refs <paths> "<body>"` — effort follows the lane; `--effort high` to raise for one packet |
+| send a task | `fleet send sonnet2 --lane build --done "<acceptance>" --refs <paths> "<body>"` — effort is a thread property (fleet.toml `effort`, applied at spawn); `@effort` in a packet is advice to the model, not a mode change. `--effort` still sets that header; to actually run a task at a different effort, route it to a thread that spawns with it (e.g. opus2 for the plan lane) |
 | sync lookup | `fleet ask haiku-fs2 "<few words>"` (≈2 s; threads use this too) |
 | a thread is waiting on a prompt | dashboard → Prompts card → Proceed / Deny (or `fleet decide <thread> <id> allow`) |
 | hook stalls | dashboard → Hooks; red rows are blocks or escalations older than 60 s |

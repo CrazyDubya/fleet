@@ -152,3 +152,17 @@ class AskTests(unittest.TestCase):
                     send=lambda p, profile, **kw: "abc123",
                     clear=lambda *a: None, sleep=lambda s: None)
         self.assertIn("Cooking", str(cm.exception))
+
+    def test_ask_timeout_clears_pending(self):
+        # C3: send_packet records a pending entry for every inline-reply
+        # packet and hold.sh (Stop) blocks the turn while one is outstanding.
+        # A timed-out ask used to leave its entry behind, arming hold.sh
+        # forever - the thread could not end any turn again.
+        cleared = []
+        with self.assertRaises(ask.AskTimeout):
+            ask.ask("haiku-fs2", "x", sender="sonnet2", profile="v2", timeout=0.0,
+                    capture=lambda name, lines=200, join=False: PANE_WAITING,
+                    send=lambda p, profile, **kw: "abc123",
+                    clear=lambda sender, pid, profile: cleared.append((sender, pid, profile)),
+                    sleep=lambda s: None)
+        self.assertEqual(cleared, [("sonnet2", "abc123", "v2")])

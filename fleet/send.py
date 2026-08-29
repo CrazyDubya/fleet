@@ -37,17 +37,15 @@ def send_packet(p: packet_mod.Packet, profile: str, events_path: Path | None = N
     if not tmux.window_exists(p.to):
         raise SendError(f"{p.to} is not running (no tmux window); `fleet wake {p.to}` first")
     p.id = p.id or packet_mod.new_id()
-    if p.effort:
-        # Effort is a per-packet routing decision (spec §1); /effort changes the
-        # receiving session before the packet lands. Confirmed live against a
-        # real Claude Code session (Task 9): pasting the packet immediately
-        # after this send-keys races the TUI's own handling of the /effort
-        # slash command and the paste is silently dropped - the pane shows
-        # only the effort confirmation, never the packet. A brief settle
-        # delay avoids the race; 0.5s was enough in the reproduction and
-        # costs nothing on the timeout budget of a lookup (~2s round trip).
-        send_keys(p.to, f"/effort {packet_mod.normalize_effort(p.effort)}")
-        sleep(0.5)
+    # No `/effort` keystroke. It looked like a per-packet routing knob, but
+    # Claude Code treats the slash command as a PERSISTENT setting - it answers
+    # "saved as your default for new sessions" - so one packet rewrote the
+    # operator's own global default (found live, ruling H1). Effort is a thread
+    # property now: fleet.toml `effort` -> `--effort` at spawn, and a lane
+    # routes to a thread that already runs at the right effort. `@effort` stays
+    # in the packet header as advice to the model, not a mode change.
+    # send_keys/sleep remain injectable so a test can prove nothing is typed
+    # into the pane before the paste.
     text = packet_mod.format_packet(p)
     paste(p.to, text)
     if p.reply == "inline":

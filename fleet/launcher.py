@@ -168,9 +168,15 @@ def fork(parent: str, new: str, brief: str) -> Entry:
             raise LaunchError(f"{parent} is not registered")
         if new in entries and entries[new].status == "running":
             raise LaunchError(f"{new} is already running")
+        # settings=pt.settings (H2): without it the child spawned with no
+        # --settings at all, i.e. no tier allow/deny list and no hooks - a
+        # forked expert inherited the parent's model and brief but none of its
+        # guard rails. Deferred (spec §4, recorded in the ledger): dirs are
+        # copied wholesale from the parent rather than being limited to the
+        # brief's @refs directories.
         child = Thread(name=new, model=pt.model, tier=pt.tier, persist="on-demand",
                        baseline=[*pt.baseline, brief], mcp=pt.mcp, dirs=pt.dirs,
-                       permission_mode=pt.permission_mode, effort=pt.effort,
+                       permission_mode=pt.permission_mode, settings=pt.settings, effort=pt.effort,
                        forkable=False, fork_of=parent, resume_policy=pt.resume_policy)
         # Register the child in fleet.toml BEFORE spawning (spec §4): without
         # a [thread.<new>] (or, under a non-v1 profile, a

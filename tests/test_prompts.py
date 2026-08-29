@@ -84,6 +84,64 @@ class DecideAutoTests(unittest.TestCase):
             self.assertEqual(prompts.decide_auto(cmd, self.root)[0], "deny", cmd)
 
 
+class WrappedCodeTests(unittest.TestCase):
+    """C2: a whole program passed as ONE quoted argument is not a path, so
+    _path_ok waved it through and decide_auto answered allow-auto. Every row
+    here was verified allow-auto before the fix."""
+
+    def setUp(self):
+        self.root = Path("/Users/pup/fleet")
+        # Built here rather than written literally so this file does not
+        # contain a ready-to-paste destructive command.
+        self.rf = "-r" + "f"
+
+    def test_wrapped_code_is_not_auto_allowed(self):
+        rm = "rm " + self.rf
+        rows = [
+            f'sh -c "{rm} /Users/pup"',
+            f"bash -c '{rm} /Users/pup/Documents'",
+            f'eval "{rm} ~/Documents"',
+            "python3 -c \"import shutil; shutil.rmtree('/Users/pup/Documents')\"",
+            "find . -delete",
+            f"xargs {rm} < list",
+        ]
+        for cmd in rows:
+            with self.subTest(cmd=cmd):
+                self.assertIn(prompts.decide_auto(cmd, self.root)[0], ("deny", "escalate"))
+
+    def test_inner_shell_payload_is_judged_recursively(self):
+        # deny (not just escalate): the recursion reaches _delete_denied.
+        self.assertEqual(prompts.decide_auto(f'sh -c "rm {self.rf} /Users/pup"', self.root)[0], "deny")
+        # a read outside the repo inside -c escalates, exactly as it would bare
+        self.assertEqual(prompts.decide_auto('sh -c "cat /Users/pup/other/secret"', self.root)[0], "escalate")
+
+    def test_benign_wrapped_code_still_allows(self):
+        self.assertEqual(prompts.decide_auto('sh -c "echo hi > /tmp/x"', self.root)[0], "allow-auto")
+
+    def test_fixture_quoted_args_still_allow(self):
+        # The recorded lines carrying quoted multi-word arguments: echo
+        # banners, python3 -c one-liners, curl -w format strings.
+        for line in FIX.read_text().splitlines():
+            if not any(" " in t for t in prompts._tokens(line)):
+                continue
+            d, why = prompts.decide_auto(line, self.root)
+            self.assertEqual(d, "allow-auto", f"{line!r}: {why}")
+
+    def test_delete_family_outside_state_denied(self):
+        rm = "rm " + self.rf
+        for cmd in ["rmdir /Users/pup/Documents", "unlink /Users/pup/.ssh/id_rsa",
+                    "find /Users/pup/fleet -name x -delete", f"find . -exec {rm} {{}} +",
+                    f"cat list | xargs {rm}", "rmdir gui", "find -delete"]:
+            with self.subTest(cmd=cmd):
+                self.assertEqual(prompts.decide_auto(cmd, self.root)[0], "deny", cmd)
+
+    def test_delete_family_inside_state_allowed(self):
+        for cmd in ["rmdir state/v2/tmp", "unlink state/gui-token",
+                    "find state/v2/prompts -name '*.json' -delete"]:
+            with self.subTest(cmd=cmd):
+                self.assertEqual(prompts.decide_auto(cmd, self.root)[0], "allow-auto", cmd)
+
+
 class PromptFilesTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory(); self.state = Path(self.tmp.name)

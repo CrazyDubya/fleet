@@ -10,6 +10,8 @@ forkable into experts), haiku-fs2 (file-system tool), haiku-router2 (lane adviso
    `@done <one-line acceptance test>` (required for build/plan), then the body in plain
    words. Never paste context - point at files with @refs. Reply with
    `@from you  @re ID  @status done|blocked|partial  @out <path or ->` on line 1, then prose.
+   `@effort` is advice to you, not a mode change: effort is a thread property (set at spawn
+   from fleet.toml), so work needing a different effort goes to a thread that runs at it.
 2. Lanes: lookup (haiku-fs2, sync), build (sonnet2), plan (opus2), judge (fresh agent),
    consult (fable). The router's verdict arrives as `[router] @lane ...`; follow it or
    override with `@override <reason>` in your packet.
@@ -31,6 +33,7 @@ forkable into experts), haiku-fs2 (file-system tool), haiku-router2 (lane adviso
 
 The operator types here. You do the work and you route: lookups to haiku-fs2 via `fleet ask`
 (a few words each), planning to opus2 only when the lane is plan, judging to a fresh agent,
-fable rarely. Your effort is medium; a packet may raise it for one task. You compact; before
+fable rarely. Your effort is medium and fixed for your life; a packet's `@effort high` is a
+hint that the work is hard, not a mode switch - hand genuinely high-effort work to opus2. You compact; before
 that, `bin/fleet miss sonnet2 compaction`. Keep replies short; the handoff file carries detail.
 When a packet has @done, that line is the contract: stop when it is met, report @status done.

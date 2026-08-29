@@ -26,6 +26,31 @@ PATH_TOKEN = re.compile(r"^(~|/|\./|\.\./)")
 DEV_OK = ("/dev/null", "/dev/stdin", "/dev/stdout", "/dev/stderr")
 SEGMENT_RE = re.compile(r"\s*(?:;|&&|\|\||\||&|\n|\$\(|\(|`|\{)\s*")
 
+# Commands that delete. `rm` keeps its own recursive+force rule below; the
+# others delete unconditionally, so any path argument is enough.
+DELETE_VERBS = frozenset({"rm", "rmdir", "unlink"})
+# A token that is the argument of one of these carries a whole program, which
+# decide_auto re-runs on itself rather than treating as an opaque string.
+CODE_OPTS = frozenset({"-c", "--command", "-e", "--eval"})
+CODE_VERBS = frozenset({"eval", "exec", "source", "."})
+MAX_WRAP_DEPTH = 3
+WS_IN_TOKEN = re.compile(r"\s")
+# Deny-class content inside a single quoted argument. A multi-word token is
+# NOT a path and never reaches _path_ok, so `sh -c "..."`, `eval "..."` and
+# `python3 -c "..."` used to be auto-allowed whole. Recursion (above) catches
+# shell payloads; this catches payloads whose language is not shell - a
+# recursive decide_auto on `import shutil; shutil.rmtree('/x')` sees only
+# harmless-looking tokens.
+QUOTED_DENY_RE = re.compile(
+    r"\b(rm|rmdir|unlink|xargs|sudo|ssh|scp|rsync|curl|chmod)\b"
+    r"|shutil\.rmtree"
+    r"|os\.(remove|unlink|rmdir|removedirs)"
+    r"|\.unlink\s*\("
+    r"|\bgit\s+(push|reset|clean)\b"
+    r"|\bfind\b.*-delete\b",
+    re.IGNORECASE,
+)
+
 
 def _tokens(command: str) -> list[str]:
     try:
@@ -84,9 +109,28 @@ def _rm_flags_and_args(tokens: list[str]) -> tuple[bool, bool, list[str]]:
     return has_recursive, has_force, args
 
 
-def _rm_denied(command: str, root: Path) -> str | None:
-    """Token-based rm -rf check: deny recursive+force rm unless every
-    non-flag argument resolves under <root>/state.
+def _all_args_in_state(args: list[str], root: Path) -> bool:
+    """Every argument must land under <root>/state in BOTH its raw form and
+    its _clean_arg form. The cleaned form exists only to tolerate a closing
+    delimiter left attached by the raw-text segment split; a literal filename
+    that really ends in )/`/}/; must not benefit from that stripping."""
+    state_dir = os.path.normpath(str(root / "state"))
+    for a in args:
+        for cand in (a, _clean_arg(a)):
+            p = _resolve(cand, root)
+            if not (p == state_dir or p.startswith(state_dir + "/")):
+                return False
+    return True
+
+
+def _plain_args(tokens: list[str]) -> list[str]:
+    return [t for t in tokens if t == "-" or not t.startswith("-")]
+
+
+def _delete_denied(command: str, root: Path) -> str | None:
+    """Token-based check on the whole delete family: deny recursive+force rm,
+    rmdir, unlink, `find ... -delete`/`-exec rm`, and `xargs rm` unless every
+    path argument resolves under <root>/state.
 
     The raw command is split into shell segments on ;, &&, ||, |, &,
     newline, (, $(, `, and { before tokenizing, so chained invocations
@@ -102,36 +146,92 @@ def _rm_denied(command: str, root: Path) -> str | None:
     quoted literal path that really ends in ) or } (e.g. rm -rf "state)")
     is denied rather than being truncated into an in-state path.
     """
-    state_dir = os.path.normpath(str(root / "state"))
     for segment in SEGMENT_RE.split(command):
         segment = segment.strip()
         if not segment:
             continue
         tokens = _tokens(segment)
-        if not tokens or tokens[0] != "rm":
+        if not tokens:
             continue
-        has_recursive, has_force, args = _rm_flags_and_args(tokens[1:])
-        if has_recursive and has_force:
-            for a in args:
-                # Fail safe: the argument must land under <root>/state in BOTH
-                # its raw form and its _clean_arg form. The cleaned form exists
-                # only to tolerate a closing delimiter left attached by the
-                # raw-text segment split; a literal filename that really ends
-                # in )/`/}/; must not benefit from that stripping.
-                for cand in (a, _clean_arg(a)):
-                    p = _resolve(cand, root)
-                    if not (p == state_dir or p.startswith(state_dir + "/")):
-                        return "rm -rf outside state/"
+        verb, rest = tokens[0], tokens[1:]
+        if verb == "rm":
+            has_recursive, has_force, args = _rm_flags_and_args(rest)
+            # A non-recursive rm of one in-repo file is routine work
+            # (`rm -f state/gui-token`); only recursive+force is destructive.
+            if has_recursive and has_force and not _all_args_in_state(args, root):
+                return "rm -rf outside state/"
+        elif verb in ("rmdir", "unlink"):
+            if not _all_args_in_state(_plain_args(rest), root):
+                return f"{verb} outside state/"
+        elif verb == "find":
+            deletes = "-delete" in rest or (
+                "-exec" in rest and any(_clean_arg(t) in DELETE_VERBS for t in rest)
+            )
+            if deletes:
+                # find's paths are its leading operands, before the first
+                # -primary. With none given it walks "." - the thread's own
+                # cwd, which is not necessarily under state/.
+                args = []
+                for t in rest:
+                    if t.startswith("-"):
+                        break
+                    args.append(t)
+                if not _all_args_in_state(args or ["."], root):
+                    return "find -delete outside state/"
+        elif verb == "xargs":
+            # Denied outright when the utility deletes: xargs' operands arrive
+            # on stdin, so there is no path argument to check against state/
+            # (`xargs rm -rf < list` names nothing dangerous inline).
+            if any(_clean_arg(t) in DELETE_VERBS for t in rest):
+                return "xargs delete (paths come from stdin; unverifiable)"
     return None
 
 
-def decide_auto(command: str, root: Path) -> tuple[str, str]:
-    rm_why = _rm_denied(command, root)
-    if rm_why:
-        return "deny", rm_why
+def _wrapped_verdict(command: str, root: Path, depth: int) -> tuple[str, str] | None:
+    """Judge every multi-word token, i.e. every quoted argument.
+
+    Such a token is not a path, so _path_ok waves it through, and the DENY
+    regexes are written against shell text - which is how a whole program
+    handed over as one argument (`sh -c "rm -rf /Users/pup"`, `eval "..."`,
+    `python3 -c "..."`) was auto-allowed with "resolves inside the repo".
+
+    Two rules, both narrow enough to leave the recorded fixture lines (which
+    contain quoted multi-word args like `echo "===== $f ====="` and
+    `python3 -c "from fleet import status; ..."`) auto-allowed:
+
+    1. If the token is the argument of -c/--command/-e/--eval or of
+       eval/exec/source/., it IS a command line: re-run decide_auto on it and
+       propagate anything other than allow-auto.
+    2. Otherwise (or if the recursion cleared it), escalate when the token
+       carries deny-class content. Escalate rather than deny: the operator can
+       still look at it, and a quoted string is too ambiguous to refuse
+       outright.
+    """
+    tokens = _tokens(command)
+    for i, tok in enumerate(tokens):
+        if not WS_IN_TOKEN.search(tok):
+            continue
+        prev = tokens[i - 1] if i else ""
+        if (prev in CODE_OPTS or prev in CODE_VERBS) and depth < MAX_WRAP_DEPTH:
+            d, why = decide_auto(tok, root, _depth=depth + 1)
+            if d != "allow-auto":
+                return d, f"wrapped code ({prev}): {why}"
+        m = QUOTED_DENY_RE.search(tok)
+        if m:
+            return "escalate", f"quoted argument contains {m.group(0)!r}"
+    return None
+
+
+def decide_auto(command: str, root: Path, _depth: int = 0) -> tuple[str, str]:
+    delete_why = _delete_denied(command, root)
+    if delete_why:
+        return "deny", delete_why
     for rx, why in DENY:
         if rx.search(command):
             return "deny", why
+    wrapped = _wrapped_verdict(command, root, _depth)
+    if wrapped:
+        return wrapped
     for tok in _tokens(command):
         if not _path_ok(tok, root):
             return "escalate", f"path outside repo: {tok}"

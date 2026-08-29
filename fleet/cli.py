@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+import re
 import sys
 from datetime import datetime
 
@@ -51,9 +52,21 @@ def cmd_ls(args):
     return 0
 
 
+ABANDONED_RE = re.compile(r"^abandoned-([0-9a-f]{16})$")
+
+
 def cmd_miss(args):
-    ledger.event("miss", thread=args.thread, reason=" ".join(args.reason))
-    print(f"recorded miss for {args.thread}: {' '.join(args.reason)}")
+    reason = " ".join(args.reason)
+    ledger.event("miss", thread=args.thread, reason=reason)
+    # hold.sh tells the thread to run `fleet miss <you> abandoned-<id>` to drop
+    # a reply it is no longer waiting for. Honour that literally: without
+    # clearing the pending entry the Stop hook goes on blocking every turn and
+    # the advice it prints is a dead end.
+    m = ABANDONED_RE.match(reason.strip())
+    if m:
+        send_mod.clear_pending(args.thread, m.group(1), current_profile())
+        print(f"dropped pending reply {m.group(1)} for {args.thread}")
+    print(f"recorded miss for {args.thread}: {reason}")
     return 0
 
 
@@ -122,6 +135,23 @@ def cmd_perm_decide(args):
     print(got or "escalate-timeout"); return 0
 
 
+def cmd_perm_check(args):
+    """Policy question only: `deny` or `ok`, no prompt file, no waiting.
+
+    perm-decide is the PermissionRequest path (it may escalate and block for
+    the operator up to 4 minutes). The PreToolUse gate needs the same policy
+    without either of those: the tool tier runs with permission_mode that
+    never reaches a PermissionRequest, so gate.sh is the only place a
+    destructive Bash command can be stopped, and a hook has 3 seconds.
+    """
+    from . import prompts as prompts_mod
+    from .paths import ROOT
+    d, why = prompts_mod.decide_auto(args.command, ROOT)
+    if d == "deny":
+        print("deny"); print(why, file=sys.stderr); return 0
+    print("ok"); return 0
+
+
 def cmd_ask(args):
     from . import ask as ask_mod
     try:
@@ -161,6 +191,7 @@ def _build_parser():
     h = sub.add_parser("hook-event"); h.add_argument("hook"); h.add_argument("thread"); h.add_argument("decision")
     h.add_argument("ms", type=int); h.add_argument("why", nargs="*"); h.set_defaults(fn=cmd_hook_event)
     pd = sub.add_parser("perm-decide"); pd.add_argument("thread"); pd.add_argument("cwd"); pd.add_argument("command"); pd.set_defaults(fn=cmd_perm_decide)
+    pc = sub.add_parser("perm-check"); pc.add_argument("command"); pc.set_defaults(fn=cmd_perm_check)
     return p
 
 

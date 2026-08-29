@@ -15,5 +15,14 @@ elif [ "$TOOL" = "Bash" ]; then
   case "$CMD" in *"fleet send "*opus*|*"fleet send "*fable*)
     grep -Eq -- '--lane (plan|consult)|@override' <<<"$CMD" || block "fleet send to opus/fable needs --lane plan|consult or @override";;
   esac
+  # Destructive gate for EVERY tier. The tool tier runs a permission mode that
+  # never raises a PermissionRequest, so perm.sh never sees its Bash calls and
+  # settings deny patterns are the only thing standing between a haiku thread
+  # and `rm`/`git push`. PreToolUse does fire on all tiers: ask the same policy
+  # (fleet.prompts.decide_auto) here and refuse the deny class. Escalation is
+  # deliberately NOT done here - a hook has 3 s and no operator to wait for.
+  if [ -n "$CMD" ] && [ "$("$FLEET" perm-check "$CMD" 2>/dev/null || echo ok)" = "deny" ]; then
+    block "fleet perm policy denies this command; ask the operator instead: $CMD"
+  fi
 fi
 ledger gate allow ok; exit 0
