@@ -47,7 +47,7 @@ class TaskTests(unittest.TestCase):
 
     def test_with_expect_fills_check_and_cleanup(self):
         t = tasks.load_task(self.dir / "lookup-newest.toml")
-        r = tasks.with_expect(tasks.substitute(replace(t, check='test "$(cat {target}/reply.txt)" = "{expect}"',
+        r = tasks.with_expect(tasks.substitute(replace(t, expect="true", check='test "$(cat {target}/reply.txt)" = "{expect}"',
                                                        cleanup="rm -rf {target}"), "abc123", Path("/r")), "ledger/handoffs/a.md")
         self.assertEqual(r.check, 'test "$(cat bench/work/abc123/out/reply.txt)" = "ledger/handoffs/a.md"')
         self.assertEqual(r.cleanup, "rm -rf bench/work/abc123/out")
@@ -58,3 +58,9 @@ class TaskTests(unittest.TestCase):
         (self.dir / "bad.toml").write_text(TOML.replace('lane = "lookup"', 'lane = "magic"'))
         with self.assertRaises(ValueError):
             tasks.load_all(self.dir)
+
+    def test_expect_placeholder_without_an_expect_command_is_rejected(self):
+        t = tasks.load_task(self.dir / "lookup-newest.toml")
+        with self.assertRaises(ValueError):
+            tasks.substitute(replace(t, check="test x = {expect}"), "abc123", Path("/r"))
+

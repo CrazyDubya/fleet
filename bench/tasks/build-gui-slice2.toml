@@ -7,4 +7,4 @@ done = "POST /w/bench{run}/push returns a name and GET /w/bench{run}/ lists it"
 check = "T=$(cat state/gui-token); curl -sf -b fleet_gui=$T -H 'Content-Type: application/json' -X POST -d '{\"title\":\"t\",\"body\":\"b\"}' http://127.0.0.1:8787/w/bench{run}/push | grep -q name && curl -sf -b fleet_gui=$T http://127.0.0.1:8787/w/bench{run}/ | grep -q name"
 judge = "bench/rubrics/widget.md"
 timeout_s = 900
-cleanup = "rm -rf gui/widgets/bench{run} state/bench{run} state/workspace-bench{run}"
+cleanup = "rm -rf gui/widgets/bench{run} bench/work/{run} state/*bench{run}*"

@@ -48,6 +48,10 @@ def _sub(s: str | None, run: str, root: Path, target: str, refs: str) -> str | N
 
 
 def substitute(task: TaskSpec, run: str, root: Path) -> Resolved:
+    if task.expect is None and any("{expect}" in (s or "") for s in (task.check, task.cleanup)):
+        # with no expect command nothing ever fills the placeholder, and a literal
+        # "{expect}" would be handed to a shell=True check as if it were the answer.
+        raise ValueError(f"{task.id}: check/cleanup use {{expect}} but the task has no expect")
     target = task.target.replace("{run}", run).replace("{root}", str(root))
     refs = " ".join(task.refs)
     return replace(task, packet=_sub(task.packet, run, root, target, refs), target=target,
