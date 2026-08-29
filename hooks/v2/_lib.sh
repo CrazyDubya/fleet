@@ -4,6 +4,11 @@ FLEET_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 FLEET="$FLEET_ROOT/bin/fleet"
 export FLEET_PROFILE="${FLEET_PROFILE:-v2}"
 command -v jq >/dev/null 2>&1 || exit 0
+# Claude Code always pipes the hook payload in on stdin, so stdin is never a
+# TTY here. Running one of these scripts by hand from a terminal is the only
+# way it can be, and then `cat` blocks forever waiting for an EOF the operator
+# has to guess at. Exit cleanly instead.
+[ -t 0 ] && exit 0
 PAYLOAD="$(cat 2>/dev/null || true)"
 jf() { printf '%s' "$PAYLOAD" | jq -r "$1 // empty" 2>/dev/null || true; }
 CWD="$(jf .cwd)"

@@ -72,6 +72,14 @@ class GateTests(unittest.TestCase):
         r = run("gate.sh", {"cwd": self.cwd, "tool_name": "Bash", "tool_input": {"command": "ls"}})
         self.assertEqual((r.returncode, r.stderr), (0, ""))
 
+    def test_gate_with_no_payload_on_stdin_exits_cleanly(self):
+        # Hooks are always fed a JSON payload on stdin. Run by hand with
+        # nothing there, _lib.sh must not hang and must not fail.
+        with open(os.devnull) as devnull:
+            r = subprocess.run([str(HOOKS / "gate.sh")], stdin=devnull, capture_output=True,
+                               text=True, env={**os.environ, "FLEET_PROFILE": "v2"}, timeout=20)
+        self.assertEqual((r.returncode, r.stderr), (0, ""))
+
 
 class HoldTests(unittest.TestCase):
     PEND = ROOT / "state" / "v2" / "pending" / "holdtest.json"
@@ -104,6 +112,24 @@ class HoldTests(unittest.TestCase):
         r = run("hold.sh", {"cwd": str(ROOT / "holdtest"), "stop_hook_active": False})
         self.assertEqual(r.returncode, 2)
         self.assertIn("packet new", r.stderr)
+
+    def test_one_malformed_entry_does_not_drop_the_whole_list(self):
+        # A non-numeric .t made `now - .t` raise (jq exit 5); the `|| echo []`
+        # fallback then discarded every pending reply in the file, fresh ones
+        # included, and the Stop hook stopped blocking at all.
+        self._write([{"id": "bad", "to": "haiku-fs2", "t": "not-a-number"},
+                     {"id": "new", "to": "opus2", "t": time.time()}])
+        r = run("hold.sh", {"cwd": str(ROOT / "holdtest"), "stop_hook_active": False})
+        self.assertEqual(r.returncode, 2, r.stderr)
+        self.assertIn("packet new", r.stderr)
+        self.assertNotIn("bad", r.stderr)
+
+    def test_fresh_entry_missing_fields_reports_a_placeholder(self):
+        self._write([{"t": time.time()}])
+        r = run("hold.sh", {"cwd": str(ROOT / "holdtest"), "stop_hook_active": False})
+        self.assertEqual(r.returncode, 2, r.stderr)
+        self.assertNotIn("null", r.stderr)
+        self.assertIn("packet ?", r.stderr)
 
 
 class PermTests(unittest.TestCase):
