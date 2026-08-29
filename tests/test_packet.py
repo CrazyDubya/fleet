@@ -1,3 +1,4 @@
+import time
 import unittest
 
 from fleet import packet
@@ -46,3 +47,29 @@ class PacketTests(unittest.TestCase):
         a, b = packet.new_id(), packet.new_id()
         self.assertEqual(len(a), 16)
         self.assertNotEqual(a, b)
+
+    def test_new_id_sorts_by_time(self):
+        a = packet.new_id()
+        time.sleep(0.002)
+        b = packet.new_id()
+        self.assertLess(a, b)
+
+    def test_new_id_keeps_the_whole_millisecond_prefix(self):
+        # The prefix used to be truncated to its last 10 hex digits, so ids
+        # either side of a carry into the 11th digit sorted backwards.
+        i = packet.new_id()
+        self.assertAlmostEqual(int(i[:11], 16), int(time.time() * 1000), delta=100)
+
+    def test_unknown_lane_raises(self):
+        with self.assertRaises(ValueError):
+            packet.parse("@to sonnet2  @from operator  @lane plann\nbuild it")
+
+    def test_missing_lane_still_defaults_to_build(self):
+        p = packet.parse("@to sonnet2  @from operator\nbuild it")
+        self.assertEqual((p.lane, p.effort, p.reply), ("build", "med", "file"))
+
+    def test_normalize_effort_does_not_chain_the_keyerror(self):
+        with self.assertRaises(ValueError) as cm:
+            packet.normalize_effort("max")
+        self.assertIsNone(cm.exception.__cause__)
+        self.assertTrue(cm.exception.__suppress_context__)

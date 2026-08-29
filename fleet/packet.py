@@ -51,12 +51,23 @@ def normalize_effort(s: str) -> str:
     try:
         return EFFORTS[s]
     except KeyError:
-        raise ValueError(f"effort must be one of {sorted(EFFORTS)}, not {s!r}")
+        # `from None`: the KeyError is an implementation detail, and chaining it
+        # buries the actual message under "During handling of the above...".
+        raise ValueError(f"effort must be one of {sorted(EFFORTS)}, not {s!r}") from None
 
 
 def new_id() -> str:
-    # time-prefixed so ids sort by creation; 16 chars, hex, no ambiguity in shell
-    return f"{int(time.time() * 1000):011x}"[-10:] + secrets.token_hex(3)
+    """16 hex chars: 11 for the millisecond clock, 5 random.
+
+    Time-prefixed so ids sort by creation - which only worked by accident
+    before: the prefix was truncated to its LAST 10 hex digits, so every id
+    minted either side of a carry into the 11th digit sorted backwards
+    (16^10 ms is ~34 days, so the boundary comes round monthly). Keep all 11
+    digits and take the width back out of the random tail; 20 bits of
+    randomness within a single millisecond is still ~1e-6 collision odds for
+    a fleet that never mints two ids in the same ms anyway.
+    """
+    return f"{int(time.time() * 1000):011x}{secrets.randbits(20):05x}"
 
 
 def _fields(line: str) -> dict[str, str]:
@@ -85,7 +96,14 @@ def parse(text: str):
     if "to" not in head:
         return None
     lane = head.get("lane", "build")
-    ln = LANES.get(lane, LANES["build"])
+    try:
+        # A MISSING @lane defaults to build (the header is 3 lines and a
+        # sender may leave it off). An UNKNOWN one is a typo - silently
+        # routing "@lane plann" as a build packet sent it to the wrong thread
+        # at the wrong effort with nothing in the log to say so.
+        ln = LANES[lane]
+    except KeyError:
+        raise ValueError(f"unknown lane {lane!r}; expected one of {sorted(LANES)}") from None
     return Packet(to=head["to"], sender=head.get("from", "operator"), lane=lane,
                   effort=head.get("effort", ln.effort), reply=head.get("reply", ln.reply),
                   refs=refs, done=done, id=head.get("id"), body=body)
