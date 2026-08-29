@@ -182,7 +182,12 @@ def cmd_bench(args):
         brun.run_many(ids, arms, repeat=args.repeat)
         return 0
     from fleet.bench import report as breport, run as brun
-    since = datetime.strptime(args.since, "%Y-%m-%d").timestamp() if args.since else None
+    since = None
+    if args.since:
+        try:
+            since = datetime.strptime(args.since, "%Y-%m-%d").timestamp()
+        except ValueError:
+            print("error: --since must be YYYY-MM-DD", file=sys.stderr); return 1
     print(breport.render(breport.summarize(breport.load(brun.RUNS, since))))
     return 0
 

@@ -43,6 +43,12 @@ class BenchCliTests(unittest.TestCase):
         self.assertEqual(rc, 1)
         m.assert_not_called()
 
+    def test_bench_cli_rejects_bad_since(self):
+        with mock.patch("fleet.cli.activate_profile"), mock.patch("fleet.bench.report.load") as m:
+            rc = cli.main(["bench", "report", "--since", "not-a-date"])
+        self.assertEqual(rc, 1)
+        m.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
