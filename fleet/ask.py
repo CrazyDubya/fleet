@@ -84,7 +84,12 @@ def extract_reply(pane: str, pid: str) -> str | None:
             if END_RE.match(l):
                 break
             body.append(l)
-        return _strip(body)
+        # A header line with nothing after it (capture landed between the
+        # header rendering and its body) must not read as "a reply came
+        # back" - an empty string is truthy-adjacent enough to fool a caller
+        # that only checks `is not None`, so normalize it to None and let
+        # the poll loop try again.
+        return _strip(body) or None
     if start is None:
         return None
     # 2. the last bare ⏺ block after our packet
@@ -107,8 +112,13 @@ def extract_reply(pane: str, pid: str) -> str | None:
         # text instead of the real answer that renders a moment later. Treat
         # an unterminated block as not-yet-a-reply and keep polling, rather
         # than one more terminator glyph in END_RE - the busy indicator
-        # isn't a fixed single character.
-        blocks.pop()
+        # isn't a fixed single character. Return None outright rather than
+        # falling back to an earlier, already-terminated block: that earlier
+        # block could be a tool-call summary (e.g. "⏺ Bash(...)") the model
+        # produced before the real answer, which must never be handed back
+        # as if it were the reply just because a later block hasn't settled
+        # yet.
+        return None
     return _strip(blocks[-1]) if blocks else None
 
 

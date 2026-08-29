@@ -131,3 +131,22 @@ class AppendThreadTests(unittest.TestCase):
         self.assertNotIn("effort", text)
         self.assertNotIn("fork_of", text)
         self.assertIn("[thread.bare]", text)
+
+    def test_append_thread_v2_writes_profile_stanza(self):
+        # Review round 1, finding 2: fork() under FLEET_PROFILE=v2 must land
+        # in [profile.v2.thread.<new>], the namespace v2's own readers
+        # (load_profile("v2"), and therefore `fleet wake`/`status`) actually
+        # look at - not the v1-only [thread.<new>] load_specs() reads.
+        child = spec.Thread(name="expert-v2-test", model="claude-haiku-4-5", tier="tool", persist="on-demand")
+        spec.append_thread(child, self.toml, profile="v2")
+        self.assertIn("expert-v2-test", spec.load_profile("v2", self.toml).threads)
+        self.assertEqual(spec.load_profile("v2", self.toml).threads["expert-v2-test"], child)
+        self.assertNotIn("expert-v2-test", spec.load_specs(self.toml))
+
+    def test_append_thread_v2_refuses_duplicate(self):
+        # "sonnet2" already exists under [profile.v2.thread.sonnet2] in the
+        # real fleet.toml this test copies - a same-profile collision must
+        # raise, not silently overwrite or land in the wrong namespace.
+        with self.assertRaises(ValueError):
+            spec.append_thread(spec.Thread(name="sonnet2", model="m", tier="hot", persist="singular"),
+                               self.toml, profile="v2")

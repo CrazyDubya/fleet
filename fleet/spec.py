@@ -69,14 +69,19 @@ def _toml_value(v) -> str:
     raise TypeError(f"cannot render {v!r} as TOML")
 
 
-def render_stanza(t: Thread) -> str:
-    """`[thread.<name>]` for a thread created at runtime.
+def render_stanza(t: Thread, profile: str = "v1") -> str:
+    """`[thread.<name>]` (v1) or `[profile.<profile>.thread.<name>]` (any other
+    profile) for a thread created at runtime.
 
     Spec §4: "Experts and extra tools are new [thread.<name>] entries with
     fork_of = ...". Without the stanza a forked child exists only in the
     registry, so wake/respawn answer "no thread named", status shows tier
-    `?`, spec_stale is never computed and respawn_usd is 0. Fields that are
-    None are omitted rather than written as a null TOML has no word for.
+    `?`, spec_stale is never computed and respawn_usd is 0. Under a non-v1
+    profile the same problem applies to that profile's own readers
+    (`load_profile(profile)`) - a bare `[thread.<name>]` lands in the v1
+    namespace, which `fleet wake`/`status` never look at when
+    FLEET_PROFILE=<profile>. Fields that are None are omitted rather than
+    written as a null TOML has no word for.
     """
     fields: list[tuple[str, object]] = [
         ("model", t.model), ("tier", t.tier), ("persist", t.persist), ("baseline", t.baseline),
@@ -84,15 +89,18 @@ def render_stanza(t: Thread) -> str:
         ("settings", t.settings), ("effort", t.effort), ("forkable", t.forkable), ("fork_of", t.fork_of),
         ("resume_policy", t.resume_policy)]
     body = "".join(f"{k} = {_toml_value(v)}\n" for k, v in fields if v is not None)
-    return f"[thread.{t.name}]\n{body}"
+    header = f"[thread.{t.name}]" if profile == "v1" else f"[profile.{profile}.thread.{t.name}]"
+    return f"{header}\n{body}"
 
 
-def append_thread(t: Thread, path: Path | None = None) -> None:
-    """Append `t`'s stanza to fleet.toml. Refuses to shadow an existing one."""
+def append_thread(t: Thread, path: Path | None = None, profile: str = "v1") -> None:
+    """Append `t`'s stanza to fleet.toml, under `profile`'s own namespace.
+    Refuses to shadow an existing thread name within that same profile."""
     p = path or ROOT / "fleet.toml"
-    if t.name in load_specs(p):
-        raise ValueError(f"[thread.{t.name}] already exists in {p}")
-    p.write_text(p.read_text().rstrip("\n") + "\n\n" + render_stanza(t))
+    existing = load_specs(p) if profile == "v1" else load_profile(profile, p).threads
+    if t.name in existing:
+        raise ValueError(f"a thread named {t.name!r} already exists in profile {profile!r} in {p}")
+    p.write_text(p.read_text().rstrip("\n") + "\n\n" + render_stanza(t, profile))
 
 
 def spec_hash(thread: Thread, root: Path = ROOT) -> str:

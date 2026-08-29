@@ -12,18 +12,22 @@ class SendPacketTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.state = Path(self.tmp.name)
         self.events = self.state / "events.jsonl"
-        self.pastes, self.keys = [], []
+        self.pastes, self.keys, self.sleeps = [], [], []
         self.p = packet.Packet(to="haiku-fs2", sender="sonnet2", lane="lookup", effort="low", reply="inline", body="newest handoff?")
 
     def tearDown(self):
         self.tmp.cleanup()
 
     def _send(self, p):
+        # sleep= is faked here (never the real time.sleep) so this file
+        # doesn't burn a real 0.5s per test just because effort is set on
+        # self.p - review round 1, finding 1.
         with mock.patch("fleet.send.profile_state", return_value=self.state), \
              mock.patch("fleet.tmux.window_exists", return_value=True):
             return send_mod.send_packet(p, "v2", events_path=self.events,
                                         paste=lambda name, text: self.pastes.append((name, text)),
-                                        send_keys=lambda name, keys: self.keys.append((name, keys)))
+                                        send_keys=lambda name, keys: self.keys.append((name, keys)),
+                                        sleep=lambda s: self.sleeps.append(s))
 
     def test_pastes_formatted_packet_with_id(self):
         pid = self._send(self.p)
@@ -35,6 +39,18 @@ class SendPacketTests(unittest.TestCase):
     def test_effort_applied_before_paste(self):
         self._send(self.p)
         self.assertEqual(self.keys[0], ("haiku-fs2", "/effort low"))
+
+    def test_settles_after_effort_before_pasting(self):
+        # Review round 1, finding 1 (Task 9 live bug): pasting immediately
+        # after the /effort send-keys races Claude Code's own handling of
+        # that slash command and the paste is silently dropped.
+        self._send(self.p)
+        self.assertEqual(self.sleeps, [0.5])
+
+    def test_no_settle_sleep_without_effort(self):
+        self.p.effort = None
+        self._send(self.p)
+        self.assertEqual(self.sleeps, [])
 
     def test_inline_reply_records_pending(self):
         pid = self._send(self.p)

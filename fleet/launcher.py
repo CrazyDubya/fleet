@@ -173,13 +173,23 @@ def fork(parent: str, new: str, brief: str) -> Entry:
                        permission_mode=pt.permission_mode, effort=pt.effort,
                        forkable=False, fork_of=parent, resume_policy=pt.resume_policy)
         # Register the child in fleet.toml BEFORE spawning (spec §4): without
-        # a [thread.<new>] stanza the child lives only in the registry, so
-        # wake/respawn answer "no thread named", status shows tier `?` and
-        # spec drift is never detected. Rolled back if the spawn fails, so a
-        # failed fork does not leave a half-thread behind.
+        # a [thread.<new>] (or, under a non-v1 profile, a
+        # [profile.<profile>.thread.<new>]) stanza the child lives only in
+        # the registry, so wake/respawn answer "no thread named", status
+        # shows tier `?` and spec drift is never detected. Rolled back if
+        # the spawn fails, so a failed fork does not leave a half-thread
+        # behind.
         toml = ROOT / "fleet.toml"
         before = toml.read_text()
-        append_thread(child, toml)
+        try:
+            append_thread(child, toml, profile=current_profile())
+        except ValueError as exc:
+            # Same-profile name collision the precheck above missed (e.g. a
+            # race, or a name that exists in a different profile's namespace
+            # and so passed that check) - surface it the same way every
+            # other fork precondition failure is surfaced, instead of an
+            # unhandled ValueError escaping from inside reg.locked().
+            raise LaunchError(str(exc)) from exc
         try:
             _spawn(child, build_argv(child, ROOT, resume_id=entries[parent].session_id, fork=True))
         except LaunchError:
