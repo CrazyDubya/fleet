@@ -23,25 +23,42 @@ def _med(xs):
     return round(st.median(xs), 4) if xs else None
 
 
+def measured(rows: list[dict]) -> list[dict]:
+    """Rows whose cost/token window is real. A row with `measured: false` reports $0 by
+    accident, not by fact, so it must not drag a median down; it still counts in `n`.
+    Rows written before the flag existed have no key and are taken at face value."""
+    return [r for r in rows if r.get("measured", True)]
+
+
 def _arm_stats(rows: list[dict]) -> dict:
     passes = [r for r in rows if r["status"] == "pass"]
-    judged = [r for r in rows if r.get("judge") is not None]
-    return {"n": len(rows), "pass_rate": (len(passes) / len(rows)) if rows else None,
-            # the judge is the bench's own opus spend, reported beside `usd`, never inside it
-            "judge_usd_med": _med([r.get("judge_usd") for r in judged]),
-            "profiles": sorted({r.get("profile") for r in rows if r.get("profile")}),
-            "claude_versions": sorted({r.get("claude_version") for r in rows if r.get("claude_version")}),
-            "wall_med": _med([r["wall_s"] for r in rows]), "usd_med": _med([r["usd"] for r in rows]),
-            "weekly_med": _med([sum(r["pool"]["weekly"].values()) for r in rows]), "fable_med": _med([r["pool"]["fable"] for r in rows]),
-            "interventions_per_run": (sum(sum(r["interventions"].values()) for r in rows) / len(rows)) if rows else None,
-            "judge_med": _med([r["judge"] for r in passes]),
-            # per-pass medians feed the headline ratios
-            "_wall_pass_med": _med([r["wall_s"] for r in passes]), "_usd_pass_med": _med([r["usd"] for r in passes]),
-            "_weekly_pass_med": _med([sum(r["pool"]["weekly"].values()) for r in passes])}
+    m = measured(rows)
+    return {"n": len(rows), "errors": sum(1 for r in rows if r["status"] == "error"),
+            "pass_rate": (len(passes) / len(rows)) if rows else None,
+            # the judge is the bench's own opus spend, reported beside `usd`, never inside it.
+            # Keyed off a recorded judge_usd, not off `judge`: a judge whose score would not
+            # parse still spent. Rows with no cost recorded (0.0 / absent - no judge ran) are
+            # left out, or the median of a half-judged arm drifts toward zero and means nothing.
+            "judge_usd_med": _med([r["judge_usd"] for r in m if r.get("judge_usd")]),
+            "profiles": sorted({r.get("profile") or "?" for r in rows}),
+            "claude_versions": sorted({r.get("claude_version") or "?" for r in rows}),
+            "wall_med": _med([r["wall_s"] for r in rows]), "usd_med": _med([r["usd"] for r in m]),
+            "weekly_med": _med([sum(r["pool"]["weekly"].values()) for r in m]), "fable_med": _med([r["pool"]["fable"] for r in m]),
+            "interventions_per_run": (sum(sum(r["interventions"].values()) for r in m) / len(m)) if m else None,
+            "judge_med": _med([r["judge"] for r in passes])}
 
 
 def _ratio(a, b):
     return round(a / b, 4) if a is not None and b else None
+
+
+def _pass_meds(rows: list[dict]) -> dict:
+    """Per-pass medians behind the headline ratios - local to the summary, never part of a
+    per-arm stats dict a widget might render."""
+    passes = [r for r in rows if r["status"] == "pass"]
+    priced = measured(passes)  # a $0 unmeasured pass is not a cost sample
+    return {"wall": _med([r["wall_s"] for r in passes]), "usd": _med([r["usd"] for r in priced]),
+            "weekly": _med([sum(r["pool"]["weekly"].values()) for r in priced])}
 
 
 def summarize(rows: list[dict]) -> dict:
@@ -51,10 +68,11 @@ def summarize(rows: list[dict]) -> dict:
     summary = {task: {arm: _arm_stats(rs) for arm, rs in arms.items()} for task, arms in out.items()}
     by_arm = {arm: [r for r in rows if r["arm"] == arm] for arm in ARMS}
     stats = {arm: _arm_stats(rs) for arm, rs in by_arm.items()}
+    pm = {arm: _pass_meds(rs) for arm, rs in by_arm.items()}
     acc = {arm: stats[arm]["pass_rate"] for arm in ARMS}
-    cost = {arm: stats[arm]["_usd_pass_med"] for arm in ARMS}
-    weekly = {arm: stats[arm]["_weekly_pass_med"] for arm in ARMS}
-    tm = {arm: stats[arm]["_wall_pass_med"] for arm in ARMS}
+    cost = {arm: pm[arm]["usd"] for arm in ARMS}
+    weekly = {arm: pm[arm]["weekly"] for arm in ARMS}
+    tm = {arm: pm[arm]["wall"] for arm in ARMS}
     summary["headline"] = {
         "n": {arm: stats[arm]["n"] for arm in ARMS},
         "accuracy": {**acc, "fleet_vs_sonnet": _ratio(acc["fleet"], acc["sonnet"]), "fleet_vs_fable": _ratio(acc["fleet"], acc["fable"])},
@@ -70,7 +88,10 @@ def _f(x, fmt="{:.2f}"):
 
 def _spanned(summary: dict) -> tuple[list[str], list[str]]:
     """Distinct profiles / claude versions across every arm - rows that disagree are not
-    directly comparable, so the table has to say so rather than quietly average them."""
+    directly comparable, so the table has to say so rather than quietly average them.
+
+    An unlabelled row counts as the distinct value "?", so a pre-provenance row mixed in
+    with labelled ones is exactly the case the warning exists for."""
     profiles: set[str] = set(); versions: set[str] = set()
     for task, arms in summary.items():
         if task == "headline":
@@ -86,13 +107,14 @@ def render(summary: dict) -> str:
     lines = []
     if mixed:
         lines.append(f"warning: rows span {len(versions)} claude versions / {len(profiles)} profiles - the arms are not like for like")
-    head = f"{'task':16} {'arm':7} {'n':>3} {'pass':>5} {'wall':>7} {'$':>6} {'judge$':>7} {'weekly$':>8} {'fable$':>7} {'interv':>6} {'judge':>5}"
+    w = max([len("task")] + [len(t) for t in summary if t != "headline"])  # ids longer than 16 chars must not shove the columns
+    head = f"{'task':{w}} {'arm':7} {'n':>3} {'err':>3} {'pass':>5} {'wall':>7} {'$':>6} {'judge$':>7} {'weekly$':>8} {'fable$':>7} {'interv':>6} {'judge':>5}"
     lines.append(head + (f" {'profile':>8} {'claude':>14}" if mixed else ""))
     for task, arms in summary.items():
         if task == "headline":
             continue
         for arm, s in arms.items():
-            row = (f"{task:16} {arm:7} {s['n']:>3} {_f(s['pass_rate']):>5} {_f(s['wall_med'], '{:.0f}s'):>7} {_f(s['usd_med']):>6} "
+            row = (f"{task:{w}} {arm:7} {s['n']:>3} {s.get('errors', 0):>3} {_f(s['pass_rate']):>5} {_f(s['wall_med'], '{:.0f}s'):>7} {_f(s['usd_med']):>6} "
                    f"{_f(s.get('judge_usd_med')):>7} {_f(s['weekly_med']):>8} {_f(s['fable_med']):>7} "
                    f"{_f(s['interventions_per_run'], '{:.1f}'):>6} {_f(s['judge_med'], '{:.1f}'):>5}")
             if mixed:
