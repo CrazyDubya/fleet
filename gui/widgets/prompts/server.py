@@ -2,9 +2,12 @@
 import os
 import re
 
-from fleet import ledger, prompts, tmux
+from fleet import ledger, prompts, spec, tmux
 from gui.server import HttpError
 
+# Both profiles' prompt dirs: WATCH is read once per widget by gui/watch.py at
+# import time, so it cannot depend on FLEET_PROFILE (which a request may change
+# between polls). Watching the inactive profile's dir costs one stat per tick.
 WATCH = ["state/v2/prompts/*.json", "state/prompts/*.json"]
 KEYS = {"1", "2", "3", "4", "Enter", "Escape"}
 NAME = re.compile(r"^[a-z0-9][a-z0-9-]{0,30}$")
@@ -14,7 +17,20 @@ def _profile() -> str:
     return os.environ.get("FLEET_PROFILE", "v2")
 
 
+def _session() -> None:
+    """Point fleet.tmux at the active profile's session.
+
+    The GUI host never calls cli.activate_profile, so fleet.tmux.SESSION is
+    still its "fleet" default - every pane capture and keypress for a v2 thread
+    went to the v1 session (and silently found no window, or worse, a v1 window
+    of the same name). Idempotent; called at the top of every route that talks
+    to tmux.
+    """
+    tmux.use_session(spec.load_profile(_profile()).session)
+
+
 def get(ctx):
+    _session()
     items = []
     for rec in prompts.pending(_profile()):
         if not NAME.fullmatch(rec.get("thread", "")) or not re.fullmatch(r"[0-9a-f]{16}", rec.get("id", "")):
@@ -41,6 +57,7 @@ def decide(ctx):
 
 
 def keypress(ctx):
+    _session()
     b = ctx.json(); thread, key = b.get("thread", ""), b.get("key", "")
     if not NAME.fullmatch(thread) or key not in KEYS:
         raise HttpError(400, "bad thread/key")
