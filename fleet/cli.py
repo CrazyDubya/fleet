@@ -105,6 +105,23 @@ def cmd_decide(args):
     print(f"{args.decision}: {args.thread} {args.id}"); return 0
 
 
+def cmd_hook_event(args):
+    ledger.event("hook", hook=args.hook, thread=args.thread, decision=args.decision, ms=args.ms, why=" ".join(args.why)[:300])
+    return 0
+
+
+def cmd_perm_decide(args):
+    from . import prompts as prompts_mod
+    from .paths import ROOT
+    d, why = prompts_mod.decide_auto(args.command, ROOT)
+    if d != "escalate":
+        print(d); return 0
+    path = prompts_mod.open_prompt(args.thread, "Bash", args.command, args.cwd, current_profile())
+    ledger.event("hook", hook="perm", thread=args.thread, decision="escalate", ms=0, why=why)
+    got = prompts_mod.wait_decision(path, timeout=240.0)
+    print(got or "escalate-timeout"); return 0
+
+
 def cmd_ask(args):
     from . import ask as ask_mod
     try:
@@ -141,6 +158,9 @@ def _build_parser():
     a.add_argument("--timeout", type=float, default=30.0)
     a.set_defaults(fn=cmd_ask)
     d = sub.add_parser("decide"); d.add_argument("thread"); d.add_argument("id"); d.add_argument("decision", choices=["allow", "deny"]); d.set_defaults(fn=cmd_decide)
+    h = sub.add_parser("hook-event"); h.add_argument("hook"); h.add_argument("thread"); h.add_argument("decision")
+    h.add_argument("ms", type=int); h.add_argument("why", nargs="*"); h.set_defaults(fn=cmd_hook_event)
+    pd = sub.add_parser("perm-decide"); pd.add_argument("thread"); pd.add_argument("cwd"); pd.add_argument("command"); pd.set_defaults(fn=cmd_perm_decide)
     return p
 
 

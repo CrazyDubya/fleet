@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": ["Bash(/Users/pup/fleet/bin/fleet ask *)", "Bash(/Users/pup/fleet/bin/fleet send *)",
+              "Bash(/Users/pup/fleet/bin/fleet miss *)", "Bash(/Users/pup/fleet/bin/fleet status *)",
+              "Read(//Users/pup/fleet/**)", "Write(//Users/pup/fleet/ledger/handoffs/**)", "Edit(//Users/pup/fleet/ledger/handoffs/**)"],
+    "deny": ["Bash(git push *)", "Bash(ssh *)", "Bash(scp *)", "Bash(sudo *)",
+             "Read(//Users/pup/.ssh/**)", "Read(//Users/pup/.aws/**)", "Read(**/.env)",
+             "Write(//Users/pup/fleet/fleet.toml)", "Edit(//Users/pup/fleet/fleet.toml)"]
+  },
+  "hooks": {
+    "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "/Users/pup/fleet/hooks/v2/router.sh", "timeout": 10}]}],
+    "PreToolUse": [{"matcher": "SendMessage|Bash", "hooks": [{"type": "command", "command": "/Users/pup/fleet/hooks/v2/gate.sh", "timeout": 3}]}],
+    "Stop": [{"hooks": [{"type": "command", "command": "/Users/pup/fleet/hooks/v2/hold.sh", "timeout": 3}]}],
+    "PermissionRequest": [{"matcher": "Bash", "hooks": [{"type": "command", "command": "/Users/pup/fleet/hooks/v2/perm.sh", "timeout": 300}]}]
+  }
+}
