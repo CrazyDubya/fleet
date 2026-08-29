@@ -25,7 +25,12 @@ def _med(xs):
 
 def _arm_stats(rows: list[dict]) -> dict:
     passes = [r for r in rows if r["status"] == "pass"]
+    judged = [r for r in rows if r.get("judge") is not None]
     return {"n": len(rows), "pass_rate": (len(passes) / len(rows)) if rows else None,
+            # the judge is the bench's own opus spend, reported beside `usd`, never inside it
+            "judge_usd_med": _med([r.get("judge_usd") for r in judged]),
+            "profiles": sorted({r.get("profile") for r in rows if r.get("profile")}),
+            "claude_versions": sorted({r.get("claude_version") for r in rows if r.get("claude_version")}),
             "wall_med": _med([r["wall_s"] for r in rows]), "usd_med": _med([r["usd"] for r in rows]),
             "weekly_med": _med([sum(r["pool"]["weekly"].values()) for r in rows]), "fable_med": _med([r["pool"]["fable"] for r in rows]),
             "interventions_per_run": (sum(sum(r["interventions"].values()) for r in rows) / len(rows)) if rows else None,
@@ -63,14 +68,36 @@ def _f(x, fmt="{:.2f}"):
     return "-" if x is None else fmt.format(x)
 
 
+def _spanned(summary: dict) -> tuple[list[str], list[str]]:
+    """Distinct profiles / claude versions across every arm - rows that disagree are not
+    directly comparable, so the table has to say so rather than quietly average them."""
+    profiles: set[str] = set(); versions: set[str] = set()
+    for task, arms in summary.items():
+        if task == "headline":
+            continue
+        for s in arms.values():
+            profiles |= set(s.get("profiles") or []); versions |= set(s.get("claude_versions") or [])
+    return sorted(profiles), sorted(versions)
+
+
 def render(summary: dict) -> str:
-    lines = [f"{'task':16} {'arm':7} {'n':>3} {'pass':>5} {'wall':>7} {'$':>6} {'weekly$':>8} {'fable$':>7} {'interv':>6} {'judge':>5}"]
+    profiles, versions = _spanned(summary)
+    mixed = len(profiles) > 1 or len(versions) > 1
+    lines = []
+    if mixed:
+        lines.append(f"warning: rows span {len(versions)} claude versions / {len(profiles)} profiles - the arms are not like for like")
+    head = f"{'task':16} {'arm':7} {'n':>3} {'pass':>5} {'wall':>7} {'$':>6} {'judge$':>7} {'weekly$':>8} {'fable$':>7} {'interv':>6} {'judge':>5}"
+    lines.append(head + (f" {'profile':>8} {'claude':>14}" if mixed else ""))
     for task, arms in summary.items():
         if task == "headline":
             continue
         for arm, s in arms.items():
-            lines.append(f"{task:16} {arm:7} {s['n']:>3} {_f(s['pass_rate']):>5} {_f(s['wall_med'], '{:.0f}s'):>7} {_f(s['usd_med']):>6} "
-                         f"{_f(s['weekly_med']):>8} {_f(s['fable_med']):>7} {_f(s['interventions_per_run'], '{:.1f}'):>6} {_f(s['judge_med'], '{:.1f}'):>5}")
+            row = (f"{task:16} {arm:7} {s['n']:>3} {_f(s['pass_rate']):>5} {_f(s['wall_med'], '{:.0f}s'):>7} {_f(s['usd_med']):>6} "
+                   f"{_f(s.get('judge_usd_med')):>7} {_f(s['weekly_med']):>8} {_f(s['fable_med']):>7} "
+                   f"{_f(s['interventions_per_run'], '{:.1f}'):>6} {_f(s['judge_med'], '{:.1f}'):>5}")
+            if mixed:
+                row += f" {','.join(s.get('profiles') or ['-']):>8} {','.join(s.get('claude_versions') or ['-']):>14}"
+            lines.append(row)
     h = summary.get("headline", {})
     if h:
         n = h["n"]

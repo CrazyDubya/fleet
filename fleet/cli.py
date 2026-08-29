@@ -10,7 +10,7 @@ from . import registry as registry_mod
 from . import send as send_mod
 from . import spec as spec_mod
 from . import status as status_mod
-from .paths import profile_state
+from .paths import ROOT, profile_state
 from .registry import Registry
 
 
@@ -178,7 +178,12 @@ def cmd_bench(args):
         bad = [a for a in arms if a not in ("fable", "sonnet", "fleet")]
         if bad:
             print(f"error: unknown arm(s): {', '.join(bad)}", file=sys.stderr); return 1
-        ids = None if args.task == "all" else [args.task]
+        ids = None
+        if args.task != "all":
+            from fleet.bench import tasks as btasks
+            if args.task not in {t.id for t in btasks.load_all(ROOT / "bench" / "tasks")}:
+                print(f"error: no such task {args.task}", file=sys.stderr); return 1
+            ids = [args.task]
         brun.run_many(ids, arms, repeat=args.repeat)
         return 0
     from fleet.bench import report as breport, run as brun
