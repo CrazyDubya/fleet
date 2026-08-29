@@ -104,3 +104,13 @@ Two live-bring-up findings worth knowing before tuning a v2 brief further:
   `tmux capture-pane -p -t fleet2:=<thread> -S -100`), suspect a brief that lets the thread run
   a tool or add prose before/after its reply - that widens the window in which the pane can be
   redrawn before the reply is captured.
+
+## Bench (spec docs/superpowers/specs/2026-08-29-fleet-bench-design.md)
+
+| need | command |
+|---|---|
+| run everything, three arms | `fleet bench run all` (sequential; ≈ tasks × arms × minutes) |
+| one task, cheap arms | `fleet bench run lookup-newest-handoff --arms sonnet,fleet` |
+| the numbers | `fleet bench report [--since 2026-08-29]` — `$` is API-rate; `weekly$`/`fable$` split the same `$` by subscription pool (shares, not balances) |
+| add a task | drop `bench/tasks/<id>.toml` (see the four there); `check` must exit 0 on success; `judge` is optional |
+| nightly | `cp ops/com.pup.fleet.bench.plist ~/Library/LaunchAgents/ && launchctl load ~/Library/LaunchAgents/com.pup.fleet.bench.plist` (sonnet + fleet arms; run the fable arm by hand) |
