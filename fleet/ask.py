@@ -21,6 +21,9 @@ def _strip(lines: list[str]) -> str:
     return "\n".join(l[2:] if l.startswith("  ") else l for l in lines).strip()
 
 
+_WS_RE = re.compile(r"\s+")
+
+
 def _logical_lines(lines: list[str]) -> list[tuple[int, str]]:
     """Merge a physical line starting with exactly two spaces into the
     previous logical line, joined by a single space, remembering the first
@@ -30,9 +33,12 @@ def _logical_lines(lines: list[str]) -> list[tuple[int, str]]:
     width - continuation lines are rendered with a 2-space indent - so a
     header (or a reply header) that is long enough to wrap arrives as
     several physical lines even after `tmux capture-pane -J`. This collapses
-    that back into one logical line so a substring search (`@id <pid>`,
-    `@re <pid>`) still matches regardless of where the terminal happened to
-    wrap it.
+    that back into one logical line, purely for readability; the wrap can
+    land anywhere in the source line, including mid-token inside the pid
+    itself, so the joining space above is NOT reliable as a token boundary.
+    Callers (`@id`/`@re` detection in extract_reply) must strip whitespace
+    entirely before matching, rather than searching for the literal joined
+    text.
     """
     out: list[tuple[int, str]] = []
     for i, l in enumerate(lines):
@@ -47,17 +53,19 @@ def _logical_lines(lines: list[str]) -> list[tuple[int, str]]:
 def extract_reply(pane: str, pid: str) -> str | None:
     lines = pane.splitlines()
     logical = _logical_lines(lines)
-    start = next((idx for idx, l in logical if f"@id {pid}" in l), None)
+    start = next((idx for idx, l in logical if f"@id{pid}" in _WS_RE.sub("", l)), None)
     if start is None:
         return None
     # 1. a typed reply header addressed to our id. Header detection above and
-    # the @re search below are whitespace-tolerant (they match across a
-    # 2-space-continuation wrap), but body collection is still line-oriented:
-    # a real newline inside a lookup reply is indistinguishable from the
-    # TUI's own soft-wrap continuation, so a wrapped reply body can pick up a
-    # spurious line break. Known limitation - lookup replies are expected to
-    # be short.
-    re_start = next((idx for idx, l in logical if idx > start and f"@re {pid}" in l), None)
+    # the @re search below match against a whitespace-stripped form of each
+    # logical line, because Claude Code's soft-wrap can break mid-token
+    # (including inside the pid itself) - a plain substring search for
+    # "@id <pid>" would miss a wrap that lands inside the pid. Body
+    # collection below is still line-oriented: a real newline inside a
+    # lookup reply is indistinguishable from the TUI's own soft-wrap
+    # continuation, so a wrapped reply body can pick up a spurious line
+    # break. Known limitation - lookup replies are expected to be short.
+    re_start = next((idx for idx, l in logical if idx > start and f"@re{pid}" in _WS_RE.sub("", l)), None)
     if re_start is not None:
         body = []
         for l in lines[re_start + 1:]:

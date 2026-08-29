@@ -33,6 +33,18 @@ PANE_HEADER_WRAPPED_ID = """❯ @to haiku-fs2  @from sonnet2  @lane lookup  @eff
 ❯
 """
 
+# The wrap lands mid-token, inside the pid itself (Claude Code's soft-wrap
+# breaks at a render column, not at token boundaries) - reproduced exactly
+# per review round 1 finding 1.
+PANE_MID_WRAPPED_ID = """❯ @to haiku-fs2  @from sonnet2  @lane lookup  @effort low  @reply inline  @id 1a04b9ad
+  e84c0ffe
+  newest handoff?
+⏺ @from haiku-fs2  @re 1a04b9ade84c0ffe  @status done
+  ledger/handoffs/opus/20260829T021451Z-gui-design.md
+✻ Cooked for 1s · done 10:13 PM
+❯
+"""
+
 
 class ExtractTests(unittest.TestCase):
     def test_header_reply(self):
@@ -50,6 +62,10 @@ class ExtractTests(unittest.TestCase):
 
     def test_wrapped_id_header_still_detected(self):
         self.assertEqual(ask.extract_reply(PANE_HEADER_WRAPPED_ID, "abc123"),
+                          "ledger/handoffs/opus/20260829T021451Z-gui-design.md")
+
+    def test_wrapped_mid_id_header_still_detected(self):
+        self.assertEqual(ask.extract_reply(PANE_MID_WRAPPED_ID, "1a04b9ade84c0ffe"),
                           "ledger/handoffs/opus/20260829T021451Z-gui-design.md")
 
 
