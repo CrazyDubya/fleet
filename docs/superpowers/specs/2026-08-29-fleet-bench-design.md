@@ -58,10 +58,17 @@ check = "curl -sf … http://127.0.0.1:8787/w/{target}/push | grep -q name"
 judge = "bench/rubrics/widget.md"      # optional; only if check passes
 timeout_s = 900
 cleanup = "rm -rf {target}"            # run by the bench after measurement
+expect = "cd {root} && ls -t …"        # optional; run at t0, BEFORE the arm
 ```
 
-Substitutions: `{run}`, `{target}`, `{refs}` (space-joined), `{root}`. A task with no `judge`
-is scored by `check` alone (lookup tasks: `grep -q <expected>` on the reply).
+Substitutions: `{run}`, `{target}`, `{refs}` (space-joined), `{root}`, and `{expect}` in
+`check`/`cleanup`. A task with no `judge` is scored by `check` alone (lookup tasks:
+`grep -q <expected>` on the reply).
+
+`expect` pins a moving answer to the state the arm actually saw: the runner runs it at t0,
+before the arm, and substitutes its stripped stdout for `{expect}`. A non-zero exit is an
+`error` row, not a fail — so it must guard its own preconditions rather than emit a wrong
+answer. `{expect}` in a task with no `expect` command is rejected at substitution.
 
 ## Runner
 
@@ -76,7 +83,8 @@ next arm-run.
 | fleet | `send.send_packet(Packet(to="sonnet2", lane, refs, done, id=run, reply="file"))` | a file under `ledger/handoffs/sonnet2/` newer than t0 containing `@re <run>`, or the sonnet2 pane showing `@re <run>  @status` (whitespace-insensitive, as `fleet ask` does); else timeout | every thread in the active profile's registry, windowed to [t0, t1] |
 
 Timeout: `status: timeout`, check not run (counts as fail); fleet arm also runs
-`fleet miss sonnet2 bench-timeout-<run>` to clear pending state.
+`fleet miss sonnet2 abandoned-<run>` to clear pending state (`abandoned-<id>` is the only
+reason `cmd_miss` matches to clear it).
 
 Single-turn arms need the GUI server for the build task's check; the bench starts it if
 `:8787` is not listening and stops it afterwards only if it started it.
@@ -86,16 +94,26 @@ Single-turn arms need the GUI server for the build task's check; the bench start
 ```json
 {"run":"…","task":"gui-slice2","arm":"fleet","t0":0,"t1":0,"wall_s":104.2,
  "status":"pass|fail|timeout|error","check_rc":0,"judge":4,"judge_path":"ledger/handoffs/judge/….md",
+ "judge_usd":0.09,"judge_model":"claude-opus-5",
  "interventions":{"keypress":0,"decide":1,"escalate":1,"block":2},
  "tokens":{"<model>":{"input":0,"cache_read":0,"cache_write":0,"output":0}},
  "usd":0.31,
- "pool":{"weekly":{"opus":0.0,"sonnet":0.31,"haiku":0.02},"fable":0.0},
+ "pool":{"weekly":{"opus":0.0,"sonnet":0.31,"haiku":0.02},"fable":0.0,"other":0.0},
+ "measured":true,"profile":"v2","claude_version":"2.0.14",
  "commit":"8084737","error":null}
 ```
 
 - `usd` = `fleet.cost.spend` at the API rate table, summed over models.
 - `pool` = the same `$` split by pool: `fable` for `claude-fable-*`; `weekly.{opus,sonnet,haiku}`
-  for the rest. Shares, not balances.
+  for the rest; `other` for a model in no pool, so the split always sums to `usd`. Shares,
+  not balances.
+- `judge_usd` / `judge_model` = the bench's own spend on scoring this row, reported beside
+  `usd`, never inside it.
+- `measured` = the cost/token window is real. `false` means the numbers are $0 by accident
+  (an error before execution, a transcript key that found no turns); the report counts such
+  rows in `n` and `err` but leaves them out of every median.
+- `profile` / `claude_version` = provenance. Rows that disagree are not like for like, and
+  the report says so; an unlabelled row counts as the distinct value `?`.
 - `interventions` = ledger events in [t0, t1]: `keypress` (GUI keypress route), `decide`
   (`fleet decide` / GUI Proceed-Deny), `escalate` and `block` (hook events).
 - `commit` = `git rev-parse --short HEAD` at run time.
@@ -120,9 +138,12 @@ The fable arm is manual (own pool; run when the operator wants the reference ref
 ## Judge lane
 
 `bench/rubrics/<name>.md` is the scoring rubric; the bench dispatches a fresh opus session
-(`claude -p --model claude-opus-5`) with the rubric, the task's `done`, and the run's artifact
-paths, asking for a single integer 0–5 on the last line and a write-up saved to
-`ledger/handoffs/judge/<UTC>-<run>.md`. Never a fork of the author (protocol rule 8).
+(`claude -p --model claude-opus-5 --settings settings/v2/hot.json`, cwd
+`bench/work/<run>/judge` so hooks/v2/_lib.sh derives a real THREAD `bench-work-<run>-judge`
+from the transcript path and the hooks apply) with the rubric, the task's `done`, and the
+run's artifact paths, asking for a single integer 0–5 on the last line and a write-up saved
+to `ledger/handoffs/judge/<UTC>-<run>.md`. Its spend is priced from that cwd's transcript
+into `judge_usd`. Never a fork of the author (protocol rule 8).
 
 ## Testing
 
