@@ -72,6 +72,9 @@ class WidgetCtx:
         BUS.publish(f"w:{self.id}:{name}", data)
 
 
+PUBLIC_STATIC = frozenset({"/static/manifest.webmanifest", "/static/icon-192.png", "/static/icon-512.png"})
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
@@ -171,6 +174,10 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = urlsplit(self.path).path
+        # Browsers fetch the manifest and icons without credentials; they are
+        # not sensitive, and gating them breaks "Add to Home Screen".
+        if path in PUBLIC_STATIC:
+            return self._static(STATIC, path[len("/static/"):])
         if not self._authed():
             return
         if path.startswith("/w/"):

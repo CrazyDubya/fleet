@@ -28,6 +28,7 @@ body {
   min-height: 100vh;
 }
 .panel { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.panel[hidden] { display: none; }  /* .panel's display:flex would otherwise beat the UA [hidden] rule */
 .card {
   background: var(--card);
   border: 1px solid var(--border);
