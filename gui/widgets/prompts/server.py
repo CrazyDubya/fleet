@@ -1,5 +1,4 @@
 """Pending permission prompts with Proceed/Deny, plus a raw keypress fallback (spec §3)."""
-import os
 import re
 
 from fleet import ledger, prompts, spec, tmux
