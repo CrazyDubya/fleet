@@ -65,7 +65,7 @@ Two things to know before enabling it:
 
 ## v2 profile (parallel fleet, spec docs/superpowers/specs/2026-08-28-fleet-v2-workflow-design.md)
 
-`export FLEET_PROFILE=v2` (or `fleet --profile v2 ...`). Session `fleet2`; threads `sonnet2`,
+**v2 is the default profile** (`default_profile = "v2"` in `fleet.toml` `[settings]`); use `FLEET_PROFILE=v1` or `fleet --profile v1 ...` to address the old fleet. Session `fleet2`; threads `sonnet2`,
 `opus2`, `haiku-fs2`, `haiku-router2`; state under `state/v2/`.
 
 | need | command |

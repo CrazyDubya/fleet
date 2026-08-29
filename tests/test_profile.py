@@ -104,3 +104,28 @@ class StatusSpecsProfileTests(unittest.TestCase):
             specs = status._specs()
         self.assertEqual(set(specs), {"sonnet"})
         self.assertEqual(specs["sonnet"].tier, "hot")
+
+
+class DefaultProfileTests(unittest.TestCase):
+    def test_default_profile_comes_from_settings_then_env(self):
+        import os
+        from unittest import mock
+        from fleet import cli
+        toml = Path(tempfile.mkdtemp()) / "fleet.toml"
+        toml.write_text('[settings]\ncache_ttl_minutes = 60\ndefault_profile = "v2"\n\n[thread.sonnet]\nmodel = "m"\ntier = "hot"\npersist = "singular"\n')
+        with mock.patch("fleet.spec._read", lambda p=None: __import__("tomllib").loads(toml.read_text())), \
+             mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("FLEET_PROFILE", None)
+            self.assertEqual(spec.load_settings()["default_profile"], "v2")
+            self.assertEqual(cli.current_profile(), "v2")
+            os.environ["FLEET_PROFILE"] = "v1"
+            self.assertEqual(cli.current_profile(), "v1")
+
+    def test_default_profile_falls_back_to_v1(self):
+        self.assertEqual(spec.load_settings(self.__class__._v1_toml())["default_profile"], "v1")
+
+    @staticmethod
+    def _v1_toml():
+        p = Path(tempfile.mkdtemp()) / "fleet.toml"
+        p.write_text('[settings]\ncache_ttl_minutes = 60\n\n[thread.sonnet]\nmodel = "m"\ntier = "hot"\npersist = "singular"\n')
+        return p

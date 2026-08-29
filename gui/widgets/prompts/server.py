@@ -14,7 +14,8 @@ NAME = re.compile(r"^[a-z0-9][a-z0-9-]{0,30}$")
 
 
 def _profile() -> str:
-    return os.environ.get("FLEET_PROFILE", "v2")
+    from fleet.cli import current_profile  # same resolution as the CLI: env, then fleet.toml default_profile
+    return current_profile()
 
 
 def _session() -> None:

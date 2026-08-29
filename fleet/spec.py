@@ -39,7 +39,9 @@ def load_specs(path: Path | None = None) -> dict[str, Thread]:
 
 def load_settings(path: Path | None = None) -> dict:
     data = _read(path)
-    return {"cache_ttl_minutes": data.get("settings", {}).get("cache_ttl_minutes", 60)}
+    st = data.get("settings", {})
+    return {"cache_ttl_minutes": st.get("cache_ttl_minutes", 60),
+            "default_profile": st.get("default_profile", "v1")}
 
 
 @dataclass

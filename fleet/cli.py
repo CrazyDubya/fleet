@@ -15,7 +15,14 @@ from .registry import Registry
 
 
 def current_profile() -> str:
-    return os.environ.get("FLEET_PROFILE", "v1")
+    """FLEET_PROFILE wins; otherwise fleet.toml [settings] default_profile (v1 if unset)."""
+    env = os.environ.get("FLEET_PROFILE")
+    if env:
+        return env
+    try:
+        return spec_mod.load_settings()["default_profile"]
+    except (OSError, KeyError):
+        return "v1"
 
 
 def activate_profile(name: str) -> spec_mod.Profile:

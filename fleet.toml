@@ -1,5 +1,6 @@
 [settings]
 cache_ttl_minutes = 60
+default_profile = "v2"
 
 [thread.sonnet]
 model = "claude-sonnet-5"
