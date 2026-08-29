@@ -24,7 +24,7 @@ DENY = [
 ]
 PATH_TOKEN = re.compile(r"^(~|/|\./|\.\./)")
 DEV_OK = ("/dev/null", "/dev/stdin", "/dev/stdout", "/dev/stderr")
-SEPARATORS = (";", "&&", "||", "|")
+SEGMENT_RE = re.compile(r"\s*(?:;|&&|\|\||\||&)\s*")
 
 
 def _tokens(command: str) -> list[str]:
@@ -57,53 +57,61 @@ def _path_ok(tok: str, root: Path) -> bool:
     return any(p == base or p.startswith(base + "/") for base in inside)
 
 
-def _rm_denied(tokens: list[str], root: Path) -> str | None:
-    """Token-based rm -rf check: deny recursive+force rm unless every
-    non-flag argument resolves under <root>/state."""
-    state_dir = os.path.normpath(str(root / "state"))
-    n = len(tokens)
-    i = 0
-    while i < n:
-        if tokens[i] == "rm" and (i == 0 or tokens[i - 1] in SEPARATORS):
-            j = i + 1
-            has_recursive = False
-            has_force = False
-            args = []
-            while j < n and tokens[j] not in SEPARATORS:
-                tok = tokens[j]
-                if tok == "--recursive":
+def _rm_flags_and_args(tokens: list[str]) -> tuple[bool, bool, list[str]]:
+    has_recursive = False
+    has_force = False
+    args: list[str] = []
+    for tok in tokens:
+        if tok == "--recursive":
+            has_recursive = True
+        elif tok == "--force":
+            has_force = True
+        elif tok.startswith("-") and tok != "-":
+            for ch in tok[1:]:
+                if ch in "rR":
                     has_recursive = True
-                elif tok == "--force":
+                elif ch in "fF":
                     has_force = True
-                elif tok.startswith("-") and tok != "-":
-                    for ch in tok[1:]:
-                        if ch in "rR":
-                            has_recursive = True
-                        elif ch in "fF":
-                            has_force = True
-                else:
-                    args.append(tok)
-                j += 1
-            if has_recursive and has_force:
-                for a in args:
-                    p = _resolve(a, root)
-                    if not (p == state_dir or p.startswith(state_dir + "/")):
-                        return "rm -rf outside state/"
-            i = j
         else:
-            i += 1
+            args.append(tok)
+    return has_recursive, has_force, args
+
+
+def _rm_denied(command: str, root: Path) -> str | None:
+    """Token-based rm -rf check: deny recursive+force rm unless every
+    non-flag argument resolves under <root>/state.
+
+    The raw command is split into shell segments on ;, &&, ||, |, & before
+    tokenizing, so chained invocations written without surrounding
+    whitespace (e.g. "echo a;rm -rf x" or "true&&rm -rf x") are still
+    detected -- shlex.split alone only isolates those operators as their
+    own tokens when whitespace surrounds them.
+    """
+    state_dir = os.path.normpath(str(root / "state"))
+    for segment in SEGMENT_RE.split(command):
+        segment = segment.strip()
+        if not segment:
+            continue
+        tokens = _tokens(segment)
+        if not tokens or tokens[0] != "rm":
+            continue
+        has_recursive, has_force, args = _rm_flags_and_args(tokens[1:])
+        if has_recursive and has_force:
+            for a in args:
+                p = _resolve(a, root)
+                if not (p == state_dir or p.startswith(state_dir + "/")):
+                    return "rm -rf outside state/"
     return None
 
 
 def decide_auto(command: str, root: Path) -> tuple[str, str]:
-    tokens = _tokens(command)
-    rm_why = _rm_denied(tokens, root)
+    rm_why = _rm_denied(command, root)
     if rm_why:
         return "deny", rm_why
     for rx, why in DENY:
         if rx.search(command):
             return "deny", why
-    for tok in tokens:
+    for tok in _tokens(command):
         if not _path_ok(tok, root):
             return "escalate", f"path outside repo: {tok}"
     return "allow-auto", "in-repo, no deny match"

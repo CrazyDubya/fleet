@@ -45,6 +45,21 @@ class DecideAutoTests(unittest.TestCase):
     def test_rm_rf_inside_state_allowed(self):
         self.assertEqual(prompts.decide_auto("rm -rf state/v2/tmp state/x", self.root)[0], "allow-auto")
 
+    def test_rm_unspaced_separators_denied(self):
+        cases = [
+            "echo a; " + "rm -rf" + " gui",
+            "echo a;" + "rm -rf" + " gui",
+            "true&&" + "rm -rf" + " gui",
+            "true|" + "rm -rf" + " gui",
+            "sleep 1&" + "rm -rf" + " gui",
+        ]
+        for cmd in cases:
+            self.assertEqual(prompts.decide_auto(cmd, self.root)[0], "deny", cmd)
+
+    def test_rm_after_separator_inside_state_allowed(self):
+        cmd = "echo a;" + "rm -rf" + " state/x"
+        self.assertEqual(prompts.decide_auto(cmd, self.root)[0], "allow-auto")
+
 
 class PromptFilesTests(unittest.TestCase):
     def setUp(self):
