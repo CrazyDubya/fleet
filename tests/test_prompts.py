@@ -141,6 +141,40 @@ class WrappedCodeTests(unittest.TestCase):
             with self.subTest(cmd=cmd):
                 self.assertEqual(prompts.decide_auto(cmd, self.root)[0], "allow-auto", cmd)
 
+    def test_chmod_and_rsync_escalate_rather_than_deny(self):
+        # Neither is in spec §3's deny list: the operator can look and say yes.
+        for cmd in ["chmod 777 gui/x.sh", "chmod +x bin/fleet", "chmod u+x bin/fleet",
+                    "rsync -a gui/ /tmp/backup/"]:
+            with self.subTest(cmd=cmd):
+                self.assertEqual(prompts.decide_auto(cmd, self.root)[0], "escalate", cmd)
+
+    def test_privileged_and_remote_still_deny(self):
+        for cmd in ["sudo ls", "ssh host ls", "scp x host:/y"]:
+            with self.subTest(cmd=cmd):
+                self.assertEqual(prompts.decide_auto(cmd, self.root)[0], "deny", cmd)
+
+    def test_chmod_alternation_is_anchored_to_a_command_boundary(self):
+        # The `+x` branch used to sit outside the `(^|[\s;&|])` group, so it
+        # matched the word anywhere - including inside a longer word.
+        self.assertEqual(prompts.decide_auto("echo nochmod is a+x", self.root)[0], "allow-auto")
+
+    def test_delete_inside_tmp_allowed(self):
+        for cmd in ["unlink /tmp/x.json", "rm -rf /tmp/scratch", "rmdir /private/tmp/x",
+                    "find /tmp/scratch -name '*.json' -delete"]:
+            with self.subTest(cmd=cmd):
+                self.assertEqual(prompts.decide_auto(cmd, self.root)[0], "allow-auto", cmd)
+
+    def test_delete_outside_the_safe_zones_still_denied(self):
+        for cmd in ["rm -rf /Users/pup", "unlink /Users/pup/.ssh/id_rsa",
+                    "rm -rf /tmp"]:  # the zone root itself is everyone's scratch space
+            with self.subTest(cmd=cmd):
+                self.assertEqual(prompts.decide_auto(cmd, self.root)[0], "deny", cmd)
+
+    def test_dev_ok_is_narrow(self):
+        self.assertEqual(prompts.decide_auto("cat /dev/null", self.root)[0], "allow-auto")
+        self.assertEqual(prompts.decide_auto("dd if=/dev/sda of=/tmp/x", self.root)[0], "escalate")
+        self.assertEqual(prompts.decide_auto("cat /dev/sda", self.root)[0], "escalate")
+
 
 class PromptFilesTests(unittest.TestCase):
     def setUp(self):
@@ -168,6 +202,18 @@ class PromptFilesTests(unittest.TestCase):
         prompts.open_prompt("sonnet2", "Bash", "x", "/Users/pup/fleet/sonnet2", "v2")
         with mock.patch("pathlib.Path.read_text", side_effect=FileNotFoundError):
             self.assertEqual(prompts.pending("v2"), [])
+
+    def test_record_decision_writes_atomically(self):
+        # wait_decision polls this file from another process; a truncating
+        # write is a window where it reads back empty.
+        path = prompts.open_prompt("sonnet2", "Bash", "x", "/Users/pup/fleet/sonnet2", "v2")
+        rec = json.loads(path.read_text())
+        prompts.record_decision("sonnet2", rec["id"], "allow", "v2")
+        self.assertEqual(json.loads(path.read_text())["decision"], "allow")
+        self.assertFalse(path.with_name(path.name + ".tmp").exists())
+        self.assertEqual(list(self.state.glob("prompts/*.tmp")), [])
+        # a leftover .tmp must never be mistaken for a pending prompt
+        self.assertEqual(prompts.pending("v2"), [])
 
 
 class ParkedFindingsTests(unittest.TestCase):

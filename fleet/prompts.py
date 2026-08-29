@@ -18,12 +18,27 @@ DENY = [
     (re.compile(r"(^|[\s;&|])git\s+push\b"), "git push"),
     (re.compile(r"(^|[\s;&|])git\s+reset\s+--hard\b"), "git reset --hard"),
     (re.compile(r"(^|[\s;&|])git\s+clean\s+-[a-zA-Z]*f"), "git clean -f"),
-    (re.compile(r"(^|[\s;&|])(sudo|ssh|scp|rsync)\b"), "privileged or remote"),
+    (re.compile(r"(^|[\s;&|])(sudo|ssh|scp)\b"), "privileged or remote"),
     (re.compile(r"(^|[\s;&|])curl\b[^|;&]*\s-(X\s*(POST|PUT|DELETE|PATCH)|d|F|T|-data|-upload-file)\b"), "curl write/egress"),
-    (re.compile(r"(^|[\s;&|])chmod\s+[0-7]*7[0-7]*\b|chmod\s+.*\+x"), "chmod"),
+]
+# Not in spec §3's deny list, but not routine either: an operator can look at
+# these and say yes. `chmod`/`rsync` used to be hard denials, which left a
+# thread no way to make its own script executable or to mirror a directory
+# even with the operator watching. The chmod alternation is anchored to a
+# command boundary as a whole - unanchored, the `+x` branch matched the word
+# anywhere in a command line (e.g. inside an unrelated quoted string).
+ESCALATE = [
+    (re.compile(r"(^|[\s;&|])rsync\b"), "rsync"),
+    (re.compile(r"(^|[\s;&|])chmod\s+(?:[0-7]*7[0-7]*\b|.*\+x)"), "chmod"),
 ]
 PATH_TOKEN = re.compile(r"^(~|/|\./|\.\./)")
 DEV_OK = ("/dev/null", "/dev/stdin", "/dev/stdout", "/dev/stderr")
+# Delete-safe zones besides <root>/state. A thread's own scratch files live in
+# /tmp (/private/tmp is the same directory on macOS, after symlink
+# resolution), so cleaning them up is routine work, not a destructive act.
+# Only paths strictly INSIDE these count: `rm -rf /tmp` is everyone's scratch
+# space, not just this thread's.
+TMP_ZONES = ("/tmp", "/private/tmp")
 SEGMENT_RE = re.compile(r"\s*(?:;|&&|\|\||\||&|\n|\$\(|\(|`|\{)\s*")
 
 # Commands that delete. `rm` keeps its own recursive+force rule below; the
@@ -131,16 +146,29 @@ def _rm_flags_and_args(tokens: list[str]) -> tuple[bool, bool, list[str]]:
     return has_recursive, has_force, args
 
 
-def _all_args_in_state(args: list[str], root: Path) -> bool:
-    """Every argument must land under <root>/state in BOTH its raw form and
-    its _clean_arg form. The cleaned form exists only to tolerate a closing
-    delimiter left attached by the raw-text segment split; a literal filename
-    that really ends in )/`/}/; must not benefit from that stripping."""
+def _delete_safe(p: str, root: Path) -> bool:
+    """Is this resolved path in a zone a thread may delete unattended?
+
+    <root>/state (its own bookkeeping), the DEV_OK devices, and anything
+    strictly inside /tmp or /private/tmp (its own scratch files).
+    """
+    if p in DEV_OK:
+        return True
     state_dir = os.path.normpath(str(root / "state"))
+    if p == state_dir or p.startswith(state_dir + "/"):
+        return True
+    return any(p.startswith(z + "/") for z in TMP_ZONES)
+
+
+def _all_args_in_state(args: list[str], root: Path) -> bool:
+    """Every argument must land in a delete-safe zone (see _delete_safe) in
+    BOTH its raw form and its _clean_arg form. The cleaned form exists only to
+    tolerate a closing delimiter left attached by the raw-text segment split;
+    a literal filename that really ends in )/`/}/; must not benefit from that
+    stripping."""
     for a in args:
         for cand in (a, _clean_arg(a)):
-            p = _resolve(cand, root)
-            if not (p == state_dir or p.startswith(state_dir + "/")):
+            if not _delete_safe(_resolve(cand, root), root):
                 return False
     return True
 
@@ -196,10 +224,10 @@ def _delete_denied(command: str, root: Path) -> str | None:
             # A non-recursive rm of one in-repo file is routine work
             # (`rm -f state/gui-token`); only recursive+force is destructive.
             if has_recursive and has_force and not _all_args_in_state(args, root):
-                return "rm -rf outside state/"
+                return "rm -rf outside state/ and /tmp"
         elif verb in ("rmdir", "unlink"):
             if not _all_args_in_state(_plain_args(rest), root):
-                return f"{verb} outside state/"
+                return f"{verb} outside state/ and /tmp"
         elif verb == "find":
             deletes = "-delete" in rest or any(
                 t in EXEC_PRIMARIES and i + 1 < len(rest) and _clean_arg(rest[i + 1]) in DELETE_VERBS
@@ -215,7 +243,7 @@ def _delete_denied(command: str, root: Path) -> str | None:
                         break
                     args.append(t)
                 if not _all_args_in_state(args or ["."], root):
-                    return "find -delete outside state/"
+                    return "find -delete outside state/ and /tmp"
         elif verb == "xargs":
             # Denied outright when the utility deletes: xargs' operands arrive
             # on stdin, so there is no path argument to check against state/
@@ -270,6 +298,9 @@ def decide_auto(command: str, root: Path, _depth: int = 0) -> tuple[str, str]:
     for rx, why in DENY:
         if rx.search(command):
             return "deny", why
+    for rx, why in ESCALATE:
+        if rx.search(command):
+            return "escalate", why
     wrapped = _wrapped_verdict(command, root, _depth)
     if wrapped:
         return wrapped
@@ -305,10 +336,20 @@ def pending(profile: str) -> list[dict]:
 
 
 def record_decision(thread: str, pid: str, decision: str, profile: str) -> Path:
+    """Stamp the decision onto the prompt file atomically.
+
+    wait_decision polls this file from another process. A plain write_text
+    truncates first, so that poll could read an empty (or half-written) file
+    exactly when the answer arrives - json.JSONDecodeError, treated as "still
+    undecided", and on a tight deadline that is a lost `allow`. Write a
+    sibling .tmp and os.replace it in, the same trick registry.save uses.
+    """
     path = _dir(profile) / f"{thread}-{pid}.json"
     rec = json.loads(path.read_text())
     rec["decision"] = decision; rec["decided_t"] = time.time()
-    path.write_text(json.dumps(rec))
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps(rec))
+    os.replace(tmp, path)
     return path
 
 
