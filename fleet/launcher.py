@@ -7,7 +7,7 @@ from pathlib import Path
 from . import ledger, tmux
 from .paths import ROOT, thread_dir
 from .registry import Entry, Registry
-from .spec import Thread, append_thread, load_specs, spec_hash
+from .spec import Thread, append_thread, load_profile, load_specs, spec_hash
 
 SPAWN_GRACE_SECONDS = 3
 SPAWN_TAIL_LINES = 20
@@ -80,9 +80,10 @@ def validate_name(name: str) -> None:
 
 def _thread(name: str) -> Thread:
     validate_name(name)
-    specs = load_specs()
+    from .cli import current_profile  # local: cli imports launcher
+    specs = load_profile(current_profile()).threads
     if name not in specs:
-        raise LaunchError(f"no thread named {name!r} in fleet.toml")
+        raise LaunchError(f"no thread named {name!r} in fleet.toml (profile {current_profile()})")
     return specs[name]
 
 

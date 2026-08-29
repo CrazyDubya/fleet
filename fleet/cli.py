@@ -1,12 +1,28 @@
 import argparse
 import json
+import os
 import sys
 from datetime import datetime
 
-from . import ledger, launcher, telemetry
+from . import ledger, launcher, telemetry, tmux
+from . import registry as registry_mod
 from . import send as send_mod
+from . import spec as spec_mod
 from . import status as status_mod
+from .paths import profile_state
 from .registry import Registry
+
+
+def current_profile() -> str:
+    return os.environ.get("FLEET_PROFILE", "v1")
+
+
+def activate_profile(name: str) -> spec_mod.Profile:
+    prof = spec_mod.load_profile(name)
+    tmux.use_session(prof.session)
+    registry_mod.DEFAULT_PATH = profile_state(name) / "registry.json"
+    os.environ["FLEET_PROFILE"] = name  # child processes (hooks, bin/fleet inside threads) inherit
+    return prof
 
 
 def _launch(fn):
@@ -72,6 +88,7 @@ def cmd_report(args):
 
 def _build_parser():
     p = argparse.ArgumentParser(prog="fleet")
+    p.add_argument("--profile", default=None)
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("ls").set_defaults(fn=cmd_ls)
     m = sub.add_parser("miss"); m.add_argument("thread"); m.add_argument("reason", nargs="+"); m.set_defaults(fn=cmd_miss)
@@ -87,6 +104,7 @@ def _build_parser():
 
 def main(argv=None):
     args = _build_parser().parse_args(argv)
+    activate_profile(args.profile or current_profile())
     return args.fn(args)
 
 

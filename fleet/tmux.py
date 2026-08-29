@@ -5,6 +5,12 @@ from pathlib import Path
 SESSION = "fleet"
 
 
+def use_session(name: str) -> None:
+    """Point every tmux call at another session (profiles, spec §4)."""
+    global SESSION
+    SESSION = name
+
+
 def _run(*args, check=True, capture=False) -> subprocess.CompletedProcess:
     return subprocess.run(["tmux", *args], check=check, capture_output=capture, text=True)
 

@@ -42,6 +42,23 @@ def load_settings(path: Path | None = None) -> dict:
     return {"cache_ttl_minutes": data.get("settings", {}).get("cache_ttl_minutes", 60)}
 
 
+@dataclass
+class Profile:
+    name: str
+    session: str
+    briefs: str
+    threads: dict[str, Thread]
+
+
+def load_profile(name: str, path: Path | None = None) -> Profile:
+    data = _read(path)
+    if name == "v1":
+        return Profile("v1", "fleet", "briefs", load_specs(path))
+    body = data.get("profile", {})[name]  # KeyError for unknown profiles is the contract
+    threads = {n: Thread(name=n, **b) for n, b in body.get("thread", {}).items()}
+    return Profile(name, body.get("session", f"fleet-{name}"), body.get("briefs", f"briefs/{name}"), threads)
+
+
 def _toml_value(v) -> str:
     if isinstance(v, bool):
         return "true" if v else "false"

@@ -38,10 +38,13 @@ def transcript_for(entry: Entry, entries: dict[str, Entry]) -> Path:
     return transcript_path(cwd, entry.session_id)
 
 
+DEFAULT_PATH = STATE / "registry.json"
+
+
 class Registry:
-    def __init__(self, path: Path = STATE / "registry.json"):
-        self.path = path
-        self.lock_path = path.with_suffix(".lock")
+    def __init__(self, path: Path | None = None):
+        self.path = path or DEFAULT_PATH
+        self.lock_path = self.path.with_suffix(".lock")
 
     def load(self) -> dict[str, Entry]:
         if not self.path.exists():

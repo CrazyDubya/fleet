@@ -9,6 +9,7 @@ baseline = ["briefs/sonnet.md"]
 mcp = "core"
 dirs = ["/Users/pup"]
 permission_mode = "default"
+effort = "medium"
 
 [thread.opus]
 model = "claude-opus-5"
@@ -33,3 +34,46 @@ persist = "respawn"
 baseline = ["briefs/haiku-fs.md", "maps/projects.md", "maps/conventions.md"]
 effort = "low"
 settings = "settings/unattended.json"
+
+[profile.v2]
+session = "fleet2"
+briefs = "briefs/v2"
+
+[profile.v2.thread.sonnet2]
+model = "claude-sonnet-5"
+tier = "hot"
+persist = "singular"
+baseline = ["briefs/v2/sonnet.md"]
+mcp = "core"
+dirs = ["/Users/pup"]
+permission_mode = "acceptEdits"
+effort = "medium"
+settings = "settings/v2/hot.json"
+
+[profile.v2.thread.opus2]
+model = "claude-opus-5"
+tier = "warm"
+persist = "on-demand"
+baseline = ["briefs/v2/opus.md"]
+permission_mode = "acceptEdits"
+effort = "high"
+forkable = true
+settings = "settings/v2/warm.json"
+
+[profile.v2.thread.haiku-fs2]
+model = "claude-haiku-4-5"
+tier = "tool"
+persist = "respawn"
+baseline = ["briefs/v2/haiku-fs.md", "maps/projects.md", "maps/conventions.md"]
+permission_mode = "bypassPermissions"
+effort = "low"
+settings = "settings/v2/tool.json"
+
+[profile.v2.thread.haiku-router2]
+model = "claude-haiku-4-5"
+tier = "tool"
+persist = "respawn"
+baseline = ["briefs/v2/router.md"]
+permission_mode = "bypassPermissions"
+effort = "low"
+settings = "settings/v2/tool.json"
