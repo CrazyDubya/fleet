@@ -95,6 +95,18 @@ def cmd_report(args):
     print(telemetry.report()); return 0
 
 
+def cmd_ask(args):
+    from . import ask as ask_mod
+    try:
+        print(ask_mod.ask(args.thread, " ".join(args.text), sender=args.sender, profile=current_profile(),
+                          timeout=args.timeout))
+    except ask_mod.AskTimeout as exc:
+        print(f"error: {exc}", file=sys.stderr); return 3
+    except send_mod.SendError as exc:
+        print(f"error: {exc}", file=sys.stderr); return 1
+    return 0
+
+
 def _build_parser():
     p = argparse.ArgumentParser(prog="fleet")
     p.add_argument("--profile", default=None)
@@ -114,6 +126,10 @@ def _build_parser():
     s = sub.add_parser("status"); s.add_argument("--watch", action="store_true"); s.add_argument("--interval", type=int, default=10); s.set_defaults(fn=cmd_status)
     t = sub.add_parser("telemetry"); t.add_argument("--day"); t.set_defaults(fn=cmd_telemetry)
     sub.add_parser("report").set_defaults(fn=cmd_report)
+    a = sub.add_parser("ask"); a.add_argument("thread"); a.add_argument("text", nargs="+")
+    a.add_argument("--from", dest="sender", default="operator")
+    a.add_argument("--timeout", type=float, default=30.0)
+    a.set_defaults(fn=cmd_ask)
     return p
 
 
