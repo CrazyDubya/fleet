@@ -7,7 +7,7 @@ from pathlib import Path
 from . import ledger, tmux
 from .paths import ROOT, thread_dir
 from .registry import Entry, Registry
-from .spec import Thread, append_thread, load_profile, load_specs, spec_hash
+from .spec import Thread, append_thread, load_profile, spec_hash
 
 SPAWN_GRACE_SECONDS = 3
 SPAWN_TAIL_LINES = 20
@@ -158,7 +158,8 @@ def fork(parent: str, new: str, brief: str) -> Entry:
         raise LaunchError(f"{parent} is not forkable (set forkable = true in fleet.toml)")
     if not (ROOT / brief).exists():
         raise LaunchError(f"brief not found: {brief}")
-    if new in load_specs():
+    from .cli import current_profile  # local: cli imports launcher
+    if new in load_profile(current_profile()).threads:
         raise LaunchError(f"[thread.{new}] already exists in fleet.toml")
     reg = Registry()
     with reg.locked():

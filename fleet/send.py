@@ -33,14 +33,21 @@ def _send_keys(name: str, keys: str) -> None:
 
 
 def send_packet(p: packet_mod.Packet, profile: str, events_path: Path | None = None,
-                paste=tmux.paste, send_keys=_send_keys) -> str:
+                paste=tmux.paste, send_keys=_send_keys, sleep=time.sleep) -> str:
     if not tmux.window_exists(p.to):
         raise SendError(f"{p.to} is not running (no tmux window); `fleet wake {p.to}` first")
     p.id = p.id or packet_mod.new_id()
     if p.effort:
         # Effort is a per-packet routing decision (spec §1); /effort changes the
-        # receiving session before the packet lands.
+        # receiving session before the packet lands. Confirmed live against a
+        # real Claude Code session (Task 9): pasting the packet immediately
+        # after this send-keys races the TUI's own handling of the /effort
+        # slash command and the paste is silently dropped - the pane shows
+        # only the effort confirmation, never the packet. A brief settle
+        # delay avoids the race; 0.5s was enough in the reproduction and
+        # costs nothing on the timeout budget of a lookup (~2s round trip).
         send_keys(p.to, f"/effort {packet_mod.normalize_effort(p.effort)}")
+        sleep(0.5)
     text = packet_mod.format_packet(p)
     paste(p.to, text)
     if p.reply == "inline":

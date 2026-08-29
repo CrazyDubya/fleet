@@ -54,10 +54,9 @@ def extract_reply(pane: str, pid: str) -> str | None:
     lines = pane.splitlines()
     logical = _logical_lines(lines)
     start = next((idx for idx, l in logical if f"@id{pid}" in _WS_RE.sub("", l)), None)
-    if start is None:
-        return None
-    # 1. a typed reply header addressed to our id. Header detection above and
-    # the @re search below match against a whitespace-stripped form of each
+    # 1. a typed reply header addressed to our id, searched across the WHOLE
+    # pane rather than only after `start`. Header detection above and the
+    # @re search below match against a whitespace-stripped form of each
     # logical line, because Claude Code's soft-wrap can break mid-token
     # (including inside the pid itself) - a plain substring search for
     # "@id <pid>" would miss a wrap that lands inside the pid. Body
@@ -65,7 +64,20 @@ def extract_reply(pane: str, pid: str) -> str | None:
     # lookup reply is indistinguishable from the TUI's own soft-wrap
     # continuation, so a wrapped reply body can pick up a spurious line
     # break. Known limitation - lookup replies are expected to be short.
-    re_start = next((idx for idx, l in logical if idx > start and f"@re{pid}" in _WS_RE.sub("", l)), None)
+    #
+    # Not anchored on `idx > start`: confirmed live (Task 9, haiku-router2)
+    # that Claude Code's TUI can redraw/clear the pane once a turn produces
+    # enough output (there, a Stop-hook round trip over its own "@status
+    # done"), which can push our own pasted `@id` line out of the captured
+    # pane - or out of tmux's scrollback entirely - before the reply itself
+    # has rendered, permanently orphaning `start` and hanging every later
+    # poll until AskTimeout even though the reply is sitting right there.
+    # `@re{pid}` on its own already uniquely identifies a reply to THIS
+    # packet (ids are fresh per packet_mod.new_id()), so it does not need
+    # `start` to still be visible; `test_ignores_blocks_before_our_packet`
+    # keeps the ordering requirement for step 2 below, where a bare block
+    # carries no id to disambiguate it by.
+    re_start = next((idx for idx, l in logical if f"@re{pid}" in _WS_RE.sub("", l)), None)
     if re_start is not None:
         body = []
         for l in lines[re_start + 1:]:
@@ -73,6 +85,8 @@ def extract_reply(pane: str, pid: str) -> str | None:
                 break
             body.append(l)
         return _strip(body)
+    if start is None:
+        return None
     # 2. the last bare ⏺ block after our packet
     blocks: list[list[str]] = []
     cur: list[str] | None = None
@@ -84,6 +98,17 @@ def extract_reply(pane: str, pid: str) -> str | None:
             cur = None
         elif cur is not None:
             cur.append(l)
+    if cur is not None:
+        # The most recently started block never hit an END_RE terminator
+        # before the capture ended, i.e. Claude Code is still streaming it -
+        # confirmed live (Task 9, haiku-router2): polling can catch a ⏺
+        # block that has only a transient "thinking/working" status line in
+        # it so far, and returning that as "the reply" hands back spinner
+        # text instead of the real answer that renders a moment later. Treat
+        # an unterminated block as not-yet-a-reply and keep polling, rather
+        # than one more terminator glyph in END_RE - the busy indicator
+        # isn't a fixed single character.
+        blocks.pop()
     return _strip(blocks[-1]) if blocks else None
 
 

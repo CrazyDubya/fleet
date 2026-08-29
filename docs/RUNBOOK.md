@@ -62,3 +62,45 @@ Two things to know before enabling it:
   thread's `permission_mode`. For a genuinely unattended thread, pair the settings file with a
   non-prompting `permission_mode` in `fleet.toml`. That choice is security-sensitive and
   deliberately left to the operator; the fleet ships the mechanism, not the policy.
+
+## v2 profile (parallel fleet, spec docs/superpowers/specs/2026-08-28-fleet-v2-workflow-design.md)
+
+`export FLEET_PROFILE=v2` (or `fleet --profile v2 ...`). Session `fleet2`; threads `sonnet2`,
+`opus2`, `haiku-fs2`, `haiku-router2`; state under `state/v2/`.
+
+| need | command |
+|---|---|
+| start | `fleet up haiku-fs2 && fleet up haiku-router2 && fleet up sonnet2` (opus2 on demand) |
+| send a task | `fleet send sonnet2 --lane build --done "<acceptance>" --refs <paths> "<body>"` — effort follows the lane; `--effort high` to raise for one packet |
+| sync lookup | `fleet ask haiku-fs2 "<few words>"` (≈2 s; threads use this too) |
+| a thread is waiting on a prompt | dashboard → Prompts card → Proceed / Deny (or `fleet decide <thread> <id> allow`) |
+| hook stalls | dashboard → Hooks; red rows are blocks or escalations older than 60 s |
+| A/B against v1 | same packet to `sonnet` (v1) and `sonnet2`; compare wall-clock to @done, `$` in status, escalate/block counts in Hooks, and operator keypresses |
+
+A first `up` of a `bypassPermissions` thread (haiku-fs2, haiku-router2) blocks on Claude
+Code's one-time "Bypass Permissions mode" confirmation dialog until it is accepted
+(`tmux send-keys -t fleet2:=<thread> Down` then `Enter`) — expected on the very first spawn
+in that thread's directory; `respawn`/`wake` afterward do not re-prompt.
+
+Two live-bring-up findings worth knowing before tuning a v2 brief further:
+
+- **`--settings` hooks stack with `~/.claude/settings.json`, per the note above — including
+  any personal Stop hooks.** A machine with a global "flag unverified completion claims" Stop
+  hook (e.g. from a `verify-completion-claims.sh`) will fire on *any* v2 thread's reply that
+  contains a word like "done"/"complete", including the packet protocol's own `@status done`
+  field - this is not a fleet hook and cannot be turned off from `fleet.toml` or a brief. It
+  mainly matters for a thread that always emits `@status done` on a fast, single-turn cadence
+  (haiku-router2's classification reply): the hook's follow-up round trip can crowd the real
+  reply off the tmux pane before `fleet ask`'s polling loop reads it, or - if the follow-up
+  wording also reads as a completion claim - snowball into several rounds. `briefs/v2/router.md`
+  works around this by using `@status ok` instead of `@status done` for haiku-router2's own
+  replies specifically (nothing in fleet parses that field's literal value) and by giving it a
+  fixed, non-"done"-sounding line (`(routed)`) to fall back on if the hook fires anyway.
+- **`fleet ask`'s pane-matching (`fleet/ask.py:extract_reply`) needs the reply's own `@re
+  <id>` header, not just a same-looking bare block** - a multi-turn exchange (e.g. the Stop
+  hook round trip above) can redraw the pane enough that the thread's own echoed `@id` line is
+  no longer visible, so the match no longer requires it as an anchor. If `fleet ask` still
+  times out against a thread that clearly answered (check with
+  `tmux capture-pane -p -t fleet2:=<thread> -S -100`), suspect a brief that lets the thread run
+  a tool or add prose before/after its reply - that widens the window in which the pane can be
+  redrawn before the reply is captured.

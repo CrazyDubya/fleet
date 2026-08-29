@@ -75,10 +75,20 @@ class RouterTests(unittest.TestCase):
         self.assertEqual((r.returncode, r.stdout), (0, ""))
 
     def test_packet_prompt_without_router_logs_allow(self):
-        # FLEET_PROFILE=v2 points at tmux session "fleet2", which does not
-        # exist in this environment, so `fleet ask haiku-router2` fails fast
-        # (SendError on window_exists) instead of waiting out its --timeout 8.
-        r = run("router.sh", {"cwd": str(ROOT / "sonnet2"), "prompt": "@to opus2\nplan this"})
+        # FLEET_PROFILE=v1 points `fleet ask haiku-router2` at tmux session
+        # "fleet" (the live v1 fleet), which has no "haiku-router2" window,
+        # so `ask` fails immediately (SendError -> exit 1) via a read-only
+        # `tmux list-windows` check - never touching a live window - instead
+        # of relying on tmux session "fleet2" not existing, which Task 9
+        # brings up. (An invalid profile, e.g. FLEET_PROFILE=nosuchprofile,
+        # looks tempting here but does not work: cli.main() calls
+        # activate_profile() for every subcommand, so the KeyError it raises
+        # also kills the hooks/v2/_lib.sh `ledger()` helper's own
+        # `fleet hook-event` call below - no event to assert on. Confirmed
+        # by hand: with FLEET_PROFILE=nosuchprofile, running router.sh's
+        # `ledger router allow ...` never appends a new ledger line.)
+        r = run("router.sh", {"cwd": str(ROOT / "sonnet2"), "prompt": "@to opus2\nplan this"},
+                env={"FLEET_PROFILE": "v1"})
         self.assertEqual((r.returncode, r.stdout), (0, ""))
         ev = ledger.read_events()[-1]
         self.assertEqual((ev["hook"], ev["decision"], ev["thread"]), ("router", "allow", "sonnet2"))
