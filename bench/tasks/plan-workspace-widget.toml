@@ -1,0 +1,10 @@
+id = "plan-workspace-widget"
+lane = "plan"
+packet = "Design (do not build) the workspace widget for the dashboard described in {refs}: routes, storage under state/, client contract, security. Write the design to {target}/design.md (create the directory) with sections '## Routes', '## Storage', '## Security', '## Build order'. Reply with the path."
+refs = ["ledger/handoffs/opus/20260829T021451Z-gui-design.md"]
+target = "bench/work/{run}/out"
+done = "{target}/design.md exists with the four sections"
+check = "for s in Routes Storage Security 'Build order'; do grep -q \"## $s\" {target}/design.md || exit 1; done"
+judge = "bench/rubrics/design.md"
+timeout_s = 900
+cleanup = "rm -rf bench/work/{run}"

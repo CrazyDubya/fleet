@@ -1,0 +1,9 @@
+id = "lookup-newest-handoff"
+lane = "lookup"
+packet = "Which file under {root}/ledger/handoffs/ (recursive) is newest by mtime? Write ONLY its ROOT-relative path to {target}/reply.txt (create the directory), then reply with that path."
+refs = []
+target = "bench/work/{run}/out"
+done = "{target}/reply.txt names the newest handoff"
+check = "mkdir -p {target} && test \"$(cat {target}/reply.txt | tr -d '[:space:]')\" = \"$(cd {root} && ls -t ledger/handoffs/*/*.md | head -1)\""
+timeout_s = 180
+cleanup = "rm -rf bench/work/{run}"
