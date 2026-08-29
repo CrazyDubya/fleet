@@ -60,6 +60,21 @@ class DecideAutoTests(unittest.TestCase):
         cmd = "echo a;" + "rm -rf" + " state/x"
         self.assertEqual(prompts.decide_auto(cmd, self.root)[0], "allow-auto")
 
+    def test_rm_in_subshell_and_newline_denied(self):
+        cases = [
+            "(" + "rm -rf" + " gui)",
+            "$(" + "rm -rf" + " gui)",
+            "`" + "rm -rf" + " gui`",
+            "echo a\n" + "rm -rf" + " gui",
+            "{ " + "rm -rf" + " gui; }",
+        ]
+        for cmd in cases:
+            self.assertEqual(prompts.decide_auto(cmd, self.root)[0], "deny", cmd)
+
+    def test_rm_in_subshell_inside_state_allowed(self):
+        cmd = "(" + "rm -rf" + " state/x)"
+        self.assertEqual(prompts.decide_auto(cmd, self.root)[0], "allow-auto")
+
 
 class PromptFilesTests(unittest.TestCase):
     def setUp(self):

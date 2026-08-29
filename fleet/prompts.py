@@ -24,7 +24,7 @@ DENY = [
 ]
 PATH_TOKEN = re.compile(r"^(~|/|\./|\.\./)")
 DEV_OK = ("/dev/null", "/dev/stdin", "/dev/stdout", "/dev/stderr")
-SEGMENT_RE = re.compile(r"\s*(?:;|&&|\|\||\||&)\s*")
+SEGMENT_RE = re.compile(r"\s*(?:;|&&|\|\||\||&|\n|\$\(|\(|`|\{)\s*")
 
 
 def _tokens(command: str) -> list[str]:
@@ -41,6 +41,13 @@ def _is_path_candidate(tok: str) -> bool:
 def _resolve(tok: str, root: Path) -> str:
     p = os.path.expanduser(tok)
     return os.path.normpath(p if p.startswith("/") else os.path.join(str(root), p))
+
+
+def _clean_arg(tok: str) -> str:
+    """Strip trailing shell-grouping punctuation left attached to an
+    argument by the raw-text segment split (e.g. "(rm -rf state/x)"
+    tokenizes its last argument as "state/x)")."""
+    return tok.rstrip(")`};")
 
 
 def _path_ok(tok: str, root: Path) -> bool:
@@ -81,11 +88,16 @@ def _rm_denied(command: str, root: Path) -> str | None:
     """Token-based rm -rf check: deny recursive+force rm unless every
     non-flag argument resolves under <root>/state.
 
-    The raw command is split into shell segments on ;, &&, ||, |, & before
-    tokenizing, so chained invocations written without surrounding
-    whitespace (e.g. "echo a;rm -rf x" or "true&&rm -rf x") are still
-    detected -- shlex.split alone only isolates those operators as their
-    own tokens when whitespace surrounds them.
+    The raw command is split into shell segments on ;, &&, ||, |, &,
+    newline, (, $(, `, and { before tokenizing, so chained invocations
+    written without surrounding whitespace (e.g. "echo a;rm -rf x" or
+    "true&&rm -rf x") and invocations inside a subshell, command
+    substitution, backtick substitution, or brace group (e.g.
+    "(rm -rf x)", "$(rm -rf x)", "`rm -rf x`", "{ rm -rf x; }")
+    are still detected -- shlex.split alone only isolates those as
+    standalone tokens when whitespace surrounds them, and closing
+    )/`/} characters are not split points so they land stuck to the
+    last argument token (cleaned up via _clean_arg before resolving).
     """
     state_dir = os.path.normpath(str(root / "state"))
     for segment in SEGMENT_RE.split(command):
@@ -98,7 +110,7 @@ def _rm_denied(command: str, root: Path) -> str | None:
         has_recursive, has_force, args = _rm_flags_and_args(tokens[1:])
         if has_recursive and has_force:
             for a in args:
-                p = _resolve(a, root)
+                p = _resolve(_clean_arg(a), root)
                 if not (p == state_dir or p.startswith(state_dir + "/")):
                     return "rm -rf outside state/"
     return None
