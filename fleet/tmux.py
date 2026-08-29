@@ -91,5 +91,14 @@ def paste(name: str, text: str) -> None:
     _run("send-keys", "-t", _target(name), "Enter")
 
 
-def capture(name: str, lines: int = 50) -> str:
-    return _run("capture-pane", "-p", "-t", _target(name), "-S", f"-{lines}", capture=True).stdout
+def capture(name: str, lines: int = 50, join: bool = False) -> str:
+    """`join=True` appends tmux's own `-J` (join wrapped lines back together
+    for copy), which undoes tmux's line-wrapping of a long pane line. It does
+    NOT undo Claude Code's own TUI soft-wrap, which renders continuation
+    lines with a 2-space indent regardless of tmux wrapping - callers that
+    need to see past that must handle it themselves (see fleet.ask)."""
+    args = ["capture-pane", "-p"]
+    if join:
+        args.append("-J")
+    args += ["-t", _target(name), "-S", f"-{lines}"]
+    return _run(*args, capture=True).stdout

@@ -1,6 +1,8 @@
+import subprocess
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from fleet import tmux
 
@@ -19,6 +21,24 @@ class PasteArgvTests(unittest.TestCase):
         self.assertEqual(argv[0], "paste-buffer")
         self.assertIn("-p", argv)
         self.assertEqual(argv[argv.index("-t") + 1], "fleet:=thing")
+
+
+class CaptureArgsTests(unittest.TestCase):
+    """Argument shape only, no live tmux needed (parallels PasteArgvTests)."""
+
+    def test_capture_join_flag(self):
+        calls: list[list[str]] = []
+
+        def fake_run(cmd, **kwargs):
+            calls.append(cmd)
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+        with mock.patch("fleet.tmux.subprocess.run", fake_run):
+            tmux.capture("thing", join=True)
+            tmux.capture("thing")
+
+        self.assertIn("-J", calls[0])
+        self.assertNotIn("-J", calls[1])
 
 
 class TmuxLiveTests(unittest.TestCase):

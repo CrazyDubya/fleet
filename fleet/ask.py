@@ -21,20 +21,50 @@ def _strip(lines: list[str]) -> str:
     return "\n".join(l[2:] if l.startswith("  ") else l for l in lines).strip()
 
 
+def _logical_lines(lines: list[str]) -> list[tuple[int, str]]:
+    """Merge a physical line starting with exactly two spaces into the
+    previous logical line, joined by a single space, remembering the first
+    physical index of each logical line.
+
+    Claude Code's own TUI soft-wraps long lines independently of tmux's pane
+    width - continuation lines are rendered with a 2-space indent - so a
+    header (or a reply header) that is long enough to wrap arrives as
+    several physical lines even after `tmux capture-pane -J`. This collapses
+    that back into one logical line so a substring search (`@id <pid>`,
+    `@re <pid>`) still matches regardless of where the terminal happened to
+    wrap it.
+    """
+    out: list[tuple[int, str]] = []
+    for i, l in enumerate(lines):
+        if out and l[:2] == "  " and l[2:3] != " ":
+            idx, prev = out[-1]
+            out[-1] = (idx, prev + " " + l[2:])
+        else:
+            out.append((i, l))
+    return out
+
+
 def extract_reply(pane: str, pid: str) -> str | None:
     lines = pane.splitlines()
-    start = next((i for i, l in enumerate(lines) if f"@id {pid}" in l), None)
+    logical = _logical_lines(lines)
+    start = next((idx for idx, l in logical if f"@id {pid}" in l), None)
     if start is None:
         return None
-    # 1. a typed reply header addressed to our id
-    for i in range(start + 1, len(lines)):
-        if f"@re {pid}" in lines[i]:
-            body = []
-            for l in lines[i + 1:]:
-                if END_RE.match(l):
-                    break
-                body.append(l)
-            return _strip(body)
+    # 1. a typed reply header addressed to our id. Header detection above and
+    # the @re search below are whitespace-tolerant (they match across a
+    # 2-space-continuation wrap), but body collection is still line-oriented:
+    # a real newline inside a lookup reply is indistinguishable from the
+    # TUI's own soft-wrap continuation, so a wrapped reply body can pick up a
+    # spurious line break. Known limitation - lookup replies are expected to
+    # be short.
+    re_start = next((idx for idx, l in logical if idx > start and f"@re {pid}" in l), None)
+    if re_start is not None:
+        body = []
+        for l in lines[re_start + 1:]:
+            if END_RE.match(l):
+                break
+            body.append(l)
+        return _strip(body)
     # 2. the last bare ⏺ block after our packet
     blocks: list[list[str]] = []
     cur: list[str] | None = None
@@ -55,7 +85,7 @@ def ask(thread: str, body: str, sender: str, profile: str, timeout: float = 30.0
     pid = send(p, profile)
     deadline = time.monotonic() + timeout
     while True:
-        pane = capture(thread, lines=200)
+        pane = capture(thread, lines=200, join=True)
         reply = extract_reply(pane, pid)
         if reply is not None:
             clear(sender, pid, profile)
