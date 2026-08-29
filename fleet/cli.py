@@ -58,11 +58,20 @@ def cmd_miss(args):
 
 
 def cmd_send(args):
+    text = " ".join(args.text)
     try:
-        n = send_mod.send(args.thread, " ".join(args.text), sender=args.sender)
-    except send_mod.SendError as exc:
+        if not (args.lane or args.effort or args.reply or args.done or args.refs):
+            n = send_mod.send(args.thread, text, sender=args.sender)
+            print(f"sent {n} bytes to {args.thread}"); return 0
+        from . import packet as packet_mod
+        lane = args.lane or "build"
+        ln = packet_mod.LANES[lane]
+        p = packet_mod.Packet(to=args.thread, sender=args.sender, lane=lane, effort=args.effort or ln.effort,
+                              reply=args.reply or ln.reply, refs=args.refs or [], done=args.done, body=text)
+        pid = send_mod.send_packet(p, current_profile())
+    except (send_mod.SendError, KeyError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr); return 1
-    print(f"sent {n} bytes to {args.thread}"); return 0
+    print(f"sent packet {pid} to {args.thread} lane={p.lane} effort={p.effort} reply={p.reply}"); return 0
 
 
 def cmd_status(args):
@@ -95,7 +104,13 @@ def _build_parser():
     for verb, fn in (("up", cmd_up), ("park", cmd_park), ("wake", cmd_wake), ("respawn", cmd_respawn)):
         s = sub.add_parser(verb); s.add_argument("thread"); s.set_defaults(fn=fn)
     f = sub.add_parser("fork"); f.add_argument("parent"); f.add_argument("new"); f.add_argument("--brief", required=True); f.set_defaults(fn=cmd_fork)
-    s = sub.add_parser("send"); s.add_argument("thread"); s.add_argument("text", nargs="+"); s.add_argument("--from", dest="sender", default="operator"); s.set_defaults(fn=cmd_send)
+    s = sub.add_parser("send"); s.add_argument("thread"); s.add_argument("text", nargs="+")
+    s.add_argument("--from", dest="sender", default="operator")
+    s.add_argument("--lane", choices=["lookup", "build", "plan", "judge", "consult"])
+    s.add_argument("--effort", choices=["low", "med", "medium", "high"])
+    s.add_argument("--reply", choices=["inline", "file", "none"])
+    s.add_argument("--done"); s.add_argument("--refs", nargs="*")
+    s.set_defaults(fn=cmd_send)
     s = sub.add_parser("status"); s.add_argument("--watch", action="store_true"); s.add_argument("--interval", type=int, default=10); s.set_defaults(fn=cmd_status)
     t = sub.add_parser("telemetry"); t.add_argument("--day"); t.set_defaults(fn=cmd_telemetry)
     sub.add_parser("report").set_defaults(fn=cmd_report)
