@@ -17,12 +17,13 @@ class BenchLiveTests(unittest.TestCase):
         # and the registry directly (not through the CLI's activate_profile()),
         # so point both at the live v2/fleet2 profile ourselves rather than
         # the "fleet"/v1 defaults.
+        self._session = tmux.SESSION  # restore whatever was active, not a hardcoded "fleet"
         tmux.use_session("fleet2")
         self._registry_path = registry_mod.DEFAULT_PATH
         registry_mod.DEFAULT_PATH = profile_state("v2") / "registry.json"
 
     def tearDown(self):
-        tmux.use_session("fleet")
+        tmux.use_session(self._session)
         registry_mod.DEFAULT_PATH = self._registry_path
 
     def test_lookup_task_on_fleet_arm(self):

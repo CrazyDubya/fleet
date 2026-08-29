@@ -33,8 +33,17 @@ class MeasureTests(unittest.TestCase):
 
     def test_pool_split(self):
         p = measure.pool_split({"claude-fable-5": 1.5, "claude-opus-5": 0.5, "claude-sonnet-5": 0.3, "claude-haiku-4-5": 0.02})
-        self.assertEqual(p, {"fable": 1.5, "weekly": {"opus": 0.5, "sonnet": 0.3, "haiku": 0.02}})
+        self.assertEqual(p, {"fable": 1.5, "weekly": {"opus": 0.5, "sonnet": 0.3, "haiku": 0.02}, "other": 0.0})
         self.assertEqual(measure.pool_split({})["weekly"], {"opus": 0.0, "sonnet": 0.0, "haiku": 0.0})
+
+    def test_pool_split_stops_at_the_first_pool_match(self):
+        # without the break a name carrying two pool words would be counted in both
+        p = measure.pool_split({"claude-opus-sonnet-mix": 0.4})
+        self.assertEqual((p["weekly"]["opus"], p["weekly"]["sonnet"]), (0.4, 0.0))
+
+    def test_a_model_in_no_pool_lands_in_other(self):
+        p = measure.pool_split({"mystery-9": 0.7, "claude-sonnet-5": 0.1})
+        self.assertEqual((p["other"], p["weekly"]["sonnet"], p["fable"]), (0.7, 0.1, 0.0))
 
     def test_interventions_in_window(self):
         ev = [{"ev": "hook", "hook": "perm", "decision": "escalate", "t": 5}, {"ev": "hook", "hook": "gate", "decision": "block", "t": 6},

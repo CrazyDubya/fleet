@@ -39,14 +39,19 @@ def usd_by_model(paths, t0: float, t1: float) -> dict[str, float]:
 
 
 def pool_split(usd: dict[str, float]) -> dict:
-    pools = {"fable": 0.0, "weekly": {"opus": 0.0, "sonnet": 0.0, "haiku": 0.0}}
+    """Split `$` by subscription pool. A model that matches no pool lands in `other`,
+    so the split always sums to `usd` instead of quietly dropping unknown models."""
+    pools = {"fable": 0.0, "weekly": {"opus": 0.0, "sonnet": 0.0, "haiku": 0.0}, "other": 0.0}
     for m, d in usd.items():
         if "fable" in m:
             pools["fable"] += d
+            continue
+        for k in ("opus", "sonnet", "haiku"):
+            if k in m:
+                pools["weekly"][k] += d
+                break  # one pool per model: "claude-opus-5" is not also sonnet spend
         else:
-            for k in ("opus", "sonnet", "haiku"):
-                if k in m:
-                    pools["weekly"][k] += d
+            pools["other"] += d
     return pools
 
 

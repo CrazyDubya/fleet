@@ -3,7 +3,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from fleet import send as send_mod
 from fleet.bench import arms
+from fleet.registry import Entry
 
 
 class SingleTurnTests(unittest.TestCase):
@@ -26,7 +28,9 @@ class SingleTurnTests(unittest.TestCase):
             self.assertEqual((wd / "stdout.txt").read_text(), "hello\n")
             self.assertEqual(calls[0][1]["cwd"], str(wd)); self.assertEqual(calls[0][1]["timeout"], 30)
             self.assertTrue(str(r.transcripts[0]).endswith(".jsonl"))
-            self.assertEqual(r.threads, ["bench-work-run1"])  # hooks/v2/_lib.sh derives this from the transcript dir
+            # keyed by thread: hooks/v2/_lib.sh derives this name from the transcript dir
+            self.assertEqual(list(r.transcripts_by_thread), ["bench-work-run1"])
+            self.assertEqual(r.threads, ["bench-work-run1"])
 
     def test_run_single_turn_timeout(self):
         def spawn(argv, **kw):
@@ -65,3 +69,42 @@ class FleetWaitTests(unittest.TestCase):
             hd = Path(d); f = hd / "old.md"; f.write_text("@re run77"); import os; os.utime(f, (1, 1))
             ok = arms.fleet_wait_done("run77", 100.0, 5, hd, capture=lambda: "", sleep=lambda s: None, clock=iter([101.0, 200.0]).__next__)
         self.assertFalse(ok)
+
+
+def entry(name, cwd, session="s-" + "0" * 8, fork_of=None):
+    return Entry(name=name, session_id=f"{session}-{name}", cwd=cwd, model="claude-sonnet-5", status="up",
+                 spec_hash="h", spawned_at=0.0, fork_of=fork_of)
+
+
+class RunFleetTests(unittest.TestCase):
+    ENTRIES = {"sonnet2": entry("sonnet2", "/r/sonnet2"), "haiku2": entry("haiku2", "/r/haiku2")}
+
+    def _run(self, send, **kw):
+        with tempfile.TemporaryDirectory() as d:
+            return arms.run_fleet("do it", ["maps/a.md"], "done when x", "run77", Path(d), 5, "lookup",
+                                  "v2", self.ENTRIES, send=send, capture=kw.pop("capture", lambda: ""),
+                                  sleep=lambda s: None, clock=kw.pop("clock", iter([0.0, 1.0, 9.0]).__next__))
+
+    def test_packet_is_addressed_to_the_front_door_with_a_file_reply(self):
+        sent = []
+        def send(p, profile):
+            sent.append((p, profile)); return "ok"
+        pane = "❯ @to sonnet2 … @id run77\n⏺ @from sonnet2  @re run77  @status done  @out x.md\n  built\n✻ done\n❯ \n"
+        r = self._run(send, capture=lambda: pane, clock=iter([0.0, 1.0]).__next__)
+        p, profile = sent[0]
+        self.assertEqual((p.to, p.reply, p.id, p.sender, p.lane), ("sonnet2", "file", "run77", "bench", "lookup"))
+        self.assertEqual((p.refs, p.done, profile), (["maps/a.md"], "done when x", "v2"))
+        self.assertEqual(r.status, "done")
+        # every registered thread is a candidate window; the runner narrows it to those that spoke
+        self.assertEqual(sorted(r.transcripts_by_thread), ["haiku2", "sonnet2"])
+
+    def test_send_error_is_an_error_result_not_a_raise(self):
+        def send(p, profile):
+            raise send_mod.SendError("sonnet2 is not running")
+        r = self._run(send)
+        self.assertEqual(r.status, "error"); self.assertIn("not running", r.note)
+        self.assertEqual(sorted(r.transcripts_by_thread), ["haiku2", "sonnet2"])  # still worth measuring
+
+    def test_no_reply_within_timeout_is_a_timeout(self):
+        r = self._run(lambda p, profile: "ok")
+        self.assertEqual(r.status, "timeout"); self.assertIn("no @re reply", r.note)
