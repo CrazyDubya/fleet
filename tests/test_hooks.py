@@ -73,3 +73,12 @@ class RouterTests(unittest.TestCase):
     def test_plain_prompt_noop(self):
         r = run("router.sh", {"cwd": str(ROOT / "sonnet2"), "prompt": "hello"})
         self.assertEqual((r.returncode, r.stdout), (0, ""))
+
+    def test_packet_prompt_without_router_logs_allow(self):
+        # FLEET_PROFILE=v2 points at tmux session "fleet2", which does not
+        # exist in this environment, so `fleet ask haiku-router2` fails fast
+        # (SendError on window_exists) instead of waiting out its --timeout 8.
+        r = run("router.sh", {"cwd": str(ROOT / "sonnet2"), "prompt": "@to opus2\nplan this"})
+        self.assertEqual((r.returncode, r.stdout), (0, ""))
+        ev = ledger.read_events()[-1]
+        self.assertEqual((ev["hook"], ev["decision"], ev["thread"]), ("router", "allow", "sonnet2"))

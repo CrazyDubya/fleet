@@ -9,8 +9,8 @@ BODY="${PROMPT#*$'\n'}"
 VERDICT="$("$FLEET" ask haiku-router2 --from "$THREAD" --timeout 8 "$BODY" 2>/dev/null | head -1)"
 if [ -n "$VERDICT" ]; then
   echo "[router] $VERDICT"
-  ledger router "$THREAD" inject "$VERDICT"
+  ledger router inject "$VERDICT"
 else
-  ledger router "$THREAD" allow "router unavailable"
+  ledger router allow "router unavailable"
 fi
 exit 0
