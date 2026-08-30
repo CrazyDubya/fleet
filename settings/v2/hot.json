@@ -8,8 +8,6 @@
       "Read(//Users/pup/fleet/**)",
       "Write(//Users/pup/fleet/ledger/handoffs/**)",
       "Edit(//Users/pup/fleet/ledger/handoffs/**)",
-      "mcp__playwright__browser_navigate",
-      "mcp__playwright__browser_navigate_back",
       "mcp__playwright__browser_snapshot",
       "mcp__playwright__browser_take_screenshot",
       "mcp__playwright__browser_console_messages",
@@ -89,4 +87,4 @@
       }
     ]
   }
-}
+}\n

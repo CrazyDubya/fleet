@@ -1,10 +1,21 @@
 #!/usr/bin/env bash
 set -u; source "$(dirname "${BASH_SOURCE[0]}")/_lib.sh"
 [ -n "$THREAD" ] || exit 0
-[ "$(jf .tool_name)" = "Bash" ] || exit 0          # non-Bash prompts fall through to the UI
+TOOL="$(jf .tool_name)"
+emit() { printf '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"%s"%s}}}\n' "$1" "${2:-}"; }
+if [ "$TOOL" = "mcp__playwright__browser_navigate" ]; then
+  # The browser may only open loopback pages (the local static server / fleet GUI):
+  # anything else is SSRF from a thread that carries the GUI's cookie jar.
+  URL="$(jf .tool_input.url)"
+  case "$URL" in
+    http://127.0.0.1[:/]*|http://localhost[:/]*|http://\[::1\][:/]*|back|forward) ledger perm allow-auto "navigate $URL"; emit allow;;
+    *) ledger perm deny "navigate $URL"; emit deny ',"message":"browser_navigate is limited to loopback URLs"';;
+  esac
+  exit 0
+fi
+[ "$TOOL" = "Bash" ] || exit 0          # other non-Bash prompts fall through to the UI
 CMD="$(jf .tool_input.command)"; [ -n "$CMD" ] || exit 0
 D="$("$FLEET" perm-decide "$THREAD" "$CWD" "$CMD" 2>/dev/null || echo escalate-timeout)"
-emit() { printf '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"%s"%s}}}\n' "$1" "${2:-}"; }
 case "$D" in
   allow-auto) ledger perm allow-auto "$CMD"; emit allow;;
   allow)      ledger perm allow "operator"; emit allow;;

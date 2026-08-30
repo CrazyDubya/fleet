@@ -204,3 +204,19 @@ class GateSendTarget(unittest.TestCase):
         cmd = "bin/fleet send opus2 --lane plan --reply file --done x 'design'"
         r = run("gate.sh", {"cwd": self.cwd, "tool_name": "Bash", "tool_input": {"command": cmd}})
         self.assertEqual(r.returncode, 0, r.stderr)
+
+
+class PermBrowserNavigate(unittest.TestCase):
+    cwd = str(ROOT / "sonnet2")
+
+    def _nav(self, url):
+        r = run("perm.sh", {"cwd": self.cwd, "tool_name": "mcp__playwright__browser_navigate", "tool_input": {"url": url}})
+        return json.loads(r.stdout)["hookSpecificOutput"]["decision"]["behavior"]
+
+    def test_loopback_allowed(self):
+        for u in ("http://127.0.0.1:8080/?debug=1", "http://localhost:8787/", "back"):
+            self.assertEqual(self._nav(u), "allow", u)
+
+    def test_everything_else_denied(self):
+        for u in ("http://100.64.0.3:8787/", "https://example.com", "http://127.0.0.1.evil.com/", "file:///etc/passwd", "http://localhost.evil/"):
+            self.assertEqual(self._nav(u), "deny", u)
