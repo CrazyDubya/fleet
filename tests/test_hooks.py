@@ -181,3 +181,26 @@ class RouterTests(unittest.TestCase):
         self.assertEqual((r.returncode, r.stdout), (0, ""))
         ev = ledger.read_events()[-1]
         self.assertEqual((ev["hook"], ev["decision"], ev["thread"]), ("router", "allow", "sonnet2"))
+
+
+class GateSendTarget(unittest.TestCase):
+    """The opus/fable rule keys on the positional destination of `fleet send`."""
+    cwd = "/Users/pup/fleet/sonnet2"
+
+    def test_build_send_to_sonnet_from_opus_with_opus_refs_is_allowed(self):
+        cmd = ("bin/fleet send sonnet2 --from opus2 --lane build --reply file "
+               "--refs ledger/handoffs/opus2/20260830T024139Z-pinball-design.md gui/server.py "
+               "--done 'a ball rolls' 'T1: skeleton'")
+        r = run("gate.sh", {"cwd": self.cwd, "tool_name": "Bash", "tool_input": {"command": cmd}})
+        self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_build_send_to_opus_with_flags_first_is_blocked(self):
+        cmd = "bin/fleet send --lane build --from sonnet2 --refs a.md b.md -- opus2 'do it' --done x"
+        r = run("gate.sh", {"cwd": self.cwd, "tool_name": "Bash", "tool_input": {"command": cmd}})
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("opus/fable", r.stderr)
+
+    def test_plan_send_to_opus_is_allowed(self):
+        cmd = "bin/fleet send opus2 --lane plan --reply file --done x 'design'"
+        r = run("gate.sh", {"cwd": self.cwd, "tool_name": "Bash", "tool_input": {"command": cmd}})
+        self.assertEqual(r.returncode, 0, r.stderr)

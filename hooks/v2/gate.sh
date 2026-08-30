@@ -12,7 +12,33 @@ if [ "$TOOL" = "SendMessage" ]; then
   case "$MSG" in @to*) grep -Eq '@lane (lookup|judge)' <<<"$MSG" || grep -q '@done ' <<<"$MSG" || block "build/plan packets need a @done line";; esac
 elif [ "$TOOL" = "Bash" ]; then
   CMD="$(jf .tool_input.command)"
-  case "$CMD" in *"fleet send "*opus*|*"fleet send "*fable*)
+  # Resolve the positional destination of every `fleet send` in the command;
+  # a glob on "opus" would also match --from opus2 or a refs path.
+  DEST="$(python3 - "$CMD" <<'PY'
+import shlex, sys
+MULTI = {"--refs"}; ONE = {"--from", "--lane", "--effort", "--reply", "--done"}
+try: toks = shlex.split(sys.argv[1])
+except ValueError: toks = sys.argv[1].split()
+out = []
+i = 0
+while i < len(toks):
+    if toks[i].endswith("fleet") and i + 1 < len(toks) and toks[i + 1] == "send":
+        j = i + 2
+        while j < len(toks):
+            t = toks[j]
+            if t in MULTI:
+                j += 1
+                while j < len(toks) and not toks[j].startswith("-"): j += 1
+            elif t in ONE: j += 2
+            elif t == "--": j += 1
+            elif t.startswith("-"): j += 1
+            else: out.append(t); break
+        i = j
+    i += 1
+print(" ".join(out))
+PY
+)"
+  case " $DEST " in *" opus"*|*" fable"*)
     grep -Eq -- '--lane (plan|consult)|@override' <<<"$CMD" || block "fleet send to opus/fable needs --lane plan|consult or @override";;
   esac
   # Destructive gate for EVERY tier. The tool tier runs a permission mode that
