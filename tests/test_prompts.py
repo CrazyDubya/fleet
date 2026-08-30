@@ -245,3 +245,15 @@ class ParkedFindingsTests(unittest.TestCase):
         for cmd in ["rmdir state/x 2>/dev/null", "rm -rf state/x >/dev/null 2>&1", "unlink state/y.md 2> /dev/null", "find state/tmp -delete 2>/dev/null"]:
             self.assertEqual(prompts.decide_auto(cmd, self.root)[0], "allow-auto", cmd)
         self.assertEqual(prompts.decide_auto("rmdir gui 2>/dev/null", self.root)[0], "deny")
+
+
+from fleet.paths import ROOT as _ROOT
+
+
+class BareSlashIsNotAPath(unittest.TestCase):
+    def test_division_in_wrapped_code_is_allowed(self):
+        self.assertEqual(prompts.decide_auto("node -e 'x = (-28 * Math.PI) / 180'", _ROOT)[0], "allow-auto")
+
+    def test_deletes_of_root_stay_denied(self):
+        for c in ("rmdir /", "find / -delete", "unlink /"):
+            self.assertEqual(prompts.decide_auto(c, _ROOT)[0], "deny", c)

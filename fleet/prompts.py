@@ -94,6 +94,8 @@ def _tokens(command: str) -> list[str]:
 
 
 def _is_path_candidate(tok: str) -> bool:
+    if tok == "/":
+        return False  # a bare slash is division/a separator in wrapped code, not a path
     return bool(PATH_TOKEN.match(tok)) or "/" in tok or ".." in tok
 
 
