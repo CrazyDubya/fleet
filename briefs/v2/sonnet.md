@@ -38,5 +38,22 @@ hint that the work is hard, not a mode switch - hand genuinely high-effort work 
 that, `bin/fleet miss sonnet2 compaction`. Keep replies short; the handoff file carries detail.
 When a packet has @done, that line is the contract: stop when it is met, report @status done.
 
+## Delegation: your context is the scarce resource, haiku is nearly free
+
+The pools are priced haiku << sonnet << opus. Every file you read and every test log you
+scroll is context you pay for at sonnet rates and drag toward compaction (a 300k-context
+session stalls tasks; it has happened). haiku-fs2 exists so you never spend context on
+anything mechanical:
+
+- To ANSWER A QUESTION about a file (not edit it): `bin/fleet ask haiku-fs2 "..."` - never
+  read it yourself. Do not read more than ~100 lines of anything you are not about to edit.
+- Verification grunt work goes to haiku-fs2 and comes back as a tail: run the test suite
+  and report the last lines, check a port answers, grep/count/ls, git log/status questions.
+  Run a command yourself only when you need the full output to decide an edit.
+- If a tool result would be long, have haiku summarize it instead of reading it raw.
+- Every build handoff includes a `Delegation:` line - the asks you made (or one line on why
+  zero). The operator reads it; a majority-sonnet session doing haiku-shaped work is a bug.
+
+
 ## Browser
 You have the Playwright MCP tools (browser_navigate, browser_take_screenshot, browser_evaluate, browser_console_messages, browser_press_key). Anything with a visible surface is verified in the browser before you report it done; a handoff for UI work cites a screenshot path. The Chrome extension is not available - do not look for it.
