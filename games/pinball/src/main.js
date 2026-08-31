@@ -26,87 +26,50 @@ tiltGroup.rotation.x = -THREE.MathUtils.degToRad(6.5);
 camera.position.set(0, 1.0, 0.65);
 camera.lookAt(0, 0, -0.5);
 
-// --- Playground look pass (T3b minimum) ---------------------------------------------
-// A first art pass so the table reads as a sunny blacktop playground rather than grey
-// boxes. Full models (slide, monkey bars, merry-go-round, ...) are T10; this is deliberately
-// cheap: flat-shaded primitives, shared materials, no textures.
-
-// Blacktop playfield, painted with a hopscotch grid and four-square lines near the top,
-// a grass strip along the very top, and a wood-chip patch where the spring riders (T4)
-// will sit.
+// --- Art pass (T4b): reference-photo redirect -----------------------------------------
+// A worn 1960s playground-pinball playfield (games/pinball/assets/textures/playfield.jpg)
+// UV-mapped directly onto the table rect, replacing the flat-painted "sunny blacktop"
+// placeholder from T3b. The photo already carries the hopscotch ladder, bumper rings and
+// slide artwork, so the mechanisms below are restyled to sit on top of it rather than
+// paint their own ground graphics.
 const floorGeo = new THREE.PlaneGeometry(recess.LANE_OUTER_X * 2, recess.HEIGHT);
-const floorMat = new THREE.MeshLambertMaterial({ color: 0x4a4a4a }); // asphalt
+const floorMat = new THREE.MeshLambertMaterial({ color: 0x2f5a3a }); // worn-green fallback until the texture loads
 const floor = new THREE.Mesh(floorGeo, floorMat);
 floor.rotation.x = -Math.PI / 2;
 floor.position.set(0, 0, -recess.HEIGHT / 2);
 tiltGroup.add(floor);
-
-const paintMat = new THREE.MeshLambertMaterial({ color: 0xf2ecd8 }); // chalky white paint
-function paintLine(cx, cy, w, h, rotationDeg = 0) {
-  const geo = new THREE.PlaneGeometry(w, h);
-  const mesh = new THREE.Mesh(geo, paintMat);
-  mesh.rotation.x = -Math.PI / 2;
-  mesh.rotation.z = THREE.MathUtils.degToRad(rotationDeg);
-  const p = toSceneVec(cx, cy, 0.001);
-  mesh.position.set(p.x, p.y, p.z);
-  tiltGroup.add(mesh);
-}
-// Four-square grid, centred a bit above the flippers.
-const fsCx = 0, fsCy = 0.62, fsSize = 0.16;
-paintLine(fsCx, fsCy, fsSize, 0.006);
-paintLine(fsCx, fsCy, 0.006, fsSize);
-paintLine(fsCx, fsCy, fsSize + 0.006, 0.006, 0); // border top/bottom handled by box below
-// Hopscotch ladder, off to the right of four-square.
-for (let i = 0; i < 5; i++) paintLine(0.16, 0.68 + i * 0.07, 0.09, 0.006);
-paintLine(0.16, 0.68 - 0.035, 0.006, 5 * 0.07 + 0.03);
-paintLine(0.16 - 0.045, 0.68, 0.006, 0.07);
-paintLine(0.16 + 0.045, 0.68, 0.006, 0.07);
-
-// Grass strip along the top edge.
-const grassGeo = new THREE.PlaneGeometry(recess.LANE_OUTER_X * 2, 0.08);
-const grassMat = new THREE.MeshLambertMaterial({ color: 0x4c9a4c });
-const grass = new THREE.Mesh(grassGeo, grassMat);
-grass.rotation.x = -Math.PI / 2;
-const gp = toSceneVec(0, recess.HEIGHT - 0.04, 0.0015);
-grass.position.set(gp.x, gp.y, gp.z);
-tiltGroup.add(grass);
-
-// Wood-chip pit under where the spring riders will sit (T4).
-const chipGeo = new THREE.CircleGeometry(0.09, 20);
-const chipMat = new THREE.MeshLambertMaterial({ color: 0x8a6339 });
-const chips = new THREE.Mesh(chipGeo, chipMat);
-chips.rotation.x = -Math.PI / 2;
-const cp = toSceneVec(-0.06, 0.82, 0.0015);
-chips.position.set(cp.x, cp.y, cp.z);
-tiltGroup.add(chips);
-
-// Sky/fence backdrop: a low chain-link-style fence of posts along the very top, in front
-// of the sky-blue background.
-const fenceMat = new THREE.MeshLambertMaterial({ color: 0x777777 });
-const postGeo = new THREE.CylinderGeometry(0.003, 0.003, 0.09, 6);
-for (let x = -recess.HALF_WIDTH; x <= recess.HALF_WIDTH + 0.02; x += 0.045) {
-  const post = new THREE.Mesh(postGeo, fenceMat);
-  const p = toSceneVec(x, recess.HEIGHT + 0.01, 0.045);
-  post.position.set(p.x, p.y, p.z);
-  tiltGroup.add(post);
-}
+new THREE.TextureLoader().load('./assets/textures/playfield.jpg', (tex) => {
+  if ('colorSpace' in tex) tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  floorMat.map = tex;
+  floorMat.color.set(0xffffff);
+  floorMat.needsUpdate = true;
+});
 
 // --- World, walls, flippers ---
 const world = createWorld();
 const wallSegments = recess.buildWalls();
 setLayerPrimitives(world, 'playfield', wallSegments.map((shape) => ({ shape })));
 
+// Wood-tone side rails + chrome lane/apron guides, sampled from the reference photo's
+// worn pine border and chrome slingshot/corner plates (was flat gold/blue placeholder).
 const wallColorByTag = {
-  left: 0xe8b923, top: 0xe8b923,
-  'apron-left': 0xdd5522, 'apron-right': 0xdd5522, // safety-orange apron, reads as a curb
-  'lane-outer': 0x2f6fb5, 'lane-inner': 0x2f6fb5, 'lane-floor': 0x2f6fb5, // blue lane guide
-  'lane-deflector': 0x2f6fb5, 'lane-gate': 0x2f6fb5,
+  left: 0xc9a267, top: 0xc9a267, // worn pine rail
+  'apron-left': 0x5a5a5a, 'apron-right': 0x5a5a5a, // dark chrome corner plate
+  'lane-outer': 0xb8b8b8, 'lane-inner': 0xb8b8b8, 'lane-floor': 0xb8b8b8, // chrome lane guide
+  'lane-deflector': 0xb8b8b8, 'lane-gate': 0xb8b8b8,
 };
 const wallMats = new Map();
 function wallMaterial(tag) {
-  const color = wallColorByTag[tag] ?? 0xe8b923;
-  if (!wallMats.has(color)) wallMats.set(color, new THREE.MeshLambertMaterial({ color }));
-  return wallMats.get(color);
+  const color = wallColorByTag[tag] ?? 0xc9a267;
+  const metal = tag !== 'left' && tag !== 'top';
+  const key = `${color}:${metal}`;
+  if (!wallMats.has(key)) {
+    wallMats.set(key, metal
+      ? new THREE.MeshStandardMaterial({ color, metalness: 0.7, roughness: 0.35 })
+      : new THREE.MeshLambertMaterial({ color }));
+  }
+  return wallMats.get(key);
 }
 for (const seg of wallSegments) {
   const dx = seg.b.x - seg.a.x;
@@ -126,8 +89,9 @@ for (const seg of wallSegments) {
 // physics capsule's visual stand-in, painted playground-red/yellow.
 const flipperConfigs = recess.buildFlipperConfigs();
 const flippers = {};
-const plankMat = new THREE.MeshLambertMaterial({ color: 0xcc3333 });
-const fulcrumMat = new THREE.MeshLambertMaterial({ color: 0xdddddd });
+const plankMat = new THREE.MeshLambertMaterial({ color: 0xcc3333 }); // red bat body
+const tipMat = new THREE.MeshLambertMaterial({ color: 0xf2ecd8 }); // white-tipped, per the reference
+const fulcrumMat = new THREE.MeshStandardMaterial({ color: 0xdddddd, metalness: 0.6, roughness: 0.4 });
 const fulcrumGeo = new THREE.ConeGeometry(0.018, 0.03, 8);
 for (const cfg of flipperConfigs) {
   const flipper = createFlipper(cfg);
@@ -140,6 +104,11 @@ for (const cfg of flipperConfigs) {
   mesh.userData.flipper = flipper;
   tiltGroup.add(mesh);
   flipper._mesh = mesh;
+
+  const tipLen = flipper.length * 0.22;
+  const tip = new THREE.Mesh(new THREE.BoxGeometry(tipLen, 0.0122, flipper.radius * 2.02), tipMat);
+  tip.position.x = flipper.length - tipLen / 2;
+  mesh.add(tip); // rides the flipper mesh's own rotation, no separate update needed
 
   const fulcrum = new THREE.Mesh(fulcrumGeo, fulcrumMat);
   const fp = toSceneVec(flipper.pivot.x, flipper.pivot.y, 0.005);
@@ -230,6 +199,8 @@ function processMechanismEvents(events) {
     const tag = tagOf(event);
     if (!tag || !MECHANISM_TAGS.has(tag)) continue;
 
+    if (SPARK_TAGS.has(tag)) flashSparkAt(ball.pos.x, ball.pos.y);
+
     if (hopscotch.targets.some((t) => t.tag === tag)) {
       for (const fired of game.applyDropHit(hopscotchBankState, tag, elapsedS)) {
         applySwitch(scoreboard, fired, fallbackPointsFor(fired));
@@ -277,55 +248,41 @@ function coloredMesh(geo, color) {
   return new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color }));
 }
 
+// Worn red-dome pop bumpers, per the reference photo — the three switches keep their
+// duck/horse/rocket tag names (game logic unaffected), but all three now read as the same
+// chipped red dome-and-ring bumper the photo actually shows, with a gold star decal.
+const bumperDomeMat = new THREE.MeshStandardMaterial({ color: 0xb8362c, metalness: 0.1, roughness: 0.6 });
+const bumperRingMat = new THREE.MeshLambertMaterial({ color: 0xc23c30 });
+const bumperStarMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, metalness: 0.5, roughness: 0.4 });
 function buildPopBumperMesh(name, centre) {
   const group = new THREE.Group();
-  const skirt = coloredMesh(new THREE.CylinderGeometry(0.03, 0.03, 0.006, 16), 0x999999);
+  const skirt = coloredMesh(new THREE.CylinderGeometry(0.032, 0.032, 0.006, 16), 0x8a8a8a);
   skirt.position.y = 0.003;
   group.add(skirt);
-  const spring = coloredMesh(new THREE.CylinderGeometry(0.006, 0.006, 0.05, 8), 0xaaaaaa);
-  spring.position.y = 0.03;
-  group.add(spring);
-  if (name === 'duck') {
-    const body = coloredMesh(new THREE.SphereGeometry(0.026, 12, 10), 0xf4d13a);
-    body.position.y = 0.07;
-    group.add(body);
-    const beak = coloredMesh(new THREE.ConeGeometry(0.008, 0.02, 8), 0xe8862a);
-    beak.rotation.z = Math.PI / 2;
-    beak.position.set(0.024, 0.068, 0);
-    group.add(beak);
-  } else if (name === 'horse') {
-    const body = coloredMesh(new THREE.CylinderGeometry(0.02, 0.024, 0.05, 10), 0x8a5a34);
-    body.position.y = 0.075;
-    group.add(body);
-    const head = coloredMesh(new THREE.ConeGeometry(0.014, 0.03, 8), 0x6b4423);
-    head.position.set(0, 0.11, 0.01);
-    head.rotation.x = -0.3;
-    group.add(head);
-  } else {
-    const body = coloredMesh(new THREE.CylinderGeometry(0.018, 0.018, 0.05, 10), 0xdd3333);
-    body.position.y = 0.075;
-    group.add(body);
-    const nose = coloredMesh(new THREE.ConeGeometry(0.018, 0.025, 10), 0xf2f2f2);
-    nose.position.y = 0.11;
-    group.add(nose);
-    for (const side of [-1, 1]) {
-      const fin = coloredMesh(new THREE.BoxGeometry(0.006, 0.02, 0.016), 0xf2f2f2);
-      fin.position.set(side * 0.02, 0.055, 0);
-      group.add(fin);
-    }
-  }
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.036, 0.044, 24), bumperRingMat);
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = 0.0015;
+  group.add(ring);
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(0.028, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), bumperDomeMat);
+  dome.position.y = 0.006;
+  group.add(dome);
+  const star = new THREE.Mesh(new THREE.OctahedronGeometry(0.007, 0), bumperStarMat);
+  star.scale.y = 0.35;
+  star.position.set(0.014, 0.03, 0.012);
+  group.add(star);
   const p = toSceneVec(centre.x, centre.y, 0);
   group.position.set(p.x, p.y, p.z);
   return group;
 }
 for (const p of popBumpers) tiltGroup.add(buildPopBumperMesh(p.name, p.centre));
 
-function buildSlingshotMesh(segments, color) {
+const slingshotMat = new THREE.MeshStandardMaterial({ color: 0xc8c8c8, metalness: 0.75, roughness: 0.3 });
+function buildSlingshotMesh(segments) {
   const group = new THREE.Group();
   for (const seg of segments) {
     const dx = seg.b.x - seg.a.x, dy = seg.b.y - seg.a.y;
     const len = Math.hypot(dx, dy);
-    const bar = coloredMesh(new THREE.BoxGeometry(len, 0.05, 0.012), color);
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(len, 0.05, 0.012), slingshotMat);
     const p = toSceneVec((seg.a.x + seg.b.x) / 2, (seg.a.y + seg.b.y) / 2, 0.025);
     bar.position.set(p.x, p.y, p.z);
     bar.rotation.y = -Math.atan2(dy, dx);
@@ -333,8 +290,8 @@ function buildSlingshotMesh(segments, color) {
   }
   return group;
 }
-tiltGroup.add(buildSlingshotMesh(slingshots.left, 0x3399cc));
-tiltGroup.add(buildSlingshotMesh(slingshots.right, 0x3399cc));
+tiltGroup.add(buildSlingshotMesh(slingshots.left));
+tiltGroup.add(buildSlingshotMesh(slingshots.right));
 // A pair of swing-set posts + top bar behind each slingshot, for the "swing set" read.
 function buildSwingSetPosts(apex) {
   const group = new THREE.Group();
@@ -450,6 +407,29 @@ tiltGroup.add(buildTrackMesh(tunnel.ramp.points, 0x8a7a6a, 0.06, 0.9));
   tiltGroup.add(group);
 }
 
+// --- Cheap hit-flash: a small pool of additive spark sprites (spark.jpg, per the
+// reference), flashed at the ball's position on a bumper/slingshot hit and faded out over
+// ~0.2s. Reuses a fixed pool rather than allocating per hit. ---
+const sparkTexture = new THREE.TextureLoader().load('./assets/textures/spark.jpg');
+const SPARK_LIFE = 0.2;
+const sparkPool = Array.from({ length: 4 }, () => {
+  const mat = new THREE.SpriteMaterial({ map: sparkTexture, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0 });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(0.09, 0.09, 1);
+  sprite.userData.life = 0;
+  tiltGroup.add(sprite);
+  return sprite;
+});
+let sparkCursor = 0;
+function flashSparkAt(x, y) {
+  const sprite = sparkPool[sparkCursor];
+  sparkCursor = (sparkCursor + 1) % sparkPool.length;
+  const p = toSceneVec(x, y, 0.03);
+  sprite.position.set(p.x, p.y, p.z);
+  sprite.userData.life = SPARK_LIFE;
+}
+const SPARK_TAGS = new Set([SW_POP_DUCK, SW_POP_HORSE, SW_POP_ROCKET, SW_SLING_LEFT, SW_SLING_RIGHT]);
+
 // --- Ball ---
 const ball = addBall(world, { id: 'b0', pos: { ...recess.LAUNCH_POSITION }, vel: { x: 0, y: 0 }, radius: BALL_RADIUS, active: false });
 const ballGeo = new THREE.SphereGeometry(BALL_RADIUS, 24, 16);
@@ -554,6 +534,11 @@ function frame(now) {
   });
   tetherballMesh.rotation.y = tetherballSpinner.angle;
   pinwheelMesh.rotation.y = pinwheelSpinner.angle;
+
+  for (const sprite of sparkPool) {
+    sprite.userData.life = Math.max(0, sprite.userData.life - dt);
+    sprite.material.opacity = sprite.userData.life / SPARK_LIFE;
+  }
 
   hud.textContent = `SCORE ${scoreboard.score.toLocaleString()}`;
 
