@@ -95,11 +95,27 @@ def extract_reply(pane: str, pid: str) -> str | None:
     # 2. the last bare ⏺ block after our packet
     blocks: list[list[str]] = []
     cur: list[str] | None = None
+    def _drop_if_status(b):
+        # A single-line block ending in the TUI's ellipsis is a tool-status
+        # line ("Running 1 shell command…"), not an answer. Confirmed live:
+        # haiku-fs2 running a delegated grep (T6/T7 "empty capture").
+        if b and len(b) == 1 and b[0].rstrip().endswith("…"):
+            blocks.pop()
+
     for l in lines[start + 1:]:
         m = BLOCK_RE.match(l)
         if m:
+            if cur is not None:
+                _drop_if_status(cur)
             cur = [m.group(1)]; blocks.append(cur)
         elif cur is not None and END_RE.match(l):
+            # A single-line block ending in the TUI's ellipsis is a tool-status
+            # line ("Running 1 shell command…", "Bash(node --test …)…"), not an
+            # answer - it terminates cleanly and then the real reply renders
+            # later, so treating it as the reply returns status text to the
+            # caller. Drop it and keep polling. Confirmed live: haiku-fs2
+            # running a delegated grep (T6/T7 handoffs' "empty capture").
+            _drop_if_status(cur)
             cur = None
         elif cur is not None:
             cur.append(l)

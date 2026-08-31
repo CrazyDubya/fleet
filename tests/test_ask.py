@@ -166,3 +166,27 @@ class AskTests(unittest.TestCase):
                     clear=lambda sender, pid, profile: cleared.append((sender, pid, profile)),
                     sleep=lambda s: None)
         self.assertEqual(cleared, [("sonnet2", "abc123", "v2")])
+
+
+PANE_TOOL_STATUS = """❯ @to haiku-fs2  @from sonnet2  @lane lookup  @id abc999
+  how many test files
+⏺ Running 1 shell command…
+
+✽ Forging… (1s · ↓ 50 tokens · thinking)
+"""
+
+PANE_TOOL_STATUS_THEN_ANSWER = """❯ @to haiku-fs2  @from sonnet2  @lane lookup  @id abc999
+  how many test files
+⏺ Running 1 shell command…
+
+⏺ 7
+
+❯ """
+
+
+class ToolStatusBlocksAreNotReplies(unittest.TestCase):
+    def test_terminated_running_line_is_not_a_reply(self):
+        self.assertIsNone(ask.extract_reply(PANE_TOOL_STATUS, "abc999"))
+
+    def test_real_answer_after_status_line_is_returned(self):
+        self.assertEqual(ask.extract_reply(PANE_TOOL_STATUS_THEN_ANSWER, "abc999"), "7")
