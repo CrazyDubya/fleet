@@ -366,30 +366,80 @@ function buildSpinnerMesh(zone) {
 const tetherballMesh = buildSpinnerMesh(spinnerDefs.tetherball);
 const pinwheelMesh = buildSpinnerMesh(spinnerDefs.pinwheel);
 
-// --- T5 models: ramp/orbit tracks and the SANDBOX pit -----------------------------------
-// Each ramp is rendered as a chain of oriented boxes along its own points (x,y,z) — a
-// simple "tube" read that's cheap and needs no new geometry type. Colour and width are the
-// only per-ramp styling: THE SLIDE (blue plastic curl), MONKEY BARS (grey steel wireform,
-// thinner, more overhead read via its height), THE TUNNEL (dull concrete culvert).
-function buildTrackMesh(points, color, width, opacity = 1) {
-  const group = new THREE.Group();
-  const mat = new THREE.MeshLambertMaterial({ color, transparent: opacity < 1, opacity });
+// --- T5b: ramp/orbit tracks restyled to the reference photo's world (was flat T5 boxes
+// that read as debris against the finished playfield texture). Each ramp still walks its
+// own points (x,y,z) as a chain of oriented segments — only the per-segment geometry and
+// material changed, per ramp. ------------------------------------------------------------
+function segmentSteps(points, fn) {
   for (let i = 0; i < points.length - 1; i++) {
     const a = toSceneVec(points[i].x, points[i].y, points[i].z);
     const b = toSceneVec(points[i + 1].x, points[i + 1].y, points[i + 1].z);
     const dir = new THREE.Vector3(b.x - a.x, b.y - a.y, b.z - a.z);
     const len = dir.length();
     if (len < 1e-6) continue;
-    const box = new THREE.Mesh(new THREE.BoxGeometry(len, width * 0.6, width), mat);
-    box.position.set((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
-    box.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), dir.clone().normalize());
-    group.add(box);
+    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, z: (a.z + b.z) / 2 };
+    fn(mid, dir, len);
   }
+}
+
+// THE SLIDE: a yellow plastic frame with an inset white chute, echoing the painted slide
+// art on the playfield texture — solid (not translucent) so it reads clearly against the
+// warm dim lighting rather than washing out.
+const slideFrameMat = new THREE.MeshStandardMaterial({ color: 0xf0c927, metalness: 0.05, roughness: 0.5 });
+const slideChuteMat = new THREE.MeshStandardMaterial({ color: 0xf5f0e0, metalness: 0.05, roughness: 0.35 });
+function buildSlideMesh(points) {
+  const group = new THREE.Group();
+  segmentSteps(points, (mid, dir, len) => {
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(1, 0, 0), dir.clone().normalize());
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(len, 0.02, 0.09), slideFrameMat);
+    frame.position.set(mid.x, mid.y, mid.z);
+    frame.quaternion.copy(q);
+    const chute = new THREE.Mesh(new THREE.BoxGeometry(len * 0.98, 0.012, 0.07), slideChuteMat);
+    chute.position.set(0, 0.015, 0); // local offset, rides the frame's own rotation
+    frame.add(chute);
+    group.add(frame);
+  });
   return group;
 }
-tiltGroup.add(buildTrackMesh(slide.ramp.points, 0x2f6fb5, 0.08));
-tiltGroup.add(buildTrackMesh(monkeyBars.ramp.points, 0xd8d8d8, 0.018));
-tiltGroup.add(buildTrackMesh(tunnel.ramp.points, 0x8a7a6a, 0.06, 0.9));
+
+// MONKEY BARS: a thin silver wireform — two parallel steel rails, the way a real habitrail
+// overhead ramp looks, rather than a solid slab.
+const wireformMat = new THREE.MeshStandardMaterial({ color: 0xd8d8d8, metalness: 0.85, roughness: 0.25 });
+function buildMonkeyBarsMesh(points) {
+  const group = new THREE.Group();
+  segmentSteps(points, (mid, dir, len) => {
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+    const perp = new THREE.Vector3(-dir.z, 0, dir.x).normalize().multiplyScalar(0.011);
+    for (const side of [-1, 1]) {
+      const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.0032, 0.0032, len, 8), wireformMat);
+      rail.position.set(mid.x + perp.x * side, mid.y, mid.z + perp.z * side);
+      rail.quaternion.copy(q);
+      group.add(rail);
+    }
+  });
+  return group;
+}
+
+// THE TUNNEL: a dull grey-brown concrete culvert — an open-ended pipe (visible from
+// inside, so the ball is never hidden) rather than a flat semi-transparent slab.
+const culvertMat = new THREE.MeshStandardMaterial({
+  color: 0x7d6b58, metalness: 0, roughness: 0.95, side: THREE.DoubleSide,
+  transparent: true, opacity: 0.88,
+});
+function buildTunnelMesh(points) {
+  const group = new THREE.Group();
+  segmentSteps(points, (mid, dir, len) => {
+    const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, len, 16, 1, true), culvertMat);
+    pipe.position.set(mid.x, mid.y, mid.z);
+    pipe.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+    group.add(pipe);
+  });
+  return group;
+}
+
+tiltGroup.add(buildSlideMesh(slide.ramp.points));
+tiltGroup.add(buildMonkeyBarsMesh(monkeyBars.ramp.points));
+tiltGroup.add(buildTunnelMesh(tunnel.ramp.points));
 
 // THE SANDBOX: a shallow tan pit with a darker rim, at the scoop's capture radius.
 {
