@@ -1,0 +1,871 @@
+{
+ "version": 1,
+ "generated": "2026-08-31T02:24:41Z",
+ "reserved_labels": [
+  "Unroll.me",
+  "FindBigMail",
+  "FindBigMail/*"
+ ],
+ "guards": {
+  "skip_all_rules_if": {
+   "no_header": [
+    "List-Unsubscribe",
+    "List-Id"
+   ],
+   "not_precedence": [
+    "bulk",
+    "list",
+    "junk"
+   ],
+   "from_domain_in": [
+    "gmail.com",
+    "outlook.com",
+    "hotmail.com",
+    "yahoo.com",
+    "icloud.com",
+    "me.com",
+    "aol.com",
+    "proton.me"
+   ]
+  }
+ },
+ "rules": [
+  {
+   "id": "sec-google-accounts",
+   "label": "Security-Alerts",
+   "confidence": "high",
+   "review": true,
+   "source": "confirmed",
+   "match": {
+    "from_addr": "no-reply@accounts.google.com"
+   },
+   "note": "Sample names this exact address as a security-alert sender."
+  },
+  {
+   "id": "sec-anthropic",
+   "label": "Security-Alerts",
+   "confidence": "high",
+   "review": true,
+   "source": "gist",
+   "match": {
+    "from_domain": "mail.anthropic.com",
+    "subject_re": "(sign-?in|log-?in|security|verify|password|new device|suspicious)"
+   },
+   "note": "mail.anthropic.com is mixed; subject gate separates security from product mail (see ai-anthropic below)."
+  },
+  {
+   "id": "sec-netflix",
+   "label": "Security-Alerts",
+   "confidence": "high",
+   "review": true,
+   "source": "gist",
+   "match": {
+    "from_domain": "account.netflix.com",
+    "subject_re": "(sign-?in|new device|password|unusual|verify)"
+   },
+   "note": "MUST precede stream-netflix - same domain sends both."
+  },
+  {
+   "id": "sec-atlassian-token",
+   "label": "Security-Alerts",
+   "confidence": "high",
+   "review": true,
+   "source": "gist",
+   "match": {
+    "from_domain": "atlassian.com",
+    "subject_re": "(token|api key|expir|revoked)"
+   },
+   "note": "MUST precede dev-atlassian."
+  },
+  {
+   "id": "sec-simplebackups",
+   "label": "Security-Alerts",
+   "confidence": "high",
+   "review": true,
+   "source": "gist",
+   "match": {
+    "from_domain": "simplebackups.com"
+   },
+   "note": "Sample flags this as action-required; whole domain treated as review-class."
+  },
+  {
+   "id": "sec-generic-subject",
+   "label": "Security-Alerts",
+   "confidence": "med",
+   "review": true,
+   "source": "extrapolated",
+   "match": {
+    "subject_re": "(action required|verify your (email|account|identity)|password reset|unusual sign-?in|security alert|suspicious (activity|login)|payment (failed|declined)|card (declined|expir))"
+   },
+   "note": "Catch-all safety net for account families not named in the sample. MED: subject regexes over 71k threads will false-positive on marketing copy; review dry-run hits before enabling."
+  },
+  {
+   "id": "self-plus-cc",
+   "label": "Self-Automation",
+   "confidence": "high",
+   "review": false,
+   "source": "confirmed",
+   "match": {
+    "to_addr_re": "crazydubya\\+[a-z0-9]+@gmail\\.com"
+   },
+   "note": "Sample confirms crazydubya+cc 'Your Day Ahead'. Widened to any +tag: plus-addressed mail to self is self-configured by construction."
+  },
+  {
+   "id": "self-ssh-digest",
+   "label": "Auto/Infra",
+   "confidence": "high",
+   "review": false,
+   "source": "confirmed",
+   "match": {
+    "from_domain": "002190.xyz"
+   },
+   "note": "alerts@002190.xyz SSH auth digests, subject '[ok] SSH digest srvNNN'. Self-hosted infra. NOTE: a '[FAIL]'-style digest would be genuinely urgent - consider a subject_re split into Security-Alerts once the real subject vocabulary is known."
+  },
+  {
+   "id": "gh-security",
+   "label": "Auto/GitHub-Security",
+   "confidence": "high",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "github.com",
+    "subject_re": "(dependabot|security (alert|advisory|vulnerabilit)|CVE-)"
+   }
+  },
+  {
+   "id": "gh-ci",
+   "label": "Auto/GitHub-CI",
+   "confidence": "high",
+   "review": false,
+   "source": "confirmed",
+   "match": {
+    "to_addr_re": "ci_activity@noreply\\.github\\.com"
+   }
+  },
+  {
+   "id": "gh-activity",
+   "label": "Auto/GitHub-Activity",
+   "confidence": "high",
+   "review": false,
+   "source": "confirmed",
+   "match": {
+    "to_addr_re": "author@noreply\\.github\\.com"
+   }
+  },
+  {
+   "id": "gh-copilot-repos",
+   "label": "CoPilot",
+   "confidence": "high",
+   "review": false,
+   "source": "confirmed",
+   "match": {
+    "from_addr": "notifications@github.com",
+    "to_addr_re": "(theater-stage|csv_finder|Taverna|hermes-agent|unicorn-games|AR)@noreply\\.github\\.com"
+   },
+   "note": "Operator's own repos, per sample. Add repos here as they appear."
+  },
+  {
+   "id": "gh-fallback",
+   "label": "Auto/GitHub-Activity",
+   "confidence": "med",
+   "review": false,
+   "source": "extrapolated",
+   "match": {
+    "from_domain": "github.com"
+   },
+   "note": "Anything from GitHub not caught above. MED because it may mask a new repo that belongs in CoPilot - check dry-run hits for unseen To: repos."
+  },
+  {
+   "id": "ai-openai-tasks",
+   "label": "Auto/AI-Tools",
+   "confidence": "high",
+   "review": false,
+   "source": "confirmed",
+   "match": {
+    "from_domain": "tm.openai.com"
+   },
+   "note": "ChatGPT scheduled-task digests, '[Task Update]'. Sample calls this high volume - likely a top-3 rule by hit count."
+  },
+  {
+   "id": "ai-xai",
+   "label": "Auto/AI-Tools",
+   "confidence": "high",
+   "review": false,
+   "source": "confirmed",
+   "match": {
+    "from_domain": "x.ai"
+   },
+   "note": "noreply@x.ai 'Daily Tech Digest' / 'Viral Memes'."
+  },
+  {
+   "id": "ai-anthropic",
+   "label": "Auto/AI-Tools",
+   "confidence": "high",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "mail.anthropic.com"
+   }
+  },
+  {
+   "id": "ai-openai-other",
+   "label": "Auto/AI-Tools",
+   "confidence": "high",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "openai.com"
+   }
+  },
+  {
+   "id": "ai-replicate",
+   "label": "Auto/AI-Tools",
+   "confidence": "high",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "replicate.com"
+   }
+  },
+  {
+   "id": "ai-groq",
+   "label": "Auto/AI-Tools",
+   "confidence": "high",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "groq.com"
+   }
+  },
+  {
+   "id": "dev-atlassian",
+   "label": "Dev-Tools",
+   "confidence": "high",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "atlassian.com"
+   }
+  },
+  {
+   "id": "dev-coingecko",
+   "label": "Dev-Tools",
+   "confidence": "high",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "coingecko.com"
+   },
+   "note": "API survey in sample. If the operator holds crypto here, Finance may fit better."
+  },
+  {
+   "id": "fin-amex",
+   "label": "Finance",
+   "confidence": "high",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "americanexpress.com"
+   },
+   "note": "Weekly account snapshot. Statement/payment-due mail is arguably review-class - see \u00a75 open question 2."
+  },
+  {
+   "id": "fin-ally",
+   "label": "Finance",
+   "confidence": "high",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "ally.com"
+   },
+   "note": "Sample says 'ally-invest cross-sell'; ally.com suffix covers ally-invest subdomains."
+  },
+  {
+   "id": "fin-fundrise",
+   "label": "Finance",
+   "confidence": "high",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "fundrise.com"
+   },
+   "note": "Legal notices - informational, not action-required."
+  },
+  {
+   "id": "fin-common",
+   "label": "Finance",
+   "confidence": "med",
+   "review": false,
+   "source": "extrapolated",
+   "match": {
+    "from_domain": "chase.com"
+   },
+   "note": "EXTRAPOLATED - not in sample. Template: duplicate per institution the dry-run reveals (capitalone.com, schwab.com, fidelity.com, wellsfargo.com, discover.com, paypal.com). Left as one entry rather than guessing the operator's banks."
+  },
+  {
+   "id": "log-usps",
+   "label": "Logistics",
+   "confidence": "high",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "usps.com"
+   },
+   "note": "Informed Delivery daily digest; suffix covers email.usps.com."
+  },
+  {
+   "id": "log-carriers",
+   "label": "Logistics",
+   "confidence": "med",
+   "review": false,
+   "source": "extrapolated",
+   "match": {
+    "from_domain": "ups.com"
+   },
+   "note": "EXTRAPOLATED. Template: duplicate for fedex.com, dhl.com, shipment-tracking senders found in dry-run."
+  },
+  {
+   "id": "civ-nycdata",
+   "label": "Gov-Civic",
+   "confidence": "high",
+   "review": false,
+   "source": "confirmed",
+   "match": {
+    "from_domain": "data.cityofnewyork.us"
+   }
+  },
+  {
+   "id": "civ-gov",
+   "label": "Gov-Civic",
+   "confidence": "med",
+   "review": false,
+   "source": "extrapolated",
+   "match": {
+    "from_domain": "gov"
+   },
+   "note": "MED and deliberately blunt: matches any .gov sender on the label-boundary suffix rule. Verify hits before enabling - some .gov mail is action-required and belongs in review."
+  },
+  {
+   "id": "forum-threadloom",
+   "label": "Forums",
+   "confidence": "high",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "threadloom.news"
+   },
+   "note": "vesta.threadloom.news forum digest; suffix covers other forums on the same service."
+  },
+  {
+   "id": "soc-facebook",
+   "label": "Social",
+   "confidence": "high",
+   "review": false,
+   "source": "confirmed",
+   "match": {
+    "from_domain": "facebookmail.com"
+   }
+  },
+  {
+   "id": "soc-nextdoor",
+   "label": "Social",
+   "confidence": "high",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "nextdoor.com"
+   }
+  },
+  {
+   "id": "soc-reddit",
+   "label": "Social",
+   "confidence": "high",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "redditmail.com"
+   }
+  },
+  {
+   "id": "soc-tumblr",
+   "label": "Social",
+   "confidence": "high",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "tumblr.com"
+   }
+  },
+  {
+   "id": "soc-goodreads",
+   "label": "Social",
+   "confidence": "high",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "goodreads.com"
+   },
+   "note": "Giveaways in sample. Social rather than Promotions because Goodreads mail is mostly activity//social; revisit if dry-run shows pure marketing."
+  },
+  {
+   "id": "soc-substack-notes",
+   "label": "Social",
+   "confidence": "med",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "substack.com",
+    "subject_re": "(note[sd]?\\b|restack|liked your|replied to|is now following)"
+   },
+   "note": "MUST precede news-substack. Substack sends both editorial newsletters and social Notes from the same domain; this is the only separator available without per-publication list_id data."
+  },
+  {
+   "id": "stream-netflix",
+   "label": "Streaming",
+   "confidence": "high",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "netflix.com"
+   }
+  },
+  {
+   "id": "stream-paramount",
+   "label": "Streaming",
+   "confidence": "high",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "paramountplus.com"
+   }
+  },
+  {
+   "id": "stream-hulu",
+   "label": "Streaming",
+   "confidence": "high",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "hulu.com"
+   }
+  },
+  {
+   "id": "stream-bravo",
+   "label": "Streaming",
+   "confidence": "med",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "bravotv.com"
+   },
+   "note": "MED: sending domain likely NBCUniversal (nbcuni.com / nbcumail.com), not bravotv.com. Verify in dry-run."
+  },
+  {
+   "id": "notice-ticketmaster",
+   "label": "Account-Notices",
+   "confidence": "high",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "ticketmaster.com",
+    "subject_re": "(terms|privacy|policy|agreement)"
+   },
+   "note": "MUST precede any Ticketmaster promo rule."
+  },
+  {
+   "id": "notice-generic",
+   "label": "Account-Notices",
+   "confidence": "med",
+   "review": false,
+   "source": "extrapolated",
+   "match": {
+    "subject_re": "(terms of (service|use)|privacy policy|updates? to our (terms|policy)|user agreement)"
+   }
+  },
+  {
+   "id": "news-information",
+   "label": "Newsletters",
+   "confidence": "high",
+   "review": false,
+   "source": "confirmed",
+   "match": {
+    "from_domain": "theinformation.com"
+   },
+   "note": "Covers both editorial and the upsell mail noted in the sample."
+  },
+  {
+   "id": "news-beehiiv",
+   "label": "Newsletters",
+   "confidence": "high",
+   "review": false,
+   "source": "confirmed",
+   "match": {
+    "from_domain": "mail.beehiiv.com"
+   },
+   "note": "Newsletter platform - factinate and any other beehiiv publication."
+  },
+  {
+   "id": "news-nyt",
+   "label": "Newsletters",
+   "confidence": "high",
+   "review": false,
+   "source": "confirmed",
+   "match": {
+    "from_domain": "e.newyorktimes.com"
+   },
+   "note": "Sample writes 'nytimes@e.newyorktimes.com'. If the real domain is e.nytimes.com, fix here - flagged as a likely transcription slip in the sample, NOT verified."
+  },
+  {
+   "id": "news-athletic",
+   "label": "Newsletters/Sports",
+   "confidence": "high",
+   "review": false,
+   "source": "confirmed",
+   "match": {
+    "from_domain": "theathletic.com"
+   }
+  },
+  {
+   "id": "news-dailypassport",
+   "label": "Newsletters/Travel",
+   "confidence": "high",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "dailypassport.com"
+   }
+  },
+  {
+   "id": "news-pagesix",
+   "label": "Newsletters/Entertainment",
+   "confidence": "high",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "pagesix.com"
+   }
+  },
+  {
+   "id": "news-nymag",
+   "label": "Newsletters/Entertainment",
+   "confidence": "high",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "nymag.com"
+   }
+  },
+  {
+   "id": "pol-cityandstate",
+   "label": "Political-TradePress",
+   "confidence": "high",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "cityandstateny.com"
+   },
+   "note": "Fills the currently-empty Political-TradePress: City & State NY is precisely political trade press."
+  },
+  {
+   "id": "news-substack",
+   "label": "Newsletters",
+   "confidence": "high",
+   "review": false,
+   "source": "confirmed",
+   "match": {
+    "from_domain": "substack.com"
+   },
+   "note": "Runs after soc-substack-notes. natesilver+politics@substack.com confirmed. Politically-themed Substacks stay in Newsletters, not Political-Lists - Political-Lists is campaign/fundraising mail, not commentary."
+  },
+  {
+   "id": "pol-lists",
+   "label": "Political-Lists",
+   "confidence": "med",
+   "review": false,
+   "source": "extrapolated",
+   "match": {
+    "from_domain": "actblue.com"
+   },
+   "note": "EXTRAPOLATED - the existing label has 74 threads but the sample names no sender. Template: duplicate for ngpvan.com, everyaction.com, secure.winred.com, and whatever the dry-run surfaces."
+  },
+  {
+   "id": "cold-ccsend-shared",
+   "label": "Cold-Sales",
+   "confidence": "high",
+   "review": false,
+   "source": "confirmed",
+   "match": {
+    "from_domain": "shared1.ccsend.com"
+   },
+   "note": "Constant Contact SHARED pool - four confirmed cold senders. Scoped to shared1 deliberately; see cold-ccsend-other."
+  },
+  {
+   "id": "cold-ccsend-other",
+   "label": "Cold-Sales",
+   "confidence": "med",
+   "review": false,
+   "source": "extrapolated",
+   "match": {
+    "from_domain": "ccsend.com"
+   },
+   "note": "MED: ccsend.com at large is Constant Contact generally, which legitimate organisations also use. Do not promote to high without checking hits."
+  },
+  {
+   "id": "cold-wisecapital",
+   "label": "Cold-Sales",
+   "confidence": "high",
+   "review": false,
+   "source": "confirmed",
+   "match": {
+    "from_domain": "wisecapitalpro.com"
+   }
+  },
+  {
+   "id": "cold-mca-subject",
+   "label": "Cold-Sales",
+   "confidence": "med",
+   "review": false,
+   "source": "extrapolated",
+   "match": {
+    "subject_re": "(merchant cash advance|business funding|working capital|pre-?approved for \\$|funding for your business)"
+   },
+   "note": "MCA/business-funding vocabulary from the sample's Cold-Sales description. MED - runs late, catches rotating throwaway domains."
+  },
+  {
+   "id": "promo-gambling",
+   "label": "Promotions/Gambling",
+   "confidence": "high",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "solitairecash.com"
+   }
+  },
+  {
+   "id": "promo-gambling-2",
+   "label": "Promotions/Gambling",
+   "confidence": "high",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "amigobingo.com"
+   }
+  },
+  {
+   "id": "promo-deals-cardbear",
+   "label": "Promotions/Deals",
+   "confidence": "high",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "cardbear.com"
+   },
+   "note": "Gift-card price alerts."
+  },
+  {
+   "id": "promo-food-mealpal",
+   "label": "Promotions/Food",
+   "confidence": "high",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "mealpal.com"
+   }
+  },
+  {
+   "id": "promo-food-wendys",
+   "label": "Promotions/Food",
+   "confidence": "med",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "wendys.com"
+   }
+  },
+  {
+   "id": "promo-food-dominos",
+   "label": "Promotions/Food",
+   "confidence": "med",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "dominos.com"
+   }
+  },
+  {
+   "id": "promo-food-tacobell",
+   "label": "Promotions/Food",
+   "confidence": "med",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "tacobell.com"
+   }
+  },
+  {
+   "id": "promo-food-dunkin",
+   "label": "Promotions/Food",
+   "confidence": "med",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "dunkindonuts.com"
+   },
+   "note": "Brand mail often sends from email.dunkindonuts.com or dunkin.com - verify."
+  },
+  {
+   "id": "promo-food-wonder",
+   "label": "Promotions/Food",
+   "confidence": "med",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "wonder.com"
+   }
+  },
+  {
+   "id": "promo-retail-shutterfly",
+   "label": "Promotions/Retail",
+   "confidence": "med",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "shutterfly.com"
+   }
+  },
+  {
+   "id": "promo-retail-etsy",
+   "label": "Promotions/Retail",
+   "confidence": "med",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "etsy.com"
+   },
+   "note": "If the operator SELLS on Etsy, order/payout mail is action-required and this rule would bury it. Check dry-run subjects before enabling."
+  },
+  {
+   "id": "promo-retail-nintendo",
+   "label": "Promotions/Retail",
+   "confidence": "med",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "nintendo.com"
+   }
+  },
+  {
+   "id": "promo-retail-gog",
+   "label": "Promotions/Retail",
+   "confidence": "med",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "gog.com"
+   }
+  },
+  {
+   "id": "promo-retail-lovehoney",
+   "label": "Promotions/Retail",
+   "confidence": "med",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "lovehoney.com"
+   }
+  },
+  {
+   "id": "promo-retail-sperry",
+   "label": "Promotions/Retail",
+   "confidence": "med",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "sperry.com"
+   }
+  },
+  {
+   "id": "promo-retail-spartan",
+   "label": "Promotions/Retail",
+   "confidence": "med",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "spartan.com"
+   }
+  },
+  {
+   "id": "promo-retail-urbanair",
+   "label": "Promotions/Retail",
+   "confidence": "med",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "urbanair.com"
+   }
+  },
+  {
+   "id": "promo-retail-guns",
+   "label": "Promotions/Retail",
+   "confidence": "med",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "guns.com"
+   }
+  },
+  {
+   "id": "promo-retail-abcmouse",
+   "label": "Promotions/Retail",
+   "confidence": "med",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "abcmouse.com"
+   }
+  },
+  {
+   "id": "promo-retail-littlespoon",
+   "label": "Promotions/Retail",
+   "confidence": "med",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "littlespoon.com"
+   }
+  },
+  {
+   "id": "promo-retail-genomelink",
+   "label": "Promotions/Retail",
+   "confidence": "med",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "genomelink.io"
+   },
+   "note": "TLD guessed (.io vs .com) - verify."
+  },
+  {
+   "id": "promo-birdeye",
+   "label": "Promotions/Retail",
+   "confidence": "med",
+   "review": false,
+   "source": "gist",
+   "match": {
+    "from_domain": "birdeye.com"
+   },
+   "note": "Review-solicitation platform sending on behalf of local businesses."
+  },
+  {
+   "id": "promo-unsub-catchall",
+   "label": "Promotions",
+   "confidence": "med",
+   "review": false,
+   "source": "extrapolated",
+   "match": {
+    "subject_re": "(% off|sale ends|free shipping|last chance|don'?t miss|flash sale|limited time|deal of the)"
+   },
+   "note": "LAST RULE. Deliberately final so every named family wins first. MED and never promote to high - this is the rule most likely to swallow something real. Its dry-run hit list is the single most important one to read."
+  }
+ ]
+}
