@@ -6,7 +6,6 @@ import { length } from '../src/physics/vec2.js';
 import * as mech from '../src/table/mechanisms.js';
 import { SW_HOPSCOTCH, SW_SAND, SW_FUN, SW_TETHERBALL_SPIN } from '../src/table/switches.js';
 import * as game from '../src/game/mechanisms.js';
-import { createScoreboard, applySwitch, fallbackPointsFor } from '../src/game/scoreboard.js';
 
 function makeWorldWith(primitives = [], zones = []) {
   const world = createWorld();
@@ -115,16 +114,6 @@ test('a ball crossing the TETHERBALL spinner zone fires a switch event and drive
   assert.ok(spinner.angularVel > 0);
   game.tickSpinner(spinner, 1);
   assert.ok(spinner.angularVel < spinner.angularVel + 1, 'sanity: decay reduces angularVel over time');
-});
-
-test('scoreboard: applySwitch accumulates points and keeps a bounded log', () => {
-  const board = createScoreboard(3);
-  applySwitch(board, 'pop_duck');
-  applySwitch(board, 'hopscotch_1', fallbackPointsFor('hopscotch_1'));
-  applySwitch(board, 'sand_s', fallbackPointsFor('sand_s'));
-  applySwitch(board, 'sand_a', fallbackPointsFor('sand_a'));
-  assert.equal(board.score, 5000 + 25000 + 10000 + 10000);
-  assert.equal(board.log.length, 3, 'log should be capped at logSize');
 });
 
 test('the TREEHOUSE standup registers a hit without dropping (fixed post)', () => {

@@ -8,6 +8,7 @@ import * as recess from './table/recess.js';
 import * as mech from './table/mechanisms.js';
 import * as ramps from './table/ramps.js';
 import {
+  SW_DRAIN,
   SW_FUN, SW_TETHERBALL_SPIN, SW_PINWHEEL_SPIN,
   SW_POP_DUCK, SW_POP_HORSE, SW_POP_ROCKET,
   SW_SLING_LEFT, SW_SLING_RIGHT,
@@ -16,7 +17,7 @@ import {
   SW_SANDBOX_ENTRY, SW_SANDBOX_EJECT,
 } from './table/switches.js';
 import * as game from './game/mechanisms.js';
-import { createScoreboard, applySwitch, fallbackPointsFor } from './game/scoreboard.js';
+import { createGame, launchBall, processEvents as processRules, activePlayer } from './rules/game.js';
 import { wireInput } from './ui/input.js';
 import { isDebugEnabled, mountDebugPanel, mountEventLog } from './ui/debug.js';
 
@@ -167,15 +168,23 @@ const sandBankState = game.createSandBank(sandBank.targets);
 const funLamps = game.createFunLamps();
 const tetherballSpinner = game.createSpinner();
 const pinwheelSpinner = game.createSpinner();
-const scoreboard = createScoreboard();
+// The rules core (T6): a pure state machine (src/rules/game.js) that owns score, ball
+// number, bonus X and turn order, and is fed exclusively through the switch-event queue —
+// see processMechanismEvents below, which now only does mechanism bookkeeping (drop-bank
+// state, F-U-N lamps, spinner decay, the scoop's hold timer) and *collects* switch tags for
+// rules/game.js to score, rather than scoring them itself. This retires the T4
+// game/scoreboard.js stub, which duplicated this same switch-points table outside the
+// purity boundary; there is now exactly one scoring path.
+const rulesState = createGame({ numPlayers: 1, ballsPerPlayer: 3 });
 const scoop = game.createScoop();
 
 let elapsedS = 0;
+launchBall(rulesState, elapsedS);
 
 // Only these tags are T4/T5 scoring mechanisms; every other collision (plain walls, the
 // launch-lane floor, the flipper capsules themselves) is plumbing, not a switch, and must
-// not reach the scoreboard/event log. Ramp exit/rollback tags are derived from the ramp
-// ids themselves (see physics/world.js's stepRampLayerBall/tryEnterGate) rather than a
+// not reach rules/event log. Ramp exit/rollback tags are derived from the ramp ids
+// themselves (see physics/world.js's stepRampLayerBall/tryEnterGate) rather than a
 // switches.js export for the rollback case, since "did the shot make it" isn't scored.
 const MECHANISM_TAGS = new Set([
   SW_POP_DUCK, SW_POP_HORSE, SW_POP_ROCKET,
@@ -194,7 +203,12 @@ function tagOf(event) {
   return event.tag ?? event.primitive?.shape?.tag;
 }
 
+/** Mechanism-state bookkeeping only (no scoring — see the block comment above). Returns
+ * the list of switch tags this frame's physics events actually fired, for rules/game.js's
+ * processEvents to score in one batch alongside the scoop-eject and drain tags collected in
+ * the frame loop below. This is the queue: nothing here calls into rules state directly. */
 function processMechanismEvents(events) {
+  const fired = [];
   for (const event of events) {
     const tag = tagOf(event);
     if (!tag || !MECHANISM_TAGS.has(tag)) continue;
@@ -202,45 +216,46 @@ function processMechanismEvents(events) {
     if (SPARK_TAGS.has(tag)) flashSparkAt(ball.pos.x, ball.pos.y);
 
     if (hopscotch.targets.some((t) => t.tag === tag)) {
-      for (const fired of game.applyDropHit(hopscotchBankState, tag, elapsedS)) {
-        applySwitch(scoreboard, fired, fallbackPointsFor(fired));
-        if (eventLog) eventLog.log(fired);
+      for (const f of game.applyDropHit(hopscotchBankState, tag, elapsedS)) {
+        fired.push(f);
+        if (eventLog) eventLog.log(f);
       }
     } else if (sandBank.targets.some((t) => t.tag === tag)) {
-      for (const fired of game.applyDropHit(sandBankState, tag, elapsedS)) {
-        applySwitch(scoreboard, fired, fallbackPointsFor(fired));
-        if (eventLog) eventLog.log(fired);
+      for (const f of game.applyDropHit(sandBankState, tag, elapsedS)) {
+        fired.push(f);
+        if (eventLog) eventLog.log(f);
       }
     } else if (SW_FUN.includes(tag)) {
-      for (const fired of game.applyFunCross(funLamps, tag)) {
-        applySwitch(scoreboard, fired, fallbackPointsFor(fired));
-        if (eventLog) eventLog.log(fired);
+      for (const f of game.applyFunCross(funLamps, tag)) {
+        fired.push(f);
+        if (eventLog) eventLog.log(f);
       }
     } else if (tag === SW_TETHERBALL_SPIN) {
       game.registerSpinnerHit(tetherballSpinner);
-      applySwitch(scoreboard, tag);
+      fired.push(tag);
       if (eventLog) eventLog.log(tag);
     } else if (tag === SW_PINWHEEL_SPIN) {
       game.registerSpinnerHit(pinwheelSpinner);
-      applySwitch(scoreboard, tag);
+      fired.push(tag);
       if (eventLog) eventLog.log(tag);
     } else if (tag === SW_SLIDE_ENTER || tag === SW_MONKEYBARS_ENTER || tag === SW_TUNNEL_ENTER) {
       // Only a successful gate entry (the ball actually switched layers) is worth logging —
       // a slow crossing that didn't clear RAMP_ENTRY_MIN_SPEED fires the same tag but never
       // transitions (see physics/world.js's tryEnterGate).
       if (event.gateEntered) {
-        applySwitch(scoreboard, tag, 0);
+        fired.push(tag);
         if (eventLog) eventLog.log(tag);
       }
     } else if (tag === SW_SANDBOX_ENTRY) {
       game.armScoop(scoop, elapsedS);
-      applySwitch(scoreboard, tag);
+      fired.push(tag);
       if (eventLog) eventLog.log(tag);
     } else {
-      applySwitch(scoreboard, tag);
+      fired.push(tag);
       if (eventLog) eventLog.log(tag);
     }
   }
+  return fired;
 }
 
 // --- T4 models: spring riders, swings, drop-target banks, TREEHOUSE, F-U-N, spinners ---
@@ -544,7 +559,7 @@ function frame(now) {
   elapsedS += dt;
 
   const events = advance(world, dt);
-  processMechanismEvents(events);
+  const scoreTags = processMechanismEvents(events);
   game.tickDropBank(hopscotchBankState, elapsedS);
   game.tickDropBank(sandBankState, elapsedS);
   game.tickSpinner(tetherballSpinner, dt);
@@ -563,12 +578,32 @@ function frame(now) {
     };
     ball.vel = { x: evel.x, y: evel.y };
     ball.captured = false;
-    applySwitch(scoreboard, sandbox.eject.tag);
+    scoreTags.push(sandbox.eject.tag);
     if (eventLog) eventLog.log(sandbox.eject.tag);
   }
 
+  // The drain check is geometric (recess.isDrained), not a physics collision event, but it
+  // still goes through the same switch-event queue as everything else — SW_DRAIN is pushed
+  // onto this frame's tag batch rather than calling into rules state (or serveBall)
+  // directly. rules/game.js's processEvents is what decides DO-OVER save vs end-of-ball;
+  // main.js only reacts to the 'ballServed'/'ballSaved' display events it comes back with.
   if (!ball.captured && recess.isDrained(ball)) {
-    serveBall();
+    scoreTags.push(SW_DRAIN);
+  }
+
+  const display = processRules(rulesState, scoreTags, elapsedS);
+  for (const d of display) {
+    if (d.kind === 'ballServed' || d.kind === 'ballSaved') serveBall();
+    // Auto-launch the next ball on a turn change — there's no "plunge to start" menu flow
+    // yet (ui/menus.js is T12), so without this the game would silently stop taking balls
+    // after the first one ends. gameOver is checked instead so a real end-of-game doesn't
+    // immediately re-launch a ball that has nowhere to go.
+    if (d.kind === 'turnChange' && !rulesState.gameOver) {
+      for (const d2 of launchBall(rulesState, elapsedS)) {
+        if (d2.kind === 'ballServed') serveBall();
+      }
+    }
+    if (eventLog) eventLog.log(`${d.kind}${'tag' in d ? ':' + d.tag : ''}`);
   }
 
   const p = toSceneVec(ball.pos.x, ball.pos.y, ball.radius + (ball.z || 0));
@@ -590,7 +625,10 @@ function frame(now) {
     sprite.material.opacity = sprite.userData.life / SPARK_LIFE;
   }
 
-  hud.textContent = `SCORE ${scoreboard.score.toLocaleString()}`;
+  const player = activePlayer(rulesState);
+  hud.textContent = rulesState.gameOver
+    ? `GAME OVER — ${player.score.toLocaleString()}`
+    : `P${(rulesState.turnIndex % rulesState.numPlayers) + 1} BALL ${player.ball}  SCORE ${player.score.toLocaleString()}`;
 
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
@@ -599,6 +637,7 @@ requestAnimationFrame(frame);
 
 window.__pinball = {
   world, ball, flippers, advance, isDrained: recess.isDrained,
-  scoreboard, hopscotchBankState, sandBankState, funLamps, tetherballSpinner, pinwheelSpinner,
+  rulesState, activePlayer: () => activePlayer(rulesState),
+  hopscotchBankState, sandBankState, funLamps, tetherballSpinner, pinwheelSpinner,
   slide, monkeyBars, tunnel, sandbox, scoop,
 };
