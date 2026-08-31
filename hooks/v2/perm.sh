@@ -8,6 +8,11 @@ if [ "$TOOL" = "mcp__playwright__browser_navigate" ]; then
   # anything else is SSRF from a thread that carries the GUI's cookie jar.
   URL="$(jf .tool_input.url)"
   case "$URL" in
+    # A userinfo component (anything before an '@' in the authority) lets a URL like
+    # http://127.0.0.1:@evil.com/ match the loopback glob below on its host prefix while a
+    # real browser resolves the *host* to evil.com. Reject any authority containing '@'
+    # before the loopback check runs.
+    http://*@*|https://*@*) ledger perm deny "navigate $URL"; emit deny ',"message":"userinfo not allowed in browser_navigate URLs"';;
     http://127.0.0.1[:/]*|http://localhost[:/]*|http://\[::1\][:/]*|back|forward) ledger perm allow-auto "navigate $URL"; emit allow;;
     *) ledger perm deny "navigate $URL"; emit deny ',"message":"browser_navigate is limited to loopback URLs"';;
   esac

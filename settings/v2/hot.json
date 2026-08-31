@@ -76,7 +76,7 @@
     ],
     "PermissionRequest": [
       {
-        "matcher": "Bash",
+        "matcher": "Bash|mcp__playwright__browser_navigate",
         "hooks": [
           {
             "type": "command",
