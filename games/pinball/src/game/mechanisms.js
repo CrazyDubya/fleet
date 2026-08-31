@@ -89,3 +89,26 @@ export function tickSpinner(spinner, dt) {
   spinner.angle += spinner.angularVel * dt;
   spinner.angularVel = Math.max(0, spinner.angularVel - SPINNER_DECAY * spinner.angularVel * dt);
 }
+
+/** SANDBOX scoop: captures on entry (physics/world.js pins the ball and reports the
+ * capture event), holds it for `delayS`, then the caller ejects it. This module only owns
+ * the timer — the actual capture/eject of the ball's pos/vel lives in world.js/main.js,
+ * since only physics touches ball state directly. */
+const SCOOP_HOLD_S = 1.0;
+
+export function createScoop() {
+  return { ejectAt: null };
+}
+
+export function armScoop(scoop, elapsedS) {
+  scoop.ejectAt = elapsedS + SCOOP_HOLD_S;
+}
+
+/** Returns true exactly once, on the tick the hold period elapses. */
+export function tickScoop(scoop, elapsedS) {
+  if (scoop.ejectAt !== null && elapsedS >= scoop.ejectAt) {
+    scoop.ejectAt = null;
+    return true;
+  }
+  return false;
+}

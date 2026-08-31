@@ -39,6 +39,11 @@ export const PLUNGER_MAX_SPEED = 5.0;
 export const NUDGE_IMPULSE = 0.35;
 export const GATE_ONE_WAY_THRESHOLD = 0.2;
 
+// Minimum inbound speed (component along a ramp/orbit gate's entry direction) for a shot
+// to be captured into that layer, per design doc §9 T5. Deliberately low — the funnel
+// geometry of the gate itself, not this threshold, is what makes a shot hard or easy.
+export const RAMP_ENTRY_MIN_SPEED = 0.5;
+
 export function gravityForPitch(pitchDeg = PITCH_DEG) {
   const g = 9.81 * Math.sin((pitchDeg * Math.PI) / 180);
   return { x: 0, y: -g };

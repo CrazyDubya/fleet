@@ -2,14 +2,19 @@
 // Headless — no rendering imports, no DOM, no wall-clock reads (callers pass elapsed seconds in).
 
 import { stepBall } from './solver.js';
+import { dot, distance } from './vec2.js';
 import { STEP_DT, gravityForPitch, tuning as defaultTuning } from './constants.js';
 import { updateFlipper, flipperEntry } from './flipper.js';
+import { stepRampBall, entryTangent } from './ramp.js';
 
 export function createWorld({ pitchDeg, tuning } = {}) {
   return {
-    balls: [], // { id, pos, vel, radius, layer, active }
+    balls: [], // { id, pos, vel, radius, layer, active, z?, captured?, s?, sVel? }
     layers: new Map(), // layerId -> primitives[]
-    zones: new Map(), // layerId -> Zone shapes[] (non-blocking; see checkZoneCrossings)
+    zones: new Map(), // layerId -> Zone/Gate shapes[] (non-blocking; see checkZoneCrossings)
+    ramps: new Map(), // rampLayerId -> ramp track (see physics/ramp.js) — a ball whose
+                       // layer is a key of this map is stepped by stepRampBall, not stepBall.
+    captureZones: new Map(), // layerId -> [{centre, radius, tag}] (e.g. the SANDBOX scoop)
     flippers: [],
     gravity: gravityForPitch(pitchDeg),
     tuning: defaultTuning(tuning),
@@ -24,6 +29,14 @@ export function setLayerPrimitives(world, layerId, primitives) {
 
 export function setLayerZones(world, layerId, zones) {
   world.zones.set(layerId, zones);
+}
+
+export function addRamp(world, ramp) {
+  world.ramps.set(ramp.id, ramp);
+}
+
+export function setCaptureZones(world, layerId, zones) {
+  world.captureZones.set(layerId, zones);
 }
 
 // Segment-vs-segment intersection test (not swept-circle: zones are trigger lines, not
@@ -50,6 +63,73 @@ function checkZoneCrossings(world, ball, prevPos) {
     }
   }
   return events;
+}
+
+// A Gate (see physics/shapes.js) is a Zone that also carries `.gate = {toLayer, allowDir,
+// minSpeed}`. Crossing it only switches the ball's layer if its velocity is actually
+// headed into the ramp — a ball drifting through backwards, or barely grazing it, stays on
+// 'playfield'. Onto the ramp, the ball's arclength position/velocity are seeded from its
+// real incoming speed projected onto the track's own starting direction, so a fast shot
+// carries more momentum up the ramp than a slow one.
+function tryEnterGate(world, zoneEvent) {
+  const { zone, ball } = zoneEvent;
+  if (!zone.gate) return null;
+  const ramp = world.ramps.get(zone.gate.toLayer);
+  if (!ramp) return null;
+  const speedAlong = dot(ball.vel, zone.gate.allowDir);
+  if (speedAlong < zone.gate.minSpeed) return null;
+
+  ball.layer = zone.gate.toLayer;
+  ball.s = 0;
+  ball.sVel = Math.max(speedAlong, ramp.entryBackSpeedFloor);
+  const start = ramp.points[0];
+  ball.pos = { x: start.x, y: start.y };
+  ball.z = start.z ?? 0;
+  return { tag: zone.tag, gateEntered: true, ball };
+}
+
+/** Runs a ramp/orbit ball to its own 1D physics; returns the exit event, or null if it's
+ * still mid-track. On exit, hands the ball back to 'playfield' at the ramp's authored exit
+ * (made the shot) or back near the entry, rolling backward (didn't make it) — see
+ * physics/ramp.js's doc comment for why the return trip itself isn't simulated. */
+function stepRampLayerBall(world, ball) {
+  const ramp = world.ramps.get(ball.layer);
+  const exited = stepRampBall(ball, ramp, STEP_DT);
+  if (!exited) return null;
+
+  if (exited === 'top') {
+    ball.layer = 'playfield';
+    ball.pos = { x: ramp.exit.pos.x, y: ramp.exit.pos.y };
+    ball.vel = { x: ramp.exit.dir.x * ramp.exit.speed, y: ramp.exit.dir.y * ramp.exit.speed };
+    ball.z = 0;
+    return { tag: `${ramp.id}_exit`, rampExit: 'top', ball };
+  }
+
+  // Didn't make it: roll back out of the gate's mouth, moving backward along the track's
+  // own entry direction, nudged clear of the gate line so it can't immediately re-trigger it.
+  const back = entryTangent(ramp);
+  const speed = Math.max(ramp.entryBackSpeedFloor, Math.abs(ball.sVel));
+  const start = ramp.points[0];
+  ball.layer = 'playfield';
+  ball.pos = { x: start.x - back.x * 0.012, y: start.y - back.y * 0.012 };
+  ball.vel = { x: -back.x * speed, y: -back.y * speed };
+  ball.z = 0;
+  return { tag: `${ramp.id}_rollback`, rampExit: 'bottom', ball };
+}
+
+function checkCaptures(world, ball) {
+  if (ball.captured) return [];
+  const zones = world.captureZones.get(ball.layer);
+  if (!zones || zones.length === 0) return [];
+  for (const zone of zones) {
+    if (distance(ball.pos, zone.centre) <= zone.radius) {
+      ball.captured = true;
+      ball.pos = { x: zone.centre.x, y: zone.centre.y };
+      ball.vel = { x: 0, y: 0 };
+      return [{ tag: zone.tag, captured: true, ball }];
+    }
+  }
+  return [];
 }
 
 export function addBall(world, ball) {
@@ -83,11 +163,25 @@ export function advance(world, dtSeconds) {
 
     for (const ball of world.balls) {
       if (!ball.active) continue;
+      if (ball.captured) continue; // pinned in a scoop/lock until the game layer ejects it
+
+      if (world.ramps.has(ball.layer)) {
+        const exitEvent = stepRampLayerBall(world, ball);
+        if (exitEvent) events.push(exitEvent);
+        continue;
+      }
+
       const prevPos = { x: ball.pos.x, y: ball.pos.y };
       const primitives = (world.layers.get(ball.layer) ?? []).concat(flipperEntriesByLayer.get(ball.layer) ?? []);
       const evs = stepBall(ball, world.gravity, primitives, STEP_DT, world.tuning);
       for (const e of evs) events.push({ ...e, ball });
-      for (const e of checkZoneCrossings(world, ball, prevPos)) events.push(e);
+
+      for (const e of checkZoneCrossings(world, ball, prevPos)) {
+        const gateEvent = tryEnterGate(world, e);
+        events.push(gateEvent ?? e);
+      }
+
+      for (const e of checkCaptures(world, ball)) events.push(e);
     }
     world.accumulator -= STEP_DT;
   }

@@ -28,3 +28,14 @@ export const SW_FUN_COMPLETE = 'fun_complete';
 
 export const SW_TETHERBALL_SPIN = 'tetherball_spin';
 export const SW_PINWHEEL_SPIN = 'pinwheel_spin';
+
+// T5 — ramps, orbits and the SANDBOX scoop (design doc §4.2/§4.3/§9 T5 row).
+export const SW_SLIDE_ENTER = 'slide_enter';
+export const SW_SLIDE_EXIT = 'slide_exit';
+export const SW_MONKEYBARS_ENTER = 'monkeybars_enter';
+export const SW_MONKEYBARS_EXIT = 'monkeybars_exit';
+export const SW_TUNNEL_ENTER = 'tunnel_enter';
+export const SW_TUNNEL_EXIT = 'tunnel_exit';
+
+export const SW_SANDBOX_ENTRY = 'sandbox_entry';
+export const SW_SANDBOX_EJECT = 'sandbox_eject';

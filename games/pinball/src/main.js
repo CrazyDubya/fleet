@@ -1,15 +1,19 @@
 import * as THREE from 'three';
 import { createScene, toSceneVec } from './render/scene.js';
-import { createWorld, setLayerPrimitives, setLayerZones, addBall, addFlipper, advance } from './physics/world.js';
+import { createWorld, setLayerPrimitives, setLayerZones, addRamp, setCaptureZones, addBall, addFlipper, advance } from './physics/world.js';
 import { createFlipper } from './physics/flipper.js';
+import { sampleRamp } from './physics/ramp.js';
 import { BALL_RADIUS, PLUNGER_MAX_SPEED } from './physics/constants.js';
 import * as recess from './table/recess.js';
 import * as mech from './table/mechanisms.js';
+import * as ramps from './table/ramps.js';
 import {
   SW_FUN, SW_TETHERBALL_SPIN, SW_PINWHEEL_SPIN,
   SW_POP_DUCK, SW_POP_HORSE, SW_POP_ROCKET,
   SW_SLING_LEFT, SW_SLING_RIGHT,
   SW_HOPSCOTCH, SW_SAND, SW_TREEHOUSE,
+  SW_SLIDE_ENTER, SW_MONKEYBARS_ENTER, SW_TUNNEL_ENTER,
+  SW_SANDBOX_ENTRY, SW_SANDBOX_EJECT,
 } from './table/switches.js';
 import * as game from './game/mechanisms.js';
 import { createScoreboard, applySwitch, fallbackPointsFor } from './game/scoreboard.js';
@@ -86,15 +90,6 @@ for (let x = -recess.HALF_WIDTH; x <= recess.HALF_WIDTH + 0.02; x += 0.045) {
   post.position.set(p.x, p.y, p.z);
   tiltGroup.add(post);
 }
-
-// THE SLIDE — placeholder silhouette for the T5 ramp, top-left.
-const slideMat = new THREE.MeshLambertMaterial({ color: 0x2f6fb5 });
-const slideGeo = new THREE.BoxGeometry(0.09, 0.02, 0.22);
-const slide = new THREE.Mesh(slideGeo, slideMat);
-slide.rotation.z = THREE.MathUtils.degToRad(20);
-const sp = toSceneVec(-0.16, 0.75, 0.03);
-slide.position.set(sp.x, sp.y, sp.z);
-tiltGroup.add(slide);
 
 // --- World, walls, flippers ---
 const world = createWorld();
@@ -177,11 +172,26 @@ setLayerPrimitives(world, 'playfield', [
   ...sandBank.targets.map((t) => ({ shape: t.shape })),
   { shape: treehouse.shape },
 ]);
+
+// --- T5 ramps, orbits and the SANDBOX scoop ---------------------------------------------
+const slide = ramps.buildSlideRamp();
+const monkeyBars = ramps.buildMonkeyBarsRamp();
+const tunnel = ramps.buildTunnelRamp();
+const sandbox = ramps.buildSandbox();
+
+addRamp(world, slide.ramp);
+addRamp(world, monkeyBars.ramp);
+addRamp(world, tunnel.ramp);
+
 setLayerZones(world, 'playfield', [
   ...funLaneDefs.map((f) => f.zone),
   spinnerDefs.tetherball,
   spinnerDefs.pinwheel,
+  slide.gate,
+  monkeyBars.gate,
+  tunnel.gate,
 ]);
+setCaptureZones(world, 'playfield', [sandbox.captureZone]);
 
 const hopscotchBankState = game.createHopscotchBank(hopscotch.targets);
 const sandBankState = game.createSandBank(sandBank.targets);
@@ -189,12 +199,15 @@ const funLamps = game.createFunLamps();
 const tetherballSpinner = game.createSpinner();
 const pinwheelSpinner = game.createSpinner();
 const scoreboard = createScoreboard();
+const scoop = game.createScoop();
 
 let elapsedS = 0;
 
-// Only these tags are T4 scoring mechanisms; every other collision (plain walls, the
+// Only these tags are T4/T5 scoring mechanisms; every other collision (plain walls, the
 // launch-lane floor, the flipper capsules themselves) is plumbing, not a switch, and must
-// not reach the scoreboard/event log.
+// not reach the scoreboard/event log. Ramp exit/rollback tags are derived from the ramp
+// ids themselves (see physics/world.js's stepRampLayerBall/tryEnterGate) rather than a
+// switches.js export for the rollback case, since "did the shot make it" isn't scored.
 const MECHANISM_TAGS = new Set([
   SW_POP_DUCK, SW_POP_HORSE, SW_POP_ROCKET,
   SW_SLING_LEFT, SW_SLING_RIGHT,
@@ -202,6 +215,10 @@ const MECHANISM_TAGS = new Set([
   SW_TREEHOUSE,
   ...SW_FUN,
   SW_TETHERBALL_SPIN, SW_PINWHEEL_SPIN,
+  SW_SLIDE_ENTER, SW_MONKEYBARS_ENTER, SW_TUNNEL_ENTER,
+  `${slide.ramp.id}_exit`, `${monkeyBars.ramp.id}_exit`, `${tunnel.ramp.id}_exit`,
+  `${slide.ramp.id}_rollback`, `${monkeyBars.ramp.id}_rollback`, `${tunnel.ramp.id}_rollback`,
+  SW_SANDBOX_ENTRY, SW_SANDBOX_EJECT,
 ]);
 
 function tagOf(event) {
@@ -234,6 +251,18 @@ function processMechanismEvents(events) {
       if (eventLog) eventLog.log(tag);
     } else if (tag === SW_PINWHEEL_SPIN) {
       game.registerSpinnerHit(pinwheelSpinner);
+      applySwitch(scoreboard, tag);
+      if (eventLog) eventLog.log(tag);
+    } else if (tag === SW_SLIDE_ENTER || tag === SW_MONKEYBARS_ENTER || tag === SW_TUNNEL_ENTER) {
+      // Only a successful gate entry (the ball actually switched layers) is worth logging —
+      // a slow crossing that didn't clear RAMP_ENTRY_MIN_SPEED fires the same tag but never
+      // transitions (see physics/world.js's tryEnterGate).
+      if (event.gateEntered) {
+        applySwitch(scoreboard, tag, 0);
+        if (eventLog) eventLog.log(tag);
+      }
+    } else if (tag === SW_SANDBOX_ENTRY) {
+      game.armScoop(scoop, elapsedS);
       applySwitch(scoreboard, tag);
       if (eventLog) eventLog.log(tag);
     } else {
@@ -380,6 +409,47 @@ function buildSpinnerMesh(zone) {
 const tetherballMesh = buildSpinnerMesh(spinnerDefs.tetherball);
 const pinwheelMesh = buildSpinnerMesh(spinnerDefs.pinwheel);
 
+// --- T5 models: ramp/orbit tracks and the SANDBOX pit -----------------------------------
+// Each ramp is rendered as a chain of oriented boxes along its own points (x,y,z) — a
+// simple "tube" read that's cheap and needs no new geometry type. Colour and width are the
+// only per-ramp styling: THE SLIDE (blue plastic curl), MONKEY BARS (grey steel wireform,
+// thinner, more overhead read via its height), THE TUNNEL (dull concrete culvert).
+function buildTrackMesh(points, color, width, opacity = 1) {
+  const group = new THREE.Group();
+  const mat = new THREE.MeshLambertMaterial({ color, transparent: opacity < 1, opacity });
+  for (let i = 0; i < points.length - 1; i++) {
+    const a = toSceneVec(points[i].x, points[i].y, points[i].z);
+    const b = toSceneVec(points[i + 1].x, points[i + 1].y, points[i + 1].z);
+    const dir = new THREE.Vector3(b.x - a.x, b.y - a.y, b.z - a.z);
+    const len = dir.length();
+    if (len < 1e-6) continue;
+    const box = new THREE.Mesh(new THREE.BoxGeometry(len, width * 0.6, width), mat);
+    box.position.set((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
+    box.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), dir.clone().normalize());
+    group.add(box);
+  }
+  return group;
+}
+tiltGroup.add(buildTrackMesh(slide.ramp.points, 0x2f6fb5, 0.08));
+tiltGroup.add(buildTrackMesh(monkeyBars.ramp.points, 0xd8d8d8, 0.018));
+tiltGroup.add(buildTrackMesh(tunnel.ramp.points, 0x8a7a6a, 0.06, 0.9));
+
+// THE SANDBOX: a shallow tan pit with a darker rim, at the scoop's capture radius.
+{
+  const group = new THREE.Group();
+  const pit = coloredMesh(new THREE.CircleGeometry(sandbox.captureZone.radius * 1.6, 20), 0xd9c07a);
+  pit.rotation.x = -Math.PI / 2;
+  pit.position.y = 0.001;
+  group.add(pit);
+  const rim = coloredMesh(new THREE.RingGeometry(sandbox.captureZone.radius * 1.5, sandbox.captureZone.radius * 1.9, 20), 0x8a6339);
+  rim.rotation.x = -Math.PI / 2;
+  rim.position.y = 0.0015;
+  group.add(rim);
+  const p = toSceneVec(sandbox.captureZone.centre.x, sandbox.captureZone.centre.y, 0);
+  group.position.set(p.x, p.y, p.z);
+  tiltGroup.add(group);
+}
+
 // --- Ball ---
 const ball = addBall(world, { id: 'b0', pos: { ...recess.LAUNCH_POSITION }, vel: { x: 0, y: 0 }, radius: BALL_RADIUS, active: false });
 const ballGeo = new THREE.SphereGeometry(BALL_RADIUS, 24, 16);
@@ -391,6 +461,9 @@ function serveBall() {
   ball.pos = { ...recess.LAUNCH_POSITION };
   ball.vel = { x: 0, y: 0 };
   ball.active = true;
+  ball.layer = 'playfield';
+  ball.captured = false;
+  ball.z = 0;
 }
 serveBall();
 
@@ -447,11 +520,28 @@ function frame(now) {
   game.tickSpinner(tetherballSpinner, dt);
   game.tickSpinner(pinwheelSpinner, dt);
 
-  if (recess.isDrained(ball)) {
+  if (game.tickScoop(scoop, elapsedS)) {
+    // Nudge the ball just clear of the capture radius along the eject direction before
+    // releasing it — otherwise, at 240 Hz, a single physics step doesn't carry it outside
+    // the zone yet and checkCaptures (physics/world.js) immediately re-captures it.
+    const evel = sandbox.eject.vel;
+    const evLen = Math.hypot(evel.x, evel.y) || 1;
+    const clear = sandbox.captureZone.radius * 1.3;
+    ball.pos = {
+      x: sandbox.captureZone.centre.x + (evel.x / evLen) * clear,
+      y: sandbox.captureZone.centre.y + (evel.y / evLen) * clear,
+    };
+    ball.vel = { x: evel.x, y: evel.y };
+    ball.captured = false;
+    applySwitch(scoreboard, sandbox.eject.tag);
+    if (eventLog) eventLog.log(sandbox.eject.tag);
+  }
+
+  if (!ball.captured && recess.isDrained(ball)) {
     serveBall();
   }
 
-  const p = toSceneVec(ball.pos.x, ball.pos.y, ball.radius);
+  const p = toSceneVec(ball.pos.x, ball.pos.y, ball.radius + (ball.z || 0));
   ballMesh.position.set(p.x, p.y, p.z);
   for (const flipper of Object.values(flippers)) updateFlipperMesh(flipper);
 
@@ -475,4 +565,5 @@ requestAnimationFrame(frame);
 window.__pinball = {
   world, ball, flippers, advance, isDrained: recess.isDrained,
   scoreboard, hopscotchBankState, sandBankState, funLamps, tetherballSpinner, pinwheelSpinner,
+  slide, monkeyBars, tunnel, sandbox, scoop,
 };

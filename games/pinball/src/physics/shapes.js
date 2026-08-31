@@ -22,3 +22,12 @@ export function Circle(centre, radius, restitution = 0.45, tag = 'post', padding
 export function Zone(a, b, tag = 'zone') {
   return { kind: 'zone', a, b, tag };
 }
+
+// A layer-transition trigger — physically a Zone (same crossing detection) carrying a
+// `.gate` payload world.js uses to switch a ball onto a ramp/orbit layer. `meta`:
+// { toLayer, allowDir: unit vector, minSpeed }. The transition only fires when the ball's
+// velocity component along `allowDir` clears `minSpeed`, so a ball merely grazing the gate
+// (or drifting through it backwards) doesn't get swept onto the ramp.
+export function Gate(a, b, tag, meta) {
+  return { kind: 'zone', a, b, tag, gate: meta };
+}
