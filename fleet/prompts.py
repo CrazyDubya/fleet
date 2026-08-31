@@ -282,6 +282,8 @@ def _wrapped_verdict(command: str, root: Path, depth: int) -> tuple[str, str] | 
     for i, tok in enumerate(tokens):
         if tok == "send" and i and tokens[i - 1].endswith("fleet"):
             return None
+        if tok == "commit" and i and tokens[i - 1] == "git":
+            return None  # commit messages are inert text; chained commands still hit DENY
         prev = tokens[i - 1] if i else ""
         is_code = prev in CODE_OPTS or prev in CODE_VERBS
         # A code payload is judged whatever its shape: a space-free one-liner
