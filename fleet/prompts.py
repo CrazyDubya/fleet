@@ -276,7 +276,12 @@ def _wrapped_verdict(command: str, root: Path, depth: int) -> tuple[str, str] | 
        outright.
     """
     tokens = _tokens(command)
+    # `fleet send` bodies are inert text delivered to another thread's prompt; the
+    # receiving thread's own hooks judge whatever it eventually runs. Scanning the
+    # quoted packet text here only produces false positives ('curl' in a done line).
     for i, tok in enumerate(tokens):
+        if tok == "send" and i and tokens[i - 1].endswith("fleet"):
+            return None
         prev = tokens[i - 1] if i else ""
         is_code = prev in CODE_OPTS or prev in CODE_VERBS
         # A code payload is judged whatever its shape: a space-free one-liner
