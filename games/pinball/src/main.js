@@ -8,7 +8,7 @@ import * as recess from './table/recess.js';
 import * as mech from './table/mechanisms.js';
 import * as ramps from './table/ramps.js';
 import {
-  SW_DRAIN,
+  SW_DRAIN, SW_SOFT_PLUNGE,
   SW_FUN, SW_TETHERBALL_SPIN, SW_PINWHEEL_SPIN,
   SW_POP_DUCK, SW_POP_HORSE, SW_POP_ROCKET,
   SW_SLING_LEFT, SW_SLING_RIGHT,
@@ -515,6 +515,13 @@ serveBall();
 // --- Input: flippers, plunger, nudge ---
 let plungerPower = 0;
 let charging = false;
+// Super skill shot (§4.4): a soft plunge — released under 35% power — dribbles into the
+// SANDBOX. Flagged here from the raw release power (not the floored launch speed below,
+// which exists only so a very light tap still clears the launch lane) and consumed as a
+// synthetic SW_SOFT_PLUNGE tag on the next frame's batch, the same pattern SW_DRAIN uses —
+// main.js never calls into rules directly.
+const SOFT_PLUNGE_THRESHOLD = 0.35;
+let pendingSoftPlunge = false;
 
 wireInput(canvas, {
   flippers,
@@ -524,6 +531,7 @@ wireInput(canvas, {
   },
   onPlungerRelease: () => {
     if (charging) {
+      if (plungerPower < SOFT_PLUNGE_THRESHOLD) pendingSoftPlunge = true;
       ball.vel = { x: 0, y: Math.max(0.6, plungerPower) * PLUNGER_MAX_SPEED };
       charging = false;
       plungerPower = 0;
@@ -589,6 +597,11 @@ function frame(now) {
   // main.js only reacts to the 'ballServed'/'ballSaved' display events it comes back with.
   if (!ball.captured && recess.isDrained(ball)) {
     scoreTags.push(SW_DRAIN);
+  }
+
+  if (pendingSoftPlunge) {
+    scoreTags.push(SW_SOFT_PLUNGE);
+    pendingSoftPlunge = false;
   }
 
   const display = processRules(rulesState, scoreTags, elapsedS);

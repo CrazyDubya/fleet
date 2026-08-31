@@ -1,6 +1,9 @@
 // Switch id constants. Pure data — the vocabulary rules/game.js consumes from physics events.
 export const SW_DRAIN = 'drain';
 export const SW_LAUNCH = 'launch';
+// Synthetic, like SW_DRAIN: main.js pushes this onto the frame's tag batch (never calls
+// into rules directly) when a plunge released under 35% power (§4.4's super skill shot).
+export const SW_SOFT_PLUNGE = 'soft_plunge';
 export const SW_FLIPPER_LEFT = 'flipper_left';
 export const SW_FLIPPER_RIGHT = 'flipper_right';
 export const SW_FLIPPER_UPPER_LEFT = 'flipper_upper_left';

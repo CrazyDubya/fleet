@@ -6,19 +6,29 @@
 // independent of each other later: they all just subscribe to the display events this
 // emits, the same way `rules/game.js` itself only subscribes to physics's switch events.
 //
+// T7 adds modes, skill shot and the RECESS METER (rules/modes.js) plus the four
+// cross-mechanism linkages deferred from T6 — all still flowing through this same
+// event-queue boundary, no second scoring route.
+//
 // Purity: no threejs import, no DOM, no wall-clock reads, no unseeded randomness (enforced by
 // test/purity.test.mjs). Every time-based value is a caller-supplied timestamp (`atS`,
 // seconds — the same "elapsed wall-clock seconds passed in by the RAF loop" convention
 // already used by game/mechanisms.js's scoop/drop-bank timers), never read internally.
-import { SW_DRAIN, SW_FUN_COMPLETE } from '../table/switches.js';
+import {
+  SW_DRAIN, SW_FUN_COMPLETE, SW_SOFT_PLUNGE, SW_FUN,
+  SW_HOPSCOTCH_COMPLETE, SW_SAND_COMPLETE,
+  SW_SLIDE_EXIT, SW_MONKEYBARS_EXIT, SW_TUNNEL_EXIT, SW_SANDBOX_ENTRY,
+  SW_TETHERBALL_SPIN, SW_SLING_LEFT, SW_SLING_RIGHT,
+} from '../table/switches.js';
 import { POP_TAGS, POP_BASE_POINTS, POP_ESCALATOR, SWITCH_POINTS, fallbackPointsFor, SHOT_TAGS, BONUS_X_MAX } from './scoring.js';
 import { computeBonus } from './bonus.js';
+import * as modes from './modes.js';
 
 // DO-OVER ball save period, per §4.4: 10s from launch, 12s on ball 1.
 const DO_OVER_S = 10;
 const DO_OVER_FIRST_BALL_S = 12;
 
-function createPlayer() {
+function createPlayer(seed) {
   return {
     score: 0,
     ball: 0,
@@ -29,10 +39,15 @@ function createPlayer() {
     ballLaunchAtS: null,
     ballSaveUntilS: null,
     doOverUsed: false,
+    freshLaunch: false,
+    softPlunge: false,
+    modesCompletedThisBall: 0,
+    extraBallsPending: 0,
+    modesState: modes.createModesState(seed),
   };
 }
 
-export function createGame({ numPlayers = 1, ballsPerPlayer = 3 } = {}) {
+export function createGame({ numPlayers = 1, ballsPerPlayer = 3, seed = 1 } = {}) {
   if (!Number.isInteger(numPlayers) || numPlayers < 1 || numPlayers > 4) {
     throw new RangeError('numPlayers must be an integer 1-4');
   }
@@ -42,8 +57,9 @@ export function createGame({ numPlayers = 1, ballsPerPlayer = 3 } = {}) {
     turnIndex: 0, // increments once per completed ball, across all players — this is what
                   // makes turn order "alternate through balls" rather than "finish all of
                   // player 1's balls first".
-    players: Array.from({ length: numPlayers }, createPlayer),
+    players: Array.from({ length: numPlayers }, (_, i) => createPlayer(seed + i * 97)),
     gameOver: false,
+    credits: 0, // RECESS METER's SPECIAL award — a replay credit (§4.5 territory; full match/replay is T9)
   };
 }
 
@@ -59,7 +75,7 @@ export function ballNumber(state) {
 
 /** Serves a fresh ball to the current player (a new ball, not a DO-OVER save — see
  * saveBall below for the distinction). Resets this ball's progress (bonus X, shot/pop
- * counters) and arms the DO-OVER save period. */
+ * counters, skill-shot period, mode combo multipliers) and arms the DO-OVER save period. */
 export function launchBall(state, atS) {
   if (state.gameOver) return [];
   const p = activePlayer(state);
@@ -68,15 +84,20 @@ export function launchBall(state, atS) {
   p.popHitsThisBall = 0;
   p.shotsThisBall = 0;
   p.doOverUsed = false;
+  p.freshLaunch = true;
+  p.softPlunge = false;
+  p.modesCompletedThisBall = 0;
   p.ballLaunchAtS = atS;
   p.ballSaveUntilS = atS + (p.ball === 1 ? DO_OVER_FIRST_BALL_S : DO_OVER_S);
   p.ballActive = true;
+  modes.resetForNewBall(p.modesState);
   return [{ kind: 'ballServed', player: activePlayerIndex(state), ball: p.ball }];
 }
 
 /** A DO-OVER re-serve: the same ball continues, so progress (score, bonus X, shot/pop
- * counts, the original launch timestamp used for the bonus's playtime term) is left alone.
- * Only usable once per ball — see handleDrain's `doOverUsed` gate. */
+ * counts, the original launch timestamp used for the bonus's playtime term, any mode in
+ * progress) is left alone. Only usable once per ball — see handleDrain's `doOverUsed` gate.
+ * The skill-shot period does NOT reopen — it's a plunge-only thing, not per re-serve. */
 function saveBall(state) {
   const p = activePlayer(state);
   p.doOverUsed = true;
@@ -86,12 +107,22 @@ function saveBall(state) {
 
 function endOfBall(state, atS) {
   const p = activePlayer(state);
+  modes.abandonActiveMode(p.modesState);
   const playtimeS = p.ballLaunchAtS !== null ? Math.max(0, atS - p.ballLaunchAtS) : 0;
-  const bonus = computeBonus({ playtimeS, shots: p.shotsThisBall, modes: 0, bonusX: p.bonusX });
+  const bonus = computeBonus({ playtimeS, shots: p.shotsThisBall, modes: p.modesCompletedThisBall, bonusX: p.bonusX });
   p.score += bonus;
   p.ballActive = false;
   const playerIndex = activePlayerIndex(state);
   const display = [{ kind: 'bonus', playerIndex, amount: bonus, bonusX: p.bonusX, total: p.score }];
+
+  // RECESS METER's EXTRA BALL: the same player takes another ball at the same ball number
+  // rather than the turn passing on — the classic pinball meaning of "extra ball".
+  if (p.extraBallsPending > 0) {
+    p.extraBallsPending -= 1;
+    display.push({ kind: 'extraBallGranted', player: playerIndex });
+    display.push(...launchBall(state, atS));
+    return display;
+  }
 
   state.turnIndex += 1;
   if (state.turnIndex >= state.numPlayers * state.ballsPerPlayer) {
@@ -111,31 +142,163 @@ function handleDrain(state, atS) {
   return endOfBall(state, atS);
 }
 
-function scoreSwitch(state, tag) {
-  const p = activePlayer(state);
+/** Applies a mode-progression result (`{points, display}` from modes.js — see onModeShot /
+ * onDodgeballHit / onJumpRopeSpin) to the player and returns its display events, crediting
+ * modesCompletedThisBall for every 'modeEnd' the result carries. */
+function applyModeResult(p, result) {
+  if (result.points) p.score += result.points;
+  p.modesCompletedThisBall += result.display.filter((d) => d.kind === 'modeEnd').length;
+  return result.display;
+}
+
+/** RECESS METER: called for every major-shot tag (the four MODE_SHOT_TAGS). */
+function applyMeter(state, p) {
+  const award = modes.onMeterShot(p.modesState);
+  if (!award) return [];
+  if (award.kind === 'extraBall') {
+    p.extraBallsPending += 1;
+    return [award];
+  }
+  if (award.kind === 'special') {
+    state.credits += 1;
+    return [award];
+  }
+  return [];
+}
+
+/** Skill shot / super skill shot, at the plunge only (`p.freshLaunch`). Returns `{ handled,
+ * display }` — `handled: true` means the tag is fully consumed and normal scoring must not
+ * also run for it. */
+function trySkillShot(state, p, tag, atS) {
+  if (!p.freshLaunch) return { handled: false, display: [] };
+
+  if (SW_FUN.includes(tag)) {
+    const litTag = modes.skillShotLaneTag(p.ballLaunchAtS, atS);
+    p.freshLaunch = false;
+    if (tag !== litTag) return { handled: false, display: [] };
+    const points = modes.SKILL_SHOT_BASE_POINTS * p.ball;
+    p.score += points;
+    return { handled: true, display: [{ kind: 'score', tag: 'skill_shot', points, total: p.score }] };
+  }
+
+  if (tag === SW_SANDBOX_ENTRY && p.softPlunge) {
+    p.freshLaunch = false;
+    p.softPlunge = false;
+    p.score += modes.SUPER_SKILL_SHOT_POINTS;
+    modes.preLightNextMode(p.modesState);
+    return {
+      handled: true,
+      display: [{ kind: 'score', tag: 'super_skill_shot', points: modes.SUPER_SKILL_SHOT_POINTS, total: p.score }],
+    };
+  }
+
+  p.freshLaunch = false; // period used by an unrelated first switch
+  return { handled: false, display: [] };
+}
+
+function scoreSwitchTag(state, p, tag, atS) {
+  const display = [];
 
   if (POP_TAGS.has(tag)) {
     const points = POP_BASE_POINTS + POP_ESCALATOR * p.popHitsThisBall;
     p.popHitsThisBall += 1;
     p.score += points;
-    return { kind: 'score', tag, points, total: p.score };
+    display.push({ kind: 'score', tag, points, total: p.score });
+    modes.onPopHit(p.modesState);
+    display.push(...applyModeResult(p, modes.onDodgeballHit(p.modesState, +1)));
+    return display;
   }
 
-  if (SHOT_TAGS.has(tag)) p.shotsThisBall += 1;
+  if (tag === SW_SLING_LEFT || tag === SW_SLING_RIGHT) {
+    const points = SWITCH_POINTS.get(tag);
+    p.score += points;
+    display.push({ kind: 'score', tag, points, total: p.score });
+    display.push(...applyModeResult(p, modes.onDodgeballHit(p.modesState, -1)));
+    return display;
+  }
+
+  if (tag === SW_HOPSCOTCH_COMPLETE) {
+    modes.onHopscotchComplete(p.modesState);
+    display.push({ kind: 'lamp', id: 'slide_jackpot', lit: true });
+    return display;
+  }
+
+  if (tag === SW_SAND_COMPLETE) {
+    const points = SWITCH_POINTS.get(tag);
+    p.score += points;
+    display.push({ kind: 'score', tag, points, total: p.score });
+    modes.onSandComplete(p.modesState);
+    return display;
+  }
+
+  if (tag === SW_SLIDE_EXIT || tag === SW_MONKEYBARS_EXIT || tag === SW_TUNNEL_EXIT || tag === SW_SANDBOX_ENTRY) {
+    let points = 0;
+    if (tag === SW_SLIDE_EXIT) {
+      if (p.modesState.hopscotchJackpot.lit) {
+        points = modes.hopscotchJackpotValue(p.modesState);
+        p.modesState.hopscotchJackpot.lit = false;
+        p.score += points;
+        display.push({ kind: 'score', tag: 'hopscotch_jackpot', points, total: p.score });
+      } else {
+        points = modes.onSlideExit(p.modesState, atS);
+        p.score += points;
+        display.push({ kind: 'score', tag, points, total: p.score });
+      }
+    } else if (tag === SW_MONKEYBARS_EXIT) {
+      points = SWITCH_POINTS.get(tag);
+      p.score += points;
+      display.push({ kind: 'score', tag, points, total: p.score });
+      const hangTime = modes.onMonkeyBarsExit(p.modesState);
+      if (hangTime) {
+        if (hangTime.reward === 'points') {
+          p.score += hangTime.points;
+          display.push({ kind: 'score', tag: 'hang_time', points: hangTime.points, total: p.score });
+        } else if (hangTime.reward === 'bonusX') {
+          p.bonusX = Math.min(BONUS_X_MAX, p.bonusX + 1);
+          display.push({ kind: 'bonusX', player: activePlayerIndex(state), value: p.bonusX });
+        } else if (hangTime.reward === 'ballSave') {
+          p.ballSaveUntilS = Math.max(p.ballSaveUntilS ?? atS, atS) + DO_OVER_S;
+        }
+        display.push({ kind: 'hangTime', reward: hangTime.reward });
+      }
+    } else if (tag === SW_TUNNEL_EXIT) {
+      points = SWITCH_POINTS.get(tag);
+      p.score += points;
+      display.push({ kind: 'score', tag, points, total: p.score });
+      modes.onTunnelExit(p.modesState, atS);
+    } else if (tag === SW_SANDBOX_ENTRY) {
+      const modeStart = modes.tryStartMode(p.modesState, atS);
+      if (modeStart) display.push(modeStart);
+    }
+
+    p.shotsThisBall += 1;
+    display.push(...applyMeter(state, p));
+    display.push(...applyModeResult(p, modes.onModeShot(p.modesState, tag, atS)));
+    return display;
+  }
+
+  if (tag === SW_TETHERBALL_SPIN) {
+    const points = modes.tetherballSpinValue(p.modesState, atS);
+    p.score += points;
+    display.push({ kind: 'score', tag, points, total: p.score });
+    display.push(...applyModeResult(p, modes.onJumpRopeSpin(p.modesState, atS)));
+    return display;
+  }
 
   const points = SWITCH_POINTS.has(tag) ? SWITCH_POINTS.get(tag) : fallbackPointsFor(tag);
-  if (points <= 0) return null;
+  if (points <= 0) return display;
   p.score += points;
-  return { kind: 'score', tag, points, total: p.score };
+  display.push({ kind: 'score', tag, points, total: p.score });
+  return display;
 }
 
 /**
  * The event-queue boundary in full: consumes the physics switch-event queue (as returned
- * by physics/world.js's `advance()`, plus a synthesized `{tag: SW_DRAIN}` the caller
- * appends when the geometric drain check fires — see main.js) and returns the display
- * events every other subsystem (render/audio/ui, and later modes/multiball) subscribes to.
- * `events` accepts either raw tag strings or `{tag}`-shaped objects, matching what
- * physics/world.js's events already look like — no caller needs to reshape anything.
+ * by physics/world.js's `advance()`, plus a synthesized `{tag: SW_DRAIN}`/`{tag:
+ * SW_SOFT_PLUNGE}` the caller appends when the geometric drain check or a soft plunge fires
+ * — see main.js) and returns the display events every other subsystem (render/audio/ui)
+ * subscribes to. `events` accepts either raw tag strings or `{tag}`-shaped objects, matching
+ * what physics/world.js's events already look like — no caller needs to reshape anything.
  */
 export function processEvents(state, events, atS) {
   if (state.gameOver) return [];
@@ -158,8 +321,25 @@ export function processEvents(state, events, atS) {
       continue;
     }
 
-    const scored = scoreSwitch(state, tag);
-    if (scored) display.push(scored);
+    const p = activePlayer(state);
+
+    if (tag === SW_SOFT_PLUNGE) {
+      p.softPlunge = true;
+      continue;
+    }
+
+    const skillShot = trySkillShot(state, p, tag, atS);
+    display.push(...skillShot.display);
+    if (skillShot.handled) continue;
+
+    display.push(...scoreSwitchTag(state, p, tag, atS));
+  }
+
+  const activeP = activePlayer(state);
+  if (activeP.ballActive) {
+    const timedOut = modes.tickModes(activeP.modesState, atS);
+    activeP.modesCompletedThisBall += timedOut.filter((d) => d.kind === 'modeEnd').length;
+    display.push(...timedOut);
   }
 
   return display;
