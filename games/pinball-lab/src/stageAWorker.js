@@ -35,7 +35,13 @@ async function run() {
         if (ci >= cfgs.length) { this.push(null); return; }
         const cfg = cfgs[ci];
         let row = perCfg[ci];
-        if (!row) row = perCfg[ci] = { cfgId: cfg.cfgId, trials: 0, flagged: 0, contactCount: 0, xaVals: [], stallWithContact: 0 };
+        if (!row) {
+          row = perCfg[ci] = {
+            cfgId: cfg.cfgId, trials: 0, flagged: 0, contactCount: 0, xaVals: [], stallWithContact: 0,
+            // E4 (LAB-6) fields — harmless no-ops on E1/E2 records, which never set ct/cr/cp/cv.
+            ct: 0, cr: 0, cp: 0, cv: 0, creep: 0, flaggedExclStalled: 0, stVals: [], rxaVals: [], relCounts: {},
+          };
+        }
         if (seed >= trialCounts[ci]) { ci += 1; seed = 0; continue; }
 
         const { record, inbound, contacted } = runTrialWithMeta(cfg, seed);
@@ -44,9 +50,22 @@ async function run() {
         if (contacted) row.contactCount += 1;
         if (record.xa !== null) row.xaVals.push(record.xa);
         if (record.term === 'stall' && contacted) row.stallWithContact += 1;
-        addAcc(inboundAcc.x0, inbound.x0);
-        addAcc(inboundAcc.speed0, inbound.speed0);
-        addAcc(inboundAcc.angle0Deg, inbound.angle0Deg);
+        if (record.ct !== undefined) {
+          if (record.ct) row.ct += 1;
+          if (record.cr) row.cr += 1;
+          if (record.cp) row.cp += 1;
+          if (record.cv) row.cv += 1;
+          if (record.f & 32) row.creep += 1;
+          if (record.f !== 0 && !(record.f & 8)) row.flaggedExclStalled += 1;
+          if (record.st !== null) row.stVals.push(record.st);
+          if (record.rxa !== null) row.rxaVals.push(record.rxa);
+          if (record.rel) row.relCounts[record.rel] = (row.relCounts[record.rel] ?? 0) + 1;
+        }
+        if (inbound.x0 !== null) {
+          addAcc(inboundAcc.x0, inbound.x0);
+          addAcc(inboundAcc.speed0, inbound.speed0);
+          addAcc(inboundAcc.angle0Deg, inbound.angle0Deg);
+        }
         seed += 1;
         this.push(JSON.stringify(record) + '\n');
         return;

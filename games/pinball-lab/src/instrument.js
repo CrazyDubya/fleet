@@ -10,12 +10,13 @@
 // ensemble of trials in a cfg is actually diverse (see seed.js for why that second part
 // isn't automatic).
 import { advance } from '../../pinball/src/physics/world.js';
-import { STEP_DT, MAX_IMPACTS } from '../../pinball/src/physics/constants.js';
+import { STEP_DT, MAX_IMPACTS, BALL_RADIUS } from '../../pinball/src/physics/constants.js';
 import { range } from '../../pinball/src/physics/rng.js';
 import { seededRng } from './seed.js';
 import { buildE1World, SHOT_LINE_Y, INJECTION, CRADLE_INJECTION } from './arenas/e1_flippers.js';
 import { createPolicy } from './policy.js';
 import { buildE2World, INJECTION_SPEED as E2_SPEED, INJECTION_ANGLE_DEG as E2_ANGLE } from './arenas/e2_bumpers.js';
+import { buildE4World, classifySettle } from './arenas/e4_pocket.js';
 
 export const FLAGS = {
   IMPACTS_EXHAUSTED: 1,
@@ -23,12 +24,18 @@ export const FLAGS = {
   TIMEOUT: 4,
   STALLED: 8,
   NAN: 16,
+  // §7.3: net displacement > 5mm during the stall window — a "settled" ball that was actually
+  // still slowly crawling under repeated 1mm-per-impact pushouts in a two-contact corner.
+  CREEP: 32,
 };
 
 const STALL_SPEED = 0.05; // m/s
 const STALL_DURATION_S = 0.5;
 const E1_TIMEOUT_S = 2.0; // §3.1
 const E2_TIMEOUT_S = 12.0; // §4.3
+const E4_TIMEOUT_S = 4.0; // §1.2's revised window, Stages A/B
+const E4_RELEASE_TIMEOUT_S = 6.0; // Stage C
+const E4_CREEP_THRESHOLD_M = 0.005;
 const E2_INJECTION_X_MARGIN = 0.02; // keep the sampled x strictly inside the side walls
 const E2_EG_CAP = 12; // §4.3's eg[] array: "capped at 12 entries"
 
@@ -75,6 +82,7 @@ function classifyPhase(flipper) {
 export function buildWorld(cfg) {
   if (cfg.exp === 'e1') return buildE1World(cfg);
   if (cfg.exp === 'e2') return buildE2World(cfg);
+  if (cfg.exp === 'e4') return buildE4World(cfg);
   throw new Error(`buildWorld: unknown exp '${cfg.exp}'`);
 }
 
@@ -93,6 +101,7 @@ export function runTrialWithMeta(cfg, seed, opts) {
 function runTrialFor(exp) {
   if (exp === 'e1') return runE1Trial;
   if (exp === 'e2') return runE2Trial;
+  if (exp === 'e4') return runE4Trial;
   throw new Error(`runTrial: unknown exp '${exp}'`);
 }
 
@@ -407,4 +416,258 @@ function runE2Trial(cfg, seed, opts) {
     f: flags,
   };
   return { record, steps: Math.round(elapsedS / STEP_DT), inbound: { x0, speed0, angle0Deg }, contacted: chain > 0 };
+}
+
+/** EXPERIMENT 4 trial loop (design doc §3): the sibling of runE1Trial, extended with the W1-W4
+ * pocket geometry's own termination discipline. Two structural differences from E1's loop,
+ * both required by the design (§3.3/§12):
+ *   1. The settle detector (same |v|<0.05 for 0.5s machinery E1 uses) does NOT terminate the
+ *      trial when `cfg.release === true` (Stage C) — it captures `settledAtS` and the geometric
+ *      settle classification (§5.1) once, then the loop keeps running into the release phase.
+ *   2. `policy.tick` is called with a fourth argument, `{ settledAtS }`, so `holdThenRelease`
+ *      (policy.js) knows when to start its release-delay countdown; every other policy ignores
+ *      the extra argument (unchanged call shape otherwise).
+ */
+function runE4Trial(cfg, seed, opts) {
+  const built = buildWorld(cfg);
+  const { world, flippers, ball, shotLineY, bounds, guideShapes, rail } = built;
+  const rng = rngForTrial(cfg, seed);
+
+  // §3.2 injection modes. 'drop' is E1's CRADLE_INJECTION verbatim — the paired control vs
+  // LAB-2. 'inlane' draws which side's rail (L/R) first, THEN speed, so the extra draw doesn't
+  // shift 'drop' mode's rng sequence out of alignment with E1/LAB-2's.
+  let x0 = null, speed0, angle0Deg = null, sideGuess;
+  if (cfg.inj === 'inlane') {
+    const sidePick = range(rng, 0, 1) < 0.5 ? 'left' : 'right';
+    const r = rail[sidePick];
+    speed0 = range(rng, CRADLE_INJECTION.speedMin, CRADLE_INJECTION.speedMax);
+    const dir = { x: r.lower.x - r.upper.x, y: r.lower.y - r.upper.y };
+    const len = Math.hypot(dir.x, dir.y);
+    ball.pos = { x: r.upper.x, y: r.upper.y };
+    ball.vel = { x: (dir.x / len) * speed0, y: (dir.y / len) * speed0 };
+    sideGuess = sidePick;
+  } else {
+    x0 = range(rng, CRADLE_INJECTION.xMin, CRADLE_INJECTION.xMax);
+    speed0 = range(rng, CRADLE_INJECTION.speedMin, CRADLE_INJECTION.speedMax);
+    angle0Deg = range(rng, CRADLE_INJECTION.angleMinDeg, CRADLE_INJECTION.angleMaxDeg);
+    const angle0 = (angle0Deg * Math.PI) / 180;
+    ball.pos = { x: x0, y: shotLineY };
+    ball.vel = { x: speed0 * Math.cos(angle0), y: speed0 * Math.sin(angle0) };
+    sideGuess = x0 < 0 ? 'left' : 'right';
+  }
+
+  const policy = createPolicy(cfg);
+  const firedAtS = { left: null, right: null };
+  const settleState = { settledAtS: null };
+
+  let elapsedS = 0;
+  let flags = 0;
+  let contacts = 0; // flipper-contact substeps, total
+  let guideContacts = 0; // W1-contact substeps, total
+  let firstContact = null;
+  let stallSinceS = null;
+  let posAtStallStart = null;
+  let term = null;
+  let crossing = null;
+  let steps = 0;
+
+  let settleCaptured = false;
+  let settleClass = null; // {cr,cp,cv,hsS,restingSide}
+  let settlePos = null;
+  let bnAtSettle = null, bwAtSettle = null, dslAtSettle = null;
+  let pathAfterFirstContact = 0;
+  let prevPosForPath = null;
+
+  // Stage C release bookkeeping (§3.1 holdThenRelease / §5.4). fireRounds counts distinct
+  // ticks in which the policy fired anything — the 2nd such round, for holdThenRelease, IS the
+  // release re-fire (the 1st is the initial t=0 hold).
+  let fireRounds = 0;
+  let releasedAtS = null;
+  let postReleaseContact = null;
+  let postReleaseContactCount = 0;
+
+  // §6.4 control C0 overrides the timeout back to E1's original 2.0s (`cfg.timeoutS`) — the
+  // whole point of pairing it against C0b (E4's default 4.0/6.0s windows) is to decompose how
+  // much of E1's null cradle rate was the time budget (§1.2) vs the missing geometry (§1.1).
+  const restitutionCap = cfg.timeoutS ?? (cfg.release ? E4_RELEASE_TIMEOUT_S : E4_TIMEOUT_S);
+
+  while (term === null) {
+    steps += 1;
+    const preVel = { x: ball.vel.x, y: ball.vel.y };
+
+    const events = policy.tick(elapsedS, ball, flippers, settleState);
+    if (events.length > 0) {
+      fireRounds += 1;
+      for (const ev of events) firedAtS[ev.side] = ev.firedAtS;
+      if (cfg.release && fireRounds === 2 && releasedAtS === null) releasedAtS = elapsedS;
+    }
+
+    const stepEvents = advance(world, STEP_DT);
+    elapsedS += STEP_DT;
+
+    if (
+      !Number.isFinite(ball.pos.x) || !Number.isFinite(ball.pos.y) ||
+      !Number.isFinite(ball.vel.x) || !Number.isFinite(ball.vel.y)
+    ) {
+      flags |= FLAGS.NAN;
+      term = 'nan';
+      break;
+    }
+
+    if (stepEvents.length >= MAX_IMPACTS) flags |= FLAGS.IMPACTS_EXHAUSTED;
+
+    const flipperEvents = stepEvents.filter((e) => e.primitive?.flipper);
+    const guideEvents = stepEvents.filter((e) => e.primitive?.guide);
+
+    if (opts?.onStep) {
+      opts.onStep({
+        t: elapsedS,
+        pos: { x: ball.pos.x, y: ball.pos.y },
+        vel: { x: ball.vel.x, y: ball.vel.y },
+        left: { angle: (flippers.left.angle * 180) / Math.PI, omega: flippers.left.angularVel },
+        right: { angle: (flippers.right.angle * 180) / Math.PI, omega: flippers.right.angularVel },
+        contacts: flipperEvents.length,
+      });
+    }
+
+    if (flipperEvents.length > 0) {
+      contacts += 1;
+      if (firstContact === null) {
+        const hit = flipperEvents[0];
+        const flipper = hit.primitive.flipper;
+        const side = flipper === flippers.left ? 'left' : 'right';
+        const hs = Math.min(1, Math.max(0, Math.hypot(hit.point.x - flipper.pivot.x, hit.point.y - flipper.pivot.y) / flipper.length));
+        const fAt = firedAtS[side];
+        firstContact = {
+          vi: Math.hypot(preVel.x, preVel.y),
+          ai: angleDeg(preVel),
+          hs,
+          hp: classifyPhase(flipper),
+          ha: (flipper.angle * 180) / Math.PI,
+          hw: flipper.angularVel,
+          dt: fAt !== null ? (elapsedS - fAt) * 1000 : null,
+          vo: Math.hypot(ball.vel.x, ball.vel.y),
+          ao: angleDeg(ball.vel),
+        };
+        prevPosForPath = { x: ball.pos.x, y: ball.pos.y };
+      }
+      if (cfg.release && releasedAtS !== null && postReleaseContact === null) {
+        postReleaseContact = {
+          rvo: Math.hypot(ball.vel.x, ball.vel.y),
+          rao: angleDeg(ball.vel),
+          rdt: (elapsedS - releasedAtS) * 1000,
+        };
+      }
+      if (cfg.release && releasedAtS !== null) postReleaseContactCount += 1;
+    }
+    if (guideEvents.length > 0) guideContacts += 1;
+
+    if (prevPosForPath !== null) {
+      pathAfterFirstContact += Math.hypot(ball.pos.x - prevPosForPath.x, ball.pos.y - prevPosForPath.y);
+      prevPosForPath = { x: ball.pos.x, y: ball.pos.y };
+    }
+
+    if (
+      ball.pos.x < bounds.xMin || ball.pos.x > bounds.xMax ||
+      ball.pos.y < bounds.yMin || ball.pos.y > bounds.yMax
+    ) {
+      flags |= FLAGS.ESCAPED;
+      term = 'escaped';
+      break;
+    }
+
+    if (ball.pos.y >= shotLineY && ball.vel.y > 0) {
+      crossing = { xx: ball.pos.x, xs: Math.hypot(ball.vel.x, ball.vel.y), xa: angleDeg(ball.vel) };
+      term = 'shotline';
+      break;
+    }
+
+    if (ball.pos.y <= 0.001) {
+      term = 'drain';
+      break;
+    }
+
+    const speed = Math.hypot(ball.vel.x, ball.vel.y);
+    if (speed < STALL_SPEED) {
+      if (stallSinceS === null) {
+        stallSinceS = elapsedS;
+        posAtStallStart = { x: ball.pos.x, y: ball.pos.y };
+      }
+      if (!settleCaptured && elapsedS - stallSinceS > STALL_DURATION_S) {
+        settleCaptured = true;
+        flags |= FLAGS.STALLED;
+        settleState.settledAtS = elapsedS;
+        settlePos = { x: ball.pos.x, y: ball.pos.y };
+        settleClass = classifySettle({ ballPos: settlePos, ballRadius: BALL_RADIUS, flippers, guideShapes });
+        bnAtSettle = contacts;
+        bwAtSettle = guideContacts;
+        dslAtSettle = pathAfterFirstContact;
+        const netDisp = Math.hypot(settlePos.x - posAtStallStart.x, settlePos.y - posAtStallStart.y);
+        if (netDisp > E4_CREEP_THRESHOLD_M) flags |= FLAGS.CREEP;
+        if (!cfg.release) {
+          term = 'settled';
+          break;
+        }
+      }
+    } else {
+      stallSinceS = null;
+    }
+
+    if (elapsedS >= restitutionCap) {
+      flags |= FLAGS.TIMEOUT;
+      term = 'timeout';
+      break;
+    }
+  }
+
+  // §5.4 release classification. Only meaningful for cfg.release cfgs; null elsewhere.
+  let rel = null;
+  if (cfg.release) {
+    if (releasedAtS === null) rel = null; // never even settled (or settle+delay exceeded the budget)
+    else if (term === 'shotline') rel = 'shot';
+    else if (term === 'drain') rel = 'drain';
+    else if (postReleaseContactCount > 0) rel = 'retrap'; // touched a flipper again but never made the shot line or drained
+    else rel = 'stuck'; // released, never touched again — a dead trap
+  }
+
+  const sd = settleClass?.restingSide === 'left' ? 'L' : settleClass?.restingSide === 'right' ? 'R' : (sideGuess === 'left' ? 'L' : 'R');
+  const pocketPredicted = cfg.guide?.pocketPredicted?.[sd === 'L' ? 'left' : 'right'] ?? null;
+
+  const record = {
+    c: cfg.cfgId,
+    s: seed,
+    sd,
+    inj: cfg.inj,
+    pol: cfg.pol,
+    vi: firstContact?.vi ?? null,
+    ai: firstContact?.ai ?? null,
+    hs: firstContact?.hs ?? null,
+    hp: firstContact?.hp ?? null,
+    ha: firstContact?.ha ?? null,
+    hw: firstContact?.hw ?? null,
+    dt: firstContact?.dt ?? null,
+    vo: firstContact?.vo ?? null,
+    ao: firstContact?.ao ?? null,
+    n: contacts,
+    ct: settleCaptured ? 1 : 0,
+    cr: settleClass?.cr ?? 0,
+    cp: settleClass?.cp ?? 0,
+    cv: settleClass?.cv ?? 0,
+    st: settleCaptured ? settleState.settledAtS : null,
+    bn: settleCaptured ? bnAtSettle : null,
+    bw: settleCaptured ? bwAtSettle : null,
+    hsS: settleClass?.hsS ?? null,
+    dsl: settleCaptured ? dslAtSettle : null,
+    px: settlePos?.x ?? null,
+    py: settlePos?.y ?? null,
+    pk: settlePos && pocketPredicted ? Math.hypot(settlePos.x - pocketPredicted.x, settlePos.y - pocketPredicted.y) : null,
+    rel,
+    rvo: postReleaseContact?.rvo ?? null,
+    rao: postReleaseContact?.rao ?? null,
+    rxa: rel === 'shot' ? crossing?.xa ?? null : null,
+    rdt: postReleaseContact?.rdt ?? null,
+    term,
+    f: flags,
+  };
+  return { record, steps, inbound: { x0, speed0, angle0Deg }, contacted: contacts > 0 };
 }

@@ -3,6 +3,7 @@
 // entry point a real touch/keyboard input drives (ui/input.js), so it exercises the shipped
 // activation path rather than poking flipper.active directly.
 import { setActive } from '../../pinball/src/physics/flipper.js';
+import { FLIPPER } from '../../pinball/src/physics/constants.js';
 
 /**
  * `createPolicy(cfg)` returns `{ tick(elapsedS, ball, flippers) }`, called once per physics
@@ -44,6 +45,70 @@ export function createPolicy(cfg) {
         setActive(flippers.left, true);
         setActive(flippers.right, true);
         return [{ side: 'left', firedAtS: elapsedS }, { side: 'right', firedAtS: elapsedS }];
+      },
+    };
+  }
+
+  // §3.1 E4 family: proximity-armed with latency `cfg.L`, then held forever once fired (never
+  // released) — the "live catch" case, the harder real-pinball skill E4's fireAndHold family
+  // measures against `heldActive`'s dead-catch baseline. Structurally `proximity` minus the
+  // second flipper never firing independently of the first (both fire together once armed, to
+  // match `heldActive`'s "both flippers up" — a single-sided catch is a different experiment).
+  if (cfg.pol === 'fireAndHold') {
+    const latencyS = cfg.L / 1000;
+    let armedAtS = null;
+    let fired = false;
+    return {
+      tick(elapsedS, ball, flippers) {
+        if (fired) return [];
+        if (armedAtS === null) {
+          const dLeft = Math.hypot(ball.pos.x - flippers.left.pivot.x, ball.pos.y - flippers.left.pivot.y);
+          const dRight = Math.hypot(ball.pos.x - flippers.right.pivot.x, ball.pos.y - flippers.right.pivot.y);
+          if (Math.min(dLeft, dRight) <= cfg.R) armedAtS = elapsedS + latencyS;
+        }
+        if (armedAtS !== null && elapsedS >= armedAtS) {
+          fired = true;
+          setActive(flippers.left, true);
+          setActive(flippers.right, true);
+          return [{ side: 'left', firedAtS: elapsedS }, { side: 'right', firedAtS: elapsedS }];
+        }
+        return [];
+      },
+    };
+  }
+
+  // §3.1 E4 Stage C: held from t=0 (like heldActive); once the trial loop tells us (via
+  // `state.settledAtS`, instrument.js's fourth tick argument) that the ball has come to rest,
+  // waits `cfg.releaseDelayMs` past that instant, drops both flippers (`setActive(false)`),
+  // then — once `downMs + 10ms` has passed, long enough for the down-stroke to finish — fires
+  // them again once, the "does a subsequent flip actually shoot it" release.
+  if (cfg.pol === 'holdThenRelease') {
+    let heldAt0 = false;
+    let droppedAtS = null;
+    let refired = false;
+    const releaseDelayS = cfg.releaseDelayMs / 1000;
+    const downTailS = (FLIPPER.lower.downMs + 10) / 1000;
+    return {
+      tick(elapsedS, ball, flippers, state) {
+        const events = [];
+        if (!heldAt0) {
+          heldAt0 = true;
+          setActive(flippers.left, true);
+          setActive(flippers.right, true);
+          events.push({ side: 'left', firedAtS: elapsedS }, { side: 'right', firedAtS: elapsedS });
+        }
+        if (droppedAtS === null && state?.settledAtS != null && elapsedS >= state.settledAtS + releaseDelayS) {
+          droppedAtS = elapsedS;
+          setActive(flippers.left, false);
+          setActive(flippers.right, false);
+        }
+        if (droppedAtS !== null && !refired && elapsedS >= droppedAtS + downTailS) {
+          refired = true;
+          setActive(flippers.left, true);
+          setActive(flippers.right, true);
+          events.push({ side: 'left', firedAtS: elapsedS }, { side: 'right', firedAtS: elapsedS });
+        }
+        return events;
       },
     };
   }

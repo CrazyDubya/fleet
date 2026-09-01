@@ -7,7 +7,7 @@
 import os from 'node:os';
 import { performance } from 'node:perf_hooks';
 import { runTrialWithMeta } from './instrument.js';
-import { buildE1PilotCfgs, buildE2SeriesACfgs, buildE2SeriesBCfgs } from './sweep.js';
+import { buildE1PilotCfgs, buildE2SeriesACfgs, buildE2SeriesBCfgs, buildE4SliceCfgs, buildE4StageA1Cfgs } from './sweep.js';
 
 function parseArgs(argv) {
   const args = {};
@@ -33,6 +33,12 @@ function cfgsFor(exp, args) {
     const filtered = series.filter((c) => c.N === n);
     if (filtered.length === 0) throw new Error(`profile.js: no e2 cfgs with N=${n}`);
     return filtered;
+  }
+  if (exp === 'e4') {
+    // A round-robin mix of slice/controls + a sample of the Stage A1 pocket grid — representative
+    // of both the cheap (heldActive/drop) and the more expensive (release-phase-capable) trials.
+    const sample = buildE4StageA1Cfgs().cfgs.filter((_, i) => i % 20 === 0);
+    return [...buildE4SliceCfgs(), ...sample];
   }
   throw new Error(`profile.js: unknown --exp '${exp}'`);
 }

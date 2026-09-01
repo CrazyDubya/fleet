@@ -15,7 +15,7 @@
 // contact-rate floor) rather than per 11-trial cell. That is what this script does; it is a
 // deliberate scale adjustment of §2.4a's rule, not a skip of it.
 import { Worker } from 'node:worker_threads';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { performance } from 'node:perf_hooks';
@@ -76,6 +76,107 @@ function combineAcc(accs) {
   return accs.reduce((a, b) => ({ n: a.n + b.n, sum: a.sum + b.sum, sumSq: a.sumSq + b.sumSq }), { n: 0, sum: 0, sumSq: 0 });
 }
 
+// --- E4 (LAB-6) path: `node src/stageA.js --exp e4 --cfgs <path.json> --trials <n> --out
+// <dir>` (design doc §9/§12) — the same batched-worker mechanism as E1's screen (see header),
+// generalised to read its cfg list from a file rather than building E1's own 3,888-geometry
+// grid, and to gate/rank on E4's own §5/§7 columns (cp, CREEP) instead of E1's fan width. Used
+// for every E4 stage (slice, A1, A2, B, C) — "every E4 stage uses stageA.js's batched runner"
+// per the design's §6 preamble.
+async function runE4Stage(args) {
+  const out = args.out;
+  const cfgsPath = args.cfgs;
+  if (!out || !cfgsPath) {
+    console.error('usage: node src/stageA.js --exp e4 --cfgs <path.json> --trials <n> --out <dir>');
+    process.exitCode = 1;
+    return;
+  }
+  mkdirSync(out, { recursive: true });
+  const start = performance.now();
+
+  const cfgs = JSON.parse(readFileSync(cfgsPath, 'utf8'));
+  const totalTrialsArg = args.trials ? Number(args.trials) : cfgs.length * 100;
+  const trialCounts = splitEvenly(totalTrialsArg, cfgs.length);
+  const maxWorkers = Math.max(1, os.cpus().length - 1);
+  const cfgChunks = chunk(cfgs, maxWorkers);
+  const countChunks = chunk(trialCounts, maxWorkers);
+
+  const results = await Promise.all(
+    cfgChunks.map((cfgChunk, i) => runWorker(cfgChunk, countChunks[i], path.join(out, `shard-${i}.jsonl.gz`)))
+  );
+  const failed = results.filter((r) => !r.ok);
+  if (failed.length > 0) {
+    console.error(JSON.stringify({ ok: false, failedWorkers: failed }));
+    process.exitCode = 1;
+    return;
+  }
+
+  const perCfgByIndex = new Map();
+  for (const r of results) for (const row of r.perCfg) perCfgByIndex.set(row.cfgId, row);
+
+  let totalTrials = 0, totalFlagged = 0, totalFlaggedExclStalled = 0;
+  let totalCt = 0, totalCr = 0, totalCp = 0, totalCv = 0, totalCreep = 0;
+  const perCfgSummary = [];
+  for (const cfg of cfgs) {
+    const row = perCfgByIndex.get(cfg.cfgId);
+    totalTrials += row.trials;
+    totalFlagged += row.flagged;
+    totalFlaggedExclStalled += row.flaggedExclStalled;
+    totalCt += row.ct; totalCr += row.cr; totalCp += row.cp; totalCv += row.cv; totalCreep += row.creep;
+    const sorted = [...row.stVals].sort((a, b) => a - b);
+    const medianSt = sorted.length ? sorted[Math.floor(sorted.length / 2)] : null;
+    perCfgSummary.push({
+      cfgId: cfg.cfgId, arm: cfg.arm ?? null, trials: row.trials,
+      ct: row.trials ? row.ct / row.trials : 0, cr: row.trials ? row.cr / row.trials : 0,
+      cp: row.trials ? row.cp / row.trials : 0, cv: row.trials ? row.cv / row.trials : 0,
+      creep: row.trials ? row.creep / row.trials : 0, medianSt,
+      fastCradleRate: row.stVals.length ? row.stVals.filter((s) => s < 1.0).length / row.trials : 0,
+      relCounts: row.relCounts, rxaVals: row.rxaVals,
+    });
+  }
+
+  // §7's E4 amendments: (1) the C0 control arm must reproduce <1% cp — "an arena is on
+  // target" takes this form for E4, replacing E1's never-baseline-contact-rate check; (2) the
+  // flagged-fraction gate excludes STALLED (for a cradle experiment STALLED IS the
+  // measurement); (3) CREEP is reported prominently, watched for correlating with high-cp cfgs.
+  const c0 = perCfgSummary.find((c) => c.arm === 'C0');
+  const c0Ok = !c0 || c0.cp < 0.01;
+  const flaggedExclStalledFraction = totalTrials > 0 ? totalFlaggedExclStalled / totalTrials : 0;
+
+  const secs = (performance.now() - start) / 1000;
+  const meta = {
+    exp: 'e4', out, instrumentCommitSha: instrumentCommitSha(),
+    generatedAt: new Date().toISOString(),
+    cfgCount: cfgs.length, trialCount: totalTrials,
+    flaggedFraction: totalTrials > 0 ? totalFlagged / totalTrials : 0,
+    flaggedFractionExclStalled: flaggedExclStalledFraction,
+    ct: totalTrials ? totalCt / totalTrials : 0, cr: totalTrials ? totalCr / totalTrials : 0,
+    cp: totalTrials ? totalCp / totalTrials : 0, cv: totalTrials ? totalCv / totalTrials : 0,
+    creep: totalTrials ? totalCreep / totalTrials : 0,
+    c0Cp: c0?.cp ?? null, c0OnTarget: c0Ok,
+    secs,
+    shards: results.map((r) => ({ path: path.relative(out, r.outPath) })),
+    cfgs: cfgs.map((cfg) => ({ cfg, trials: perCfgByIndex.get(cfg.cfgId).trials })),
+  };
+  writeFileSync(path.join(out, 'meta.json'), JSON.stringify(meta, null, 2));
+
+  const ranked = [...perCfgSummary].sort((a, b) => b.cp - a.cp);
+  writeFileSync(path.join(out, 'ranking.json'), JSON.stringify({ ranked }, null, 2));
+
+  if (!c0Ok) {
+    console.error(JSON.stringify({ ok: false, error: `§7 gate: C0 control cp=${((c0?.cp ?? 0) * 100).toFixed(2)}% >= 1%`, out }));
+    process.exitCode = 1;
+    return;
+  }
+
+  console.log(JSON.stringify({
+    ok: true, cfgs: cfgs.length, trials: totalTrials, secs: Number(secs.toFixed(1)),
+    ct: meta.ct, cr: meta.cr, cp: meta.cp, cv: meta.cv, creep: meta.creep,
+    flaggedFractionExclStalled: flaggedExclStalledFraction,
+    c0Cp: meta.c0Cp, byArm: perCfgSummary.filter((c) => c.arm).map((c) => ({ arm: c.arm, ct: c.ct, cr: c.cr, cp: c.cp, cv: c.cv, medianSt: c.medianSt, creep: c.creep })),
+    out,
+  }));
+}
+
 async function main() {
   const args = Object.fromEntries(
     process.argv.slice(2).reduce((pairs, arg, i, arr) => {
@@ -83,6 +184,9 @@ async function main() {
       return pairs;
     }, [])
   );
+
+  if (args.exp === 'e4') return runE4Stage(args);
+
   const out = args.out;
   if (!out) {
     console.error('usage: node src/stageA.js --out data/e1/stageA-<runId>');

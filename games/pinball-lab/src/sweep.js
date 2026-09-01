@@ -8,6 +8,7 @@ import {
   NOMINAL_SKIRT_RADIUS, SERIES_B_AREA_FRACTION,
   seriesASkirtRadius, seriesBFieldSize, effectiveAreaFraction,
 } from './arenas/e2_bumpers.js';
+import { buildE4World, pocketSolve } from './arenas/e4_pocket.js';
 
 /** First 8 hex of sha256 over the sorted-key JSON of `cfg` — same value regardless of key
  * insertion order, so two callers building "the same" cfg by different code paths agree. */
@@ -207,6 +208,214 @@ export function buildE2DivergenceCfgs(seriesACfgs) {
   }));
 }
 
+// --- LAB-6: EXPERIMENT 4 (the pocket) cfg sets, per opus2's design handoff
+// (ledger/handoffs/opus2/20260901T134133Z-pinball-lab-e4-design.md), §2/§6. ---
+
+// LAB-2's winning geometry (`dba8027f`, program handoff §3.6): the flipper held fixed for
+// every E4 screening stage except where the design explicitly re-sweeps it (Stage B, §6.2).
+export const E4_LAB2_WINNER = {
+  restAngleDeg: -32, activeAngleDeg: 26, upMs: 8, omegaProfile: 'sCurve', radius: 0.012, restitution: 0.45,
+};
+
+function e4Base(overrides = {}) {
+  return {
+    exp: 'e4', ...E4_LAB2_WINNER, pol: 'heldActive', inj: 'drop',
+    guide: null, feed: null, post: null, outlaneW: null, shelf: false, release: false,
+    ...overrides,
+  };
+}
+
+/** Attach the §1.1/§2.5-point-3 two-contact solve to a `guide` param object — both sides
+ * (they're mirror images of each other given a symmetric grid, but computed independently
+ * rather than assumed, since a future asymmetric cfg could break that assumption silently). */
+function withPocketSolve(guide, { activeAngleDeg, radius }) {
+  const left = pocketSolve({ ...guide, activeAngleDeg, flipperRadius: radius, side: 1 });
+  const right = pocketSolve({ ...guide, activeAngleDeg, flipperRadius: radius, side: -1 });
+  return {
+    ...guide,
+    pocketFeasible: left.feasible && right.feasible,
+    pocketPredicted: { left: left.point, right: right.point },
+  };
+}
+
+/** §6.4 control arms, one geometry (LAB-2's winner unless overridden). C0 reproduces E1's
+ * exact 2.0s window (`timeoutS`); C0b is identical but at E4's own 4.0s default — the pairing
+ * that decomposes §1.2's "was E1's null a geometry problem or a time-budget problem". C1 is
+ * the shelf upper bound. Every cfg carries `arm` so a stage runner/report can find them by name. */
+export function buildE4Controls(geom = E4_LAB2_WINNER) {
+  return withCfgIds([
+    e4Base({ ...geom, arm: 'C0', timeoutS: 2.0 }),
+    e4Base({ ...geom, arm: 'C0b' }),
+    e4Base({ ...geom, arm: 'C1', shelf: true }),
+  ]);
+}
+
+/** §9's first slice: one W1 assembly at the design's own worked example (gapX 0.026, tilt 0,
+ * endDy 0, guideE 0.45, r_flip 0.012 — i.e. LAB-2's winner unmodified) plus C0/C0b. Exactly
+ * the 3 cfgs `node src/stageA.js --exp e4 --cfgs cfgs/e4-slice.json --trials 6000 ...` needs
+ * to run at 2,000 trials/cfg. */
+export function buildE4SliceCfgs() {
+  const guide = withPocketSolve({ gapX: 0.026, tiltDeg: 0, endDy: 0, guideE: 0.45 }, E4_LAB2_WINNER);
+  const w1 = e4Base({ guide, arm: 'W1-slice' });
+  return [...withCfgIds([w1]), ...buildE4Controls()];
+}
+
+// §2.1 W1 grid (120 guides) x §6.1's radius crossing (3) = 360 combinations. Not every
+// combination is buildable — §2.5 assertion 1 (foul the flipper sweep) is expected to reject
+// some (the design's own "one too tight, fouls the cap at r=0.015"); `buildE4StageA1Cfgs`
+// validates each by actually building the world and drops (and counts) any that throw, rather
+// than shipping an unrunnable cfg into the batch runner.
+export const E4_W1_GRID = {
+  gapX: [0.016, 0.021, 0.026, 0.031, 0.038],
+  tiltDeg: [0, 8, 16, 24],
+  endDy: [-0.020, 0, 0.020],
+  guideE: [0.20, 0.45],
+};
+export const E4_RADII = [0.009, 0.012, 0.015];
+
+export function buildE4StageA1Cfgs() {
+  const guides = expandGrid(E4_W1_GRID);
+  const cfgs = [];
+  let excluded = 0;
+  for (const radius of E4_RADII) {
+    for (const g of guides) {
+      const guide = withPocketSolve(g, { ...E4_LAB2_WINNER, radius });
+      const base = e4Base({ ...E4_LAB2_WINNER, radius, guide, arm: 'A1' });
+      const cfg = { cfgId: cfgId(base), ...base };
+      try {
+        buildE4World(cfg);
+        cfgs.push(cfg);
+      } catch {
+        excluded += 1;
+      }
+    }
+  }
+  return { cfgs, excluded, total: E4_RADII.length * guides.length };
+}
+
+// §6.1 A2: the other three families, screened on the top 8 pockets from A1. Screen levels per
+// §2.2-§2.4. W4's design prose enumerates 3 outlaneW *values* but the arithmetic
+// "W2(4)xW3(4)xW4(3)=384" treats W4 as a 3-LEVEL family overall — one short of "off" plus all
+// three values (4). Resolved the way LAB-2 documented its own "42 vs 41" discrepancy: take the
+// arithmetic (3) as authoritative and drop the tightest value (0.020m, closest to the guide's
+// own gapX dimension already swept in W1 and least likely to be independently informative) —
+// {off, 0.030, 0.045}. Recorded here rather than silently picked.
+export const E4_W2_LEVELS = [
+  null,
+  { feedAngleDeg: 24, feedHs: 0.35 },
+  { feedAngleDeg: 24, feedHs: 0.65 },
+  { feedAngleDeg: 24, feedHs: 0.90 },
+];
+export const E4_W3_LEVELS = [
+  null,
+  { dx: 0, dy: 0.030, postR: 0.006, postE: 0.45 },
+  { dx: 0, dy: 0.030, postR: 0.014, postE: 0.45 },
+  { dx: -0.012, dy: 0.026, postR: 0.010, postE: 0.45 },
+];
+export const E4_W4_LEVELS = [null, 0.030, 0.045];
+
+
+/** Validate every cfg by actually building the world, dropping (and counting) any that
+ * throw §2.5's assertions (a foul or an injection overlap) — the same discipline
+ * buildE4StageA1Cfgs applies to the W1 grid, extended to every later stage since W2/W3/W4
+ * combinations (and Stage B/C's flipper geometry sweep) can foul or overlap just as easily. */
+function filterBuildable(cfgs) {
+  const kept = [];
+  let excluded = 0;
+  for (const cfg of cfgs) {
+    try {
+      buildE4World(cfg);
+      kept.push(cfg);
+    } catch {
+      excluded += 1;
+    }
+  }
+  return { cfgs: kept, excluded, total: cfgs.length };
+}
+
+export function buildE4StageA2Cfgs(topPockets) {
+  const cfgs = [];
+  for (const pocket of topPockets) {
+    const geom = { restAngleDeg: E4_LAB2_WINNER.restAngleDeg, activeAngleDeg: E4_LAB2_WINNER.activeAngleDeg, upMs: E4_LAB2_WINNER.upMs, omegaProfile: E4_LAB2_WINNER.omegaProfile, restitution: E4_LAB2_WINNER.restitution, radius: pocket.radius };
+    for (const feed of E4_W2_LEVELS) {
+      for (const post of E4_W3_LEVELS) {
+        for (const outlaneW of E4_W4_LEVELS) {
+          const inj = feed ? 'inlane' : 'drop';
+          cfgs.push(e4Base({ ...geom, guide: pocket.guide, feed, post, outlaneW, inj, arm: 'A2', basePocketId: pocket.cfgId }));
+        }
+      }
+    }
+  }
+  return filterBuildable(withCfgIds(cfgs));
+}
+
+// §6.2 Stage B: top 10 assemblies (A2 result) x flipper geometry x delivery x policy. upMs and
+// omegaProfile are held at the winner's (§6.2: "held flipper's sweep profile barely touches
+// whether a ball settles" for held policies; it returns in Stage C). `fireAndHold`'s R/L are
+// not in the design's own crossed grid (1,080 cfgs has no room left for a 4th/5th policy
+// dimension); fixed at R=0.10/L=0 — E1 Stage A's own "one representative proximity point" —
+// documented here rather than silently defaulted.
+export const E4_STAGEB_REST = [-50, -38, -32];
+export const E4_STAGEB_ACTIVE = [26, 32, 38];
+export const E4_STAGEB_EFLIP = [0.20, 0.45, 0.85];
+export const E4_STAGEB_INJ = ['drop', 'inlane'];
+export const E4_STAGEB_POL = ['heldActive', 'fireAndHold'];
+export const E4_FIRE_AND_HOLD_R = 0.10;
+export const E4_FIRE_AND_HOLD_L = 0;
+
+export function buildE4StageBCfgs(topAssemblies) {
+  const cfgs = [];
+  for (const asm of topAssemblies) {
+    for (const restAngleDeg of E4_STAGEB_REST) {
+      for (const activeAngleDeg of E4_STAGEB_ACTIVE) {
+        for (const restitution of E4_STAGEB_EFLIP) {
+          for (const inj of E4_STAGEB_INJ) {
+            if (inj === 'inlane' && !asm.feed) continue; // no rail to inject onto
+            for (const pol of E4_STAGEB_POL) {
+              const guide = withPocketSolve(
+                { gapX: asm.guide.gapX, tiltDeg: asm.guide.tiltDeg, endDy: asm.guide.endDy, guideE: asm.guide.guideE },
+                { activeAngleDeg, radius: asm.radius }
+              );
+              const base = e4Base({
+                restAngleDeg, activeAngleDeg, upMs: E4_LAB2_WINNER.upMs, omegaProfile: E4_LAB2_WINNER.omegaProfile,
+                radius: asm.radius, restitution, inj, guide, feed: asm.feed, post: asm.post, outlaneW: asm.outlaneW,
+                pol, arm: 'B', baseAssemblyId: asm.cfgId,
+              });
+              if (pol === 'fireAndHold') { base.R = E4_FIRE_AND_HOLD_R; base.L = E4_FIRE_AND_HOLD_L; }
+              cfgs.push(base);
+            }
+          }
+        }
+      }
+    }
+  }
+  return filterBuildable(withCfgIds(cfgs));
+}
+
+// §6.3 Stage C: top 6 assemblies x 3 best flipper geometries (from B) x upMs x releaseDelayMs,
+// policy `holdThenRelease`, `cfg.release=true` (6.0s window per §1.2/instrument.js). `inj`
+// fixed at 'drop' — the paired-vs-E1 mode, and Stage B already answers whether inlane changes
+// the ranking; Stage C's job is the release protocol, not re-litigating delivery mode.
+export const E4_STAGEC_UPMS = [8, 14, 24];
+export const E4_STAGEC_RELEASE_DELAY_MS = [60, 150, 350];
+
+export function buildE4StageCCfgs(topAssembliesWithGeoms) {
+  const cfgs = [];
+  for (const entry of topAssembliesWithGeoms) {
+    for (const upMs of E4_STAGEC_UPMS) {
+      for (const releaseDelayMs of E4_STAGEC_RELEASE_DELAY_MS) {
+        cfgs.push(e4Base({
+          restAngleDeg: entry.restAngleDeg, activeAngleDeg: entry.activeAngleDeg, upMs,
+          omegaProfile: E4_LAB2_WINNER.omegaProfile, radius: entry.radius, restitution: entry.restitution,
+          inj: 'drop', guide: entry.guide, feed: entry.feed, post: entry.post, outlaneW: entry.outlaneW,
+          pol: 'holdThenRelease', releaseDelayMs, release: true, arm: 'C', baseAssemblyId: entry.cfgId,
+        }));
+      }
+    }
+  }
+  return filterBuildable(withCfgIds(cfgs));
+}
+
 // `node src/sweep.js --exp e1 --grid pilot --out cfgs/e1-pilot.json` — writes the committed
 // cfg file the CLI contract (§2.9) expects `runner.js --cfgs <path>` to read. Run once; the
 // output is deterministic (cfgId is a pure hash), so re-running only matters if PILOT_* above
@@ -249,10 +458,40 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const cfgs = buildE2DivergenceCfgs(seriesACfgs);
     writeFileSync(args.out, JSON.stringify(cfgs) + '\n');
     console.log(JSON.stringify({ ok: true, cfgs: cfgs.length, out: args.out }));
+  } else if (args.exp === 'e4' && args.grid === 'slice') {
+    const out = args.out ?? 'cfgs/e4-slice.json';
+    const cfgs = buildE4SliceCfgs();
+    writeFileSync(out, JSON.stringify(cfgs) + '\n');
+    console.log(JSON.stringify({ ok: true, cfgs: cfgs.length, out }));
+  } else if (args.exp === 'e4' && args.grid === 'stageA1') {
+    const out = args.out ?? 'cfgs/e4-stageA1.json';
+    const { cfgs, excluded, total } = buildE4StageA1Cfgs();
+    writeFileSync(out, JSON.stringify(cfgs) + '\n');
+    console.log(JSON.stringify({ ok: true, cfgs: cfgs.length, excluded, total, out }));
+  } else if (args.exp === 'e4' && args.grid === 'stageA2' && args.top) {
+    const out = args.out ?? 'cfgs/e4-stageA2.json';
+    const topPockets = JSON.parse(readFileSync(args.top, 'utf8'));
+    const { cfgs, excluded, total } = buildE4StageA2Cfgs(topPockets);
+    writeFileSync(out, JSON.stringify(cfgs) + '\n');
+    console.log(JSON.stringify({ ok: true, cfgs: cfgs.length, excluded, total, out }));
+  } else if (args.exp === 'e4' && args.grid === 'stageB' && args.top) {
+    const out = args.out ?? 'cfgs/e4-stageB.json';
+    const topAssemblies = JSON.parse(readFileSync(args.top, 'utf8'));
+    const { cfgs, excluded, total } = buildE4StageBCfgs(topAssemblies);
+    writeFileSync(out, JSON.stringify(cfgs) + '\n');
+    console.log(JSON.stringify({ ok: true, cfgs: cfgs.length, excluded, total, out }));
+  } else if (args.exp === 'e4' && args.grid === 'stageC' && args.top) {
+    const out = args.out ?? 'cfgs/e4-stageC.json';
+    const topAssembliesWithGeoms = JSON.parse(readFileSync(args.top, 'utf8'));
+    const { cfgs, excluded, total } = buildE4StageCCfgs(topAssembliesWithGeoms);
+    writeFileSync(out, JSON.stringify(cfgs) + '\n');
+    console.log(JSON.stringify({ ok: true, cfgs: cfgs.length, excluded, total, out }));
   } else {
     console.error('usage: node src/sweep.js --exp e1 --grid pilot|stageA|stageB|cradle --out <path.json> [--geometries <path.json>]');
     console.error('       node src/sweep.js --exp e2 --grid seriesA|seriesB --out <path.json>');
     console.error('       node src/sweep.js --exp e2 --grid divergence --seriesA <path.json> --out <path.json>');
+    console.error('       node src/sweep.js --exp e4 --grid slice|stageA1 [--out <path.json>]');
+    console.error('       node src/sweep.js --exp e4 --grid stageA2|stageB|stageC --top <path.json> [--out <path.json>]');
     process.exit(1);
   }
 }
