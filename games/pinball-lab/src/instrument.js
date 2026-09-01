@@ -5,12 +5,15 @@
 // into this module rather than re-deriving any of it.
 //
 // Purity (test/purity.test.mjs enforces this): no wall-clock read and no unseeded source of
-// randomness of any kind. All randomness comes from the game's own seeded `makeRng`, seeded by
-// `(cfgId, seed)` per §2.4 — the same trial is bit-for-bit reproducible.
+// randomness of any kind. All randomness comes from `seed.js`'s seededRng, itself seeded by
+// `(cfgId, seed)` per §2.4/§2.4a — the same trial is bit-for-bit reproducible, and the
+// ensemble of trials in a cfg is actually diverse (see seed.js for why that second part
+// isn't automatic).
 import { advance } from '../../pinball/src/physics/world.js';
 import { STEP_DT, MAX_IMPACTS } from '../../pinball/src/physics/constants.js';
-import { makeRng, range } from '../../pinball/src/physics/rng.js';
-import { buildE1World, SHOT_LINE_Y } from './arenas/e1_flippers.js';
+import { range } from '../../pinball/src/physics/rng.js';
+import { seededRng } from './seed.js';
+import { buildE1World, SHOT_LINE_Y, INJECTION } from './arenas/e1_flippers.js';
 import { createPolicy } from './policy.js';
 
 export const FLAGS = {
@@ -25,12 +28,14 @@ const STALL_SPEED = 0.05; // m/s
 const STALL_DURATION_S = 0.5;
 const E1_TIMEOUT_S = 2.0; // §3.1
 
-/** `(cfgId, seed) -> seeded rng`, per §2.4: the hash of cfgId XORed with the seed. cfgId is
- * already an 8-hex-char stable hash (sweep.js); folding it to a uint32 for the xorshift seed
- * is just a reinterpretation, not a second hash. */
+/** `(cfgId, seed) -> seeded rng`, per §2.4/§2.4a: the hash of cfgId XORed with the seed, fed
+ * through `seed.js`'s splitmix32-seeded, warmed-up xorshift128 — NOT the game's makeRng
+ * directly, whose fixed y/z/w constants made every trial in LAB-1's pilot sample the same
+ * ball (see seed.js's header comment). cfgId is already an 8-hex-char stable hash
+ * (sweep.js); folding it to a uint32 is a reinterpretation, not a second hash. */
 export function rngForTrial(cfg, seed) {
   const cfgHash = parseInt(cfg.cfgId.slice(0, 8), 16) >>> 0;
-  return makeRng((cfgHash ^ (seed >>> 0)) >>> 0);
+  return seededRng((cfgHash ^ (seed >>> 0)) >>> 0);
 }
 
 function angleDeg(vec) {
@@ -71,9 +76,12 @@ function runE1Trial(cfg, seed, opts) {
 
   // §3.3 inbound sampling: same distribution, same rng draw order, for every cfg — the same
   // seed gives the same inbound state under every cfg (a paired comparison across cfgs).
-  const x0 = range(rng, -0.2, 0.2);
-  const speed0 = range(rng, 0.3, 4.5);
-  const angle0Deg = range(rng, 190, 350);
+  // Ranges live in arenas/e1_flippers.js's INJECTION (§2.4a: "use the shot line and the
+  // flipper geometry to choose the band"), not hardcoded here, so they're tuned alongside
+  // the geometry they have to land on.
+  const x0 = range(rng, INJECTION.xMin, INJECTION.xMax);
+  const speed0 = range(rng, INJECTION.speedMin, INJECTION.speedMax);
+  const angle0Deg = range(rng, INJECTION.angleMinDeg, INJECTION.angleMaxDeg);
   const angle0 = (angle0Deg * Math.PI) / 180;
   ball.pos = { x: x0, y: shotLineY };
   ball.vel = { x: speed0 * Math.cos(angle0), y: speed0 * Math.sin(angle0) };
@@ -208,5 +216,8 @@ function runE1Trial(cfg, seed, opts) {
     term,
     f: flags,
   };
-  return { record, steps };
+  // `inbound` and `steps` are meta, not part of the §3.4 record — runTrial() strips them.
+  // §2.4a needs the raw injected state (not vi/ai, which are null on a no-contact trial) to
+  // check the ensemble is actually varying, without bloating every stored record.
+  return { record, steps, inbound: { x0, speed0, angle0Deg }, contacted: contacts > 0 };
 }

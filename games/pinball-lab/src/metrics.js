@@ -12,6 +12,21 @@ export function mean(xs) {
   return sum / xs.length;
 }
 
+/** Sample sd from a streaming {n, sum, sumSq} accumulator (worker.js's §2.4a ensemble check)
+ * — avoids keeping every raw value in memory just to call sd() on them. */
+export function sdFromAcc({ n, sum, sumSq }) {
+  if (n < 2) return 0;
+  const mean = sum / n;
+  const variance = (sumSq - n * mean * mean) / (n - 1);
+  return Math.sqrt(Math.max(0, variance));
+}
+
+/** sd of a Uniform(lo, hi) distribution — the reference an inbound sampling quantity's
+ * measured sd is checked against (§2.4a's "floor"). */
+export function uniformSd(lo, hi) {
+  return (hi - lo) / Math.sqrt(12);
+}
+
 export function sd(xs) {
   if (xs.length < 2) return 0;
   const m = mean(xs);

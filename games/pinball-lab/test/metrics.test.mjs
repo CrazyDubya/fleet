@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mean, sd, percentile, fanWidth, histogram, entropyBits, flaggedFraction, bitFraction, tally } from '../src/metrics.js';
+import { mean, sd, percentile, fanWidth, histogram, entropyBits, flaggedFraction, bitFraction, tally, sdFromAcc, uniformSd } from '../src/metrics.js';
 
 test('mean/sd on a known fixture', () => {
   const xs = [2, 4, 4, 4, 5, 5, 7, 9];
@@ -41,6 +41,22 @@ test('flaggedFraction and bitFraction read a validity-flag bitmask array correct
   assert.equal(overall.fraction, 0.6);
   assert.equal(bitFraction(flags, IMPACTS_EXHAUSTED), 0.4);
   assert.equal(bitFraction(flags, ESCAPED), 0.4);
+});
+
+test('sdFromAcc matches sd() on the same data, computed from a streaming accumulator', () => {
+  const xs = [2, 4, 4, 4, 5, 5, 7, 9];
+  const acc = xs.reduce((a, x) => ({ n: a.n + 1, sum: a.sum + x, sumSq: a.sumSq + x * x }), { n: 0, sum: 0, sumSq: 0 });
+  assert.ok(Math.abs(sdFromAcc(acc) - sd(xs)) < 1e-9);
+});
+
+test('sdFromAcc on a degenerate (all-identical) ensemble is ~0 — the §2.4a failure mode', () => {
+  const acc = { n: 833, sum: 833 * 0.0122792, sumSq: 833 * 0.0122792 ** 2 };
+  assert.ok(sdFromAcc(acc) < 1e-6);
+});
+
+test('uniformSd matches the closed-form Uniform(a,b) standard deviation', () => {
+  assert.ok(Math.abs(uniformSd(0, 1) - Math.sqrt(1 / 12)) < 1e-12);
+  assert.ok(Math.abs(uniformSd(-0.1, 0.1) - (0.2 / Math.sqrt(12))) < 1e-12);
 });
 
 test('tally counts discrete values (terminal states, phases)', () => {

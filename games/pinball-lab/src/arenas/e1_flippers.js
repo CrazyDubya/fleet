@@ -26,6 +26,24 @@ export const RIGHT_PIVOT = { x: 0.078, y: 0.105 };
 // solver will ever get).
 export const ARENA_BOUNDS = { xMin: -0.5, xMax: 0.5, yMin: -0.2, yMax: 1.0 };
 
+// §3.3 inbound sampling band, per §2.4a: chosen against the shot line and the flipper
+// geometry above rather than left an arbitrary wide default. At rest each flipper's tip sits
+// at pivot + length*(cos(restAngle), sin(restAngle)) ≈ x∈[-0.078,-0.030] (left) /
+// [0.030,0.078] (right), y≈0.048-0.105 — a narrow target ~0.5m below the shot line.
+// Measured honestly, not asserted: with LAB-1's original ±0.20/190-350° band and the §2.4a
+// RNG fix applied, the `never`-policy baseline already clears the 30% floor (~56% over
+// 5,000 seeds) — the pilot's near-zero contact counts were entirely the degenerate-RNG bug,
+// not a geometry problem. `xMin`/`xMax`/the angle range are narrowed here anyway (still
+// ~52% contact rate, same order, over the same 5,000 seeds) because "use the shot line and
+// the flipper geometry to choose the band" reads as a design instruction to aim
+// deliberately at the flippers, not merely to clear the floor by whatever margin the
+// original arbitrary range happened to leave.
+export const INJECTION = {
+  xMin: -0.1, xMax: 0.1,
+  speedMin: 0.3, speedMax: 4.5,
+  angleMinDeg: 200, angleMaxDeg: 340,
+};
+
 /** ω(t) profiles (§2.2/§3.3): each is a rate multiplier over u = fraction of the up-stroke
  * travelled, pre-normalised so its mean over u in [0,1] is exactly 1 — the sweep completes in
  * ~upMs under every profile, only the shape of the rate curve differs. Verified analytically

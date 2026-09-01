@@ -74,6 +74,12 @@ function toMarkdown(meta, cfgSummaries) {
   lines.push(`- **exp**: ${meta.exp}  ·  **instrument commit**: \`${meta.instrumentCommitSha}\`  ·  **generated**: ${meta.generatedAt}`);
   lines.push(`- **cfgs**: ${meta.cfgCount}  ·  **trials**: ${meta.trialCount}  ·  **flagged fraction (any bit)**: ${(meta.flaggedFraction * 100).toFixed(3)}%  ·  **wall-clock**: ${meta.secs.toFixed(1)}s`);
   lines.push(`- **units**: length m, speed m/s, angle deg (recorded) / rad (internal), \`dt\` ms, \`dw\` s`);
+  const eSds = meta.ensembleInboundSds;
+  lines.push(
+    `- **§2.4a ensemble check** (so the next reader can see the ensemble was real without opening a shard): ` +
+    `inbound sd — x0=${eSds.x0.toFixed(4)}m, speed0=${eSds.speed0.toFixed(4)}m/s, angle0=${eSds.angle0Deg.toFixed(2)}° ` +
+    `(all cfgs passed their §2.4a floor) · **\`never\`-baseline flipper-contact rate**: ${(meta.neverBaselineContactRate * 100).toFixed(1)}% (floor > 30%)`
+  );
   lines.push('');
   lines.push('> Pilot scope (program handoff §9/LAB-1): one fixed geometry × the policy families' +
     ' (`never`/`fixedDelay`/`proximity`), ~800 trials/cfg — proves the harness and every §3.4' +
@@ -90,15 +96,26 @@ function toMarkdown(meta, cfgSummaries) {
       ' solver*, not a clean flipper response, and should not be read as characterising the' +
       ' geometry.');
     lines.push('');
+    const CAUSE_NOTES = {
+      IMPACTS_EXHAUSTED: 'the flipper firing right as the ball is already at/near the pivot' +
+        ' saturates MAX_IMPACTS resolving the overlap in one substep — the same class of fact' +
+        ' as the P0 root cause (a kinematic surface appearing where the ball already is).',
+      TIMEOUT: 'the ball is still in play at the 2.0s cap — likely a slow-speed injection' +
+        ' (§3.3 samples down to 0.3 m/s) taking a while to fall/settle rather than a stuck' +
+        ' state; check a --trace replay of one flagged trial before assuming either way.',
+      ESCAPED: 'the ball left the arena bounding box — a potential solver tunneling bug,' +
+        ' reported per §2.7 rather than filed in a summary; investigate immediately.',
+      STALLED: 'the ball sat below 0.05 m/s for over 0.5s without draining — likely resting' +
+        ' on a flipper or in a geometric pocket.',
+      NAN: 'a non-finite position/velocity appeared — a solver bug, not a sampling issue.',
+    };
     for (const s of overFlagged) {
       const dominant = Object.entries(s.flagBreakdown).sort((a, b) => b[1] - a[1])[0];
       lines.push(
-        `- **${s.cfgId}** (\`${s.cfg.pol}\`${s.cfg.R != null ? ` R=${s.cfg.R} L=${s.cfg.L}` : ''}): ` +
+        `- **${s.cfgId}** (\`${s.cfg.pol}\`${s.cfg.R != null ? ` R=${s.cfg.R} L=${s.cfg.L}` : ''}` +
+        `${s.cfg.d != null ? ` d=${s.cfg.d}` : ''}): ` +
         `${(s.flaggedFraction * 100).toFixed(1)}% flagged, dominated by \`${dominant[0]}\` ` +
-        `(${(dominant[1] * 100).toFixed(1)}%). Cause, inspected: R=0.07 with L=0 fires the` +
-        ' flipper the instant the ball is already essentially at the pivot — the same class of' +
-        ' fact as the P0 root cause (a kinematic surface appearing where the ball already is' +
-        ' saturates MAX_IMPACTS resolving the overlap), not a harness bug.'
+        `(${(dominant[1] * 100).toFixed(1)}%). ${CAUSE_NOTES[dominant[0]] ?? 'Cause not yet inspected.'}`
       );
     }
     lines.push('');

@@ -13,6 +13,33 @@ import path from 'node:path';
 import os from 'node:os';
 import { performance } from 'node:perf_hooks';
 import { execFileSync } from 'node:child_process';
+import { sdFromAcc, uniformSd } from './metrics.js';
+import { INJECTION as E1_INJECTION } from './arenas/e1_flippers.js';
+
+// §2.4a: "every run computes the sd of the sampled inbound quantities and fails loudly if any
+// falls below a floor." The floor is a fraction of the theoretical Uniform(lo,hi) sd for that
+// quantity — a sample of ~800+ draws should land close to the population sd; a degenerate
+// ensemble (LAB-1's actual bug: every trial the same ball) reads as sd ~1e-4 or less, nowhere
+// near half the true spread, so 0.5 catches that failure mode with room to spare without
+// false-triggering on ordinary small-sample noise.
+const INBOUND_SD_FLOOR_FRACTION = 0.5;
+// "> 30%" per §2.4a, checked against the `never` policy cfg specifically.
+const NEVER_CONTACT_RATE_FLOOR = 0.3;
+
+function injectionRangesFor(exp) {
+  if (exp === 'e1') {
+    return {
+      x0: [E1_INJECTION.xMin, E1_INJECTION.xMax],
+      speed0: [E1_INJECTION.speedMin, E1_INJECTION.speedMax],
+      angle0Deg: [E1_INJECTION.angleMinDeg, E1_INJECTION.angleMaxDeg],
+    };
+  }
+  throw new Error(`injectionRangesFor: unknown exp '${exp}'`);
+}
+
+function combineAcc(accs) {
+  return accs.reduce((a, b) => ({ n: a.n + b.n, sum: a.sum + b.sum, sumSq: a.sumSq + b.sumSq }), { n: 0, sum: 0, sumSq: 0 });
+}
 
 function parseArgs(argv) {
   const args = {};
@@ -117,21 +144,65 @@ async function main() {
 
     const cfgTrials = results.reduce((a, r) => a + r.trials, 0);
     const cfgFlagged = results.reduce((a, r) => a + r.flagged, 0);
+    const cfgContacts = results.reduce((a, r) => a + r.contactCount, 0);
+    const contactRate = cfgTrials > 0 ? cfgContacts / cfgTrials : 0;
+
+    const ranges = injectionRangesFor(exp);
+    const inboundSds = {};
+    const degenerate = [];
+    for (const key of Object.keys(ranges)) {
+      const combined = combineAcc(results.map((r) => r.inboundAcc[key]));
+      const measuredSd = sdFromAcc(combined);
+      const floor = uniformSd(...ranges[key]) * INBOUND_SD_FLOOR_FRACTION;
+      inboundSds[key] = measuredSd;
+      if (measuredSd < floor) degenerate.push({ key, measuredSd, floor });
+    }
+
+    if (degenerate.length > 0) {
+      console.error(JSON.stringify({
+        ok: false,
+        error: '§2.4a ensemble check failed: sampled inbound sd below floor — this run is not data',
+        cfgId: cfg.cfgId, cfg, degenerate,
+      }));
+      process.exitCode = 1;
+      return;
+    }
+
+    if (cfg.pol === 'never' && contactRate <= NEVER_CONTACT_RATE_FLOOR) {
+      console.error(JSON.stringify({
+        ok: false,
+        error: `§2.4a arena-on-target check failed: 'never' baseline touched a flipper in only ${(contactRate * 100).toFixed(1)}% of trials (need > ${NEVER_CONTACT_RATE_FLOOR * 100}%) — the injection band or aim needs adjusting, not the trial duration`,
+        cfgId: cfg.cfgId, cfg, contactRate,
+      }));
+      process.exitCode = 1;
+      return;
+    }
+
     totalRun += cfgTrials;
     totalFlagged += cfgFlagged;
     cfgMeta.push({
-      cfgId: cfg.cfgId, cfg, trials: cfgTrials, flagged: cfgFlagged,
+      cfgId: cfg.cfgId, cfg, trials: cfgTrials, flagged: cfgFlagged, contactRate, inboundSds,
       shards: results.map((r) => ({ path: path.relative(out, r.shardPath), seedStart: r.seedStart, count: r.size })),
     });
   }
 
   const secs = (performance.now() - start) / 1000;
 
+  // §2.4a: "report the inbound sds and the baseline contact rate in every summary header" —
+  // averaged across cfgs here (the sampling distribution is identical under every cfg, paired
+  // seeds; per-cfg values are still in cfgMeta for anyone who wants them un-averaged).
+  const ensembleInboundSds = {};
+  for (const key of Object.keys(injectionRangesFor(exp))) {
+    ensembleInboundSds[key] = cfgMeta.reduce((a, c) => a + c.inboundSds[key], 0) / cfgMeta.length;
+  }
+  const neverCfg = cfgMeta.find((c) => c.cfg.pol === 'never');
+
   const meta = {
     exp, out, instrumentCommitSha: instrumentCommitSha(),
     generatedAt: new Date().toISOString(),
     units: { length: 'm', speed: 'm/s', angle: 'deg (recorded), rad (internal)', time_dt_field: 'ms', time_dw_field: 's' },
     cfgCount: cfgs.length, trialCount: totalRun, flaggedFraction: totalRun > 0 ? totalFlagged / totalRun : 0,
+    ensembleInboundSds, neverBaselineContactRate: neverCfg?.contactRate ?? null,
     secs, cfgs: cfgMeta,
   };
   writeFileSync(path.join(out, 'meta.json'), JSON.stringify(meta, null, 2));

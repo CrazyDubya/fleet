@@ -47,10 +47,25 @@ on failure — the CLI contract a crank (haiku) thread runs against without judg
 
 ## Determinism and replay
 
-A trial is fully determined by `(cfgId, seed)`: `makeRng(hash(cfgId) ^ seed)`, nothing else.
+A trial is fully determined by `(cfgId, seed)`: `src/seed.js`'s `seededRng(hash(cfgId) ^
+seed)`, nothing else. **Not** the game's `physics/rng.js` `makeRng` directly — LAB-1's pilot
+used that and every trial in a cfg sampled the *same ball*, because `makeRng` only seeds one
+of its four xorshift words; see `seed.js`'s header comment and §2.4a of the program handoff.
 `cfgId` is the first 8 hex of a sha256 over the cfg's sorted-key JSON (`src/sweep.js`),
 recorded in every `meta.json` next to the full cfg — a summary row is always traceable back
 to its exact parameters, and `replay.js --cfg <id> --seed <n>` reproduces it bit-for-bit.
+
+## Ensemble validity (§2.4a)
+
+Determinism alone doesn't prove a run's trials actually differ from each other — LAB-1's
+pilot was fully deterministic *and* completely degenerate. Every `runner.js` invocation now
+also computes the sd of each sampled inbound quantity across a cfg's whole trial count and
+fails loudly (non-zero exit, no shard silently treated as good data) if any falls below half
+its theoretical Uniform(lo,hi) sd, and separately requires the `never`-policy baseline to
+touch a flipper in more than 30% of trials — an E1 arena/injection band that never reaches a
+flipper is measuring drains, not flippers. Both numbers are reported in every summary's
+header (`ensembleInboundSds`/`neverBaselineContactRate` in `meta.json`) so a reader can see
+the ensemble was real without opening a shard.
 
 ## Validity flags (§2.7)
 
