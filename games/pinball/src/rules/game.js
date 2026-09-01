@@ -19,10 +19,12 @@ import {
   SW_HOPSCOTCH_COMPLETE, SW_SAND_COMPLETE,
   SW_SLIDE_EXIT, SW_MONKEYBARS_EXIT, SW_TUNNEL_EXIT, SW_SANDBOX_ENTRY,
   SW_TETHERBALL_SPIN, SW_SLING_LEFT, SW_SLING_RIGHT,
+  SW_TREEHOUSE, SW_MERRYGOROUND, SW_BALL_ADDED, SW_BALL_LOST,
 } from '../table/switches.js';
 import { POP_TAGS, POP_BASE_POINTS, POP_ESCALATOR, SWITCH_POINTS, fallbackPointsFor, SHOT_TAGS, BONUS_X_MAX } from './scoring.js';
 import { computeBonus } from './bonus.js';
 import * as modes from './modes.js';
+import * as multiball from './multiball.js';
 
 // DO-OVER ball save period, per §4.4: 10s from launch, 12s on ball 1.
 const DO_OVER_S = 10;
@@ -44,6 +46,7 @@ function createPlayer(seed) {
     modesCompletedThisBall: 0,
     extraBallsPending: 0,
     modesState: modes.createModesState(seed),
+    multiball: multiball.createMultiballState(),
   };
 }
 
@@ -114,6 +117,11 @@ function endOfBall(state, atS) {
   p.ballActive = false;
   const playerIndex = activePlayerIndex(state);
   const display = [{ kind: 'bonus', playerIndex, amount: bonus, bonusX: p.bonusX, total: p.score }];
+
+  // Safety net for a multiball still running when the ball ends outright (a tilt, most
+  // plausibly) — it has no business surviving past the ball it started on.
+  const forced = multiball.forceEnd(p.multiball);
+  if (forced) display.push(forced);
 
   // RECESS METER's EXTRA BALL: the same player takes another ball at the same ball number
   // rather than the turn passing on — the classic pinball meaning of "extra ball".
@@ -217,6 +225,37 @@ function scoreSwitchTag(state, p, tag, atS) {
     return display;
   }
 
+  if (tag === SW_TREEHOUSE) {
+    const points = SWITCH_POINTS.get(tag);
+    p.score += points;
+    display.push({ kind: 'score', tag, points, total: p.score });
+    const lamp = multiball.onTreehouseHit(p.multiball);
+    if (lamp) display.push(lamp);
+    return display;
+  }
+
+  if (tag === SW_MERRYGOROUND) {
+    const result = multiball.onMerryGoRoundEntry(p.multiball, atS);
+    if (result.action === 'eject') {
+      display.push({ kind: 'merryGoRoundEject' });
+    } else if (result.action === 'relock') {
+      display.push({ kind: 'merryGoRoundEject' });
+      display.push({ kind: 'jackpotValue', value: result.jackpotValue });
+    } else if (result.action === 'lock') {
+      // "locking ball N serves a new ball" (T8 dispatch) — the locked ball is out of play,
+      // so main.js auto-plunges a fresh one rather than leaving the player with nothing.
+      display.push({ kind: 'lock', locks: result.locks });
+      display.push({ kind: 'lockedBallServed' });
+    } else if (result.action === 'startMultiball') {
+      // Mirrors onMonkeyBarsExit's 'ballSave' HANG TIME reward: multiball.js reports the
+      // period, this module is the only thing that touches player fields.
+      p.ballSaveUntilS = result.saveUntilS;
+      p.doOverUsed = false;
+      display.push({ kind: 'multiballStart' });
+    }
+    return display;
+  }
+
   if (tag === SW_HOPSCOTCH_COMPLETE) {
     modes.onHopscotchComplete(p.modesState);
     display.push({ kind: 'lamp', id: 'slide_jackpot', lit: true });
@@ -232,9 +271,25 @@ function scoreSwitchTag(state, p, tag, atS) {
   }
 
   if (tag === SW_SLIDE_EXIT || tag === SW_MONKEYBARS_EXIT || tag === SW_TUNNEL_EXIT || tag === SW_SANDBOX_ENTRY) {
+    // Lights this shot toward the multiball jackpot *before* the tag-specific scoring below
+    // runs — so if this SLIDE shot is itself the 4th one that lights the set, it's also the
+    // one that collects it, matching how a real machine's last qualifying shot both lights
+    // and banks the jackpot in the same hit rather than requiring a 5th shot.
+    multiball.onModeShotDuringMultiball(p.multiball, tag);
+
     let points = 0;
     if (tag === SW_SLIDE_EXIT) {
-      if (p.modesState.hopscotchJackpot.lit) {
+      // Priority, an interpretive call (§4.4 gives neither jackpot a documented precedence
+      // over the other): the multiball jackpot outranks the HOPSCOTCH jackpot outranks the
+      // plain combo — multiball is the highest-stakes moment on the table, and the
+      // HOPSCOTCH jackpot stays lit (unlike this cashed-in multiball jackpot) so it isn't
+      // lost by being deferred a shot.
+      const mbJackpot = multiball.collectJackpot(p.multiball);
+      if (mbJackpot > 0) {
+        points = mbJackpot;
+        p.score += points;
+        display.push({ kind: 'score', tag: 'multiball_jackpot', points, total: p.score });
+      } else if (p.modesState.hopscotchJackpot.lit) {
         points = modes.hopscotchJackpotValue(p.modesState);
         p.modesState.hopscotchJackpot.lit = false;
         p.score += points;
@@ -267,8 +322,15 @@ function scoreSwitchTag(state, p, tag, atS) {
       display.push({ kind: 'score', tag, points, total: p.score });
       modes.onTunnelExit(p.modesState, atS);
     } else if (tag === SW_SANDBOX_ENTRY) {
-      const modeStart = modes.tryStartMode(p.modesState, atS);
-      if (modeStart) display.push(modeStart);
+      // Modes don't start during multiball — running a 40s mode timer concurrently with
+      // the multiball flow isn't specified in §4.4, and it would overload what a SANDBOX
+      // shot means at the exact moment it's also the add-a-ball shot. Interpretive call.
+      if (multiball.onSandboxDuringMultiball(p.multiball)) {
+        display.push({ kind: 'addABall' });
+      } else if (!p.multiball.active) {
+        const modeStart = modes.tryStartMode(p.modesState, atS);
+        if (modeStart) display.push(modeStart);
+      }
     }
 
     p.shotsThisBall += 1;
@@ -325,6 +387,17 @@ export function processEvents(state, events, atS) {
 
     if (tag === SW_SOFT_PLUNGE) {
       p.softPlunge = true;
+      continue;
+    }
+
+    if (tag === SW_BALL_ADDED) {
+      multiball.onBallAdded(p.multiball);
+      continue;
+    }
+
+    if (tag === SW_BALL_LOST) {
+      const ended = multiball.onBallLost(p.multiball);
+      if (ended) display.push(ended);
       continue;
     }
 

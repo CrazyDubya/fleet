@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { createScene, toSceneVec } from './render/scene.js';
-import { createWorld, setLayerPrimitives, setLayerZones, addRamp, setCaptureZones, addBall, addFlipper, advance } from './physics/world.js';
+import { createWorld, setLayerPrimitives, setLayerZones, addRamp, setCaptureZones, addBall, removeBall, addFlipper, advance } from './physics/world.js';
 import { createFlipper } from './physics/flipper.js';
 import { sampleRamp } from './physics/ramp.js';
 import { BALL_RADIUS, PLUNGER_MAX_SPEED } from './physics/constants.js';
@@ -15,6 +15,7 @@ import {
   SW_HOPSCOTCH, SW_SAND, SW_TREEHOUSE,
   SW_SLIDE_ENTER, SW_MONKEYBARS_ENTER, SW_TUNNEL_ENTER,
   SW_SANDBOX_ENTRY, SW_SANDBOX_EJECT,
+  SW_MERRYGOROUND, SW_BALL_ADDED,
 } from './table/switches.js';
 import * as game from './game/mechanisms.js';
 import { createGame, launchBall, processEvents as processRules, activePlayer } from './rules/game.js';
@@ -148,6 +149,7 @@ const slide = ramps.buildSlideRamp();
 const monkeyBars = ramps.buildMonkeyBarsRamp();
 const tunnel = ramps.buildTunnelRamp();
 const sandbox = ramps.buildSandbox();
+const merryGoRound = mech.buildMerryGoRound();
 
 addRamp(world, slide.ramp);
 addRamp(world, monkeyBars.ramp);
@@ -161,7 +163,7 @@ setLayerZones(world, 'playfield', [
   monkeyBars.gate,
   tunnel.gate,
 ]);
-setCaptureZones(world, 'playfield', [sandbox.captureZone]);
+setCaptureZones(world, 'playfield', [sandbox.captureZone, merryGoRound.captureZone]);
 
 const hopscotchBankState = game.createHopscotchBank(hopscotch.targets);
 const sandBankState = game.createSandBank(sandBank.targets);
@@ -177,6 +179,10 @@ const pinwheelSpinner = game.createSpinner();
 // purity boundary; there is now exactly one scoring path.
 const rulesState = createGame({ numPlayers: 1, ballsPerPlayer: 3 });
 const scoop = game.createScoop();
+// T8: which physical ball each SW_MERRYGOROUND capture event this frame belongs to,
+// consumed in tag order against the matching lock/eject/multiballStart display events
+// rules/game.js returns for those same tags — see the frame loop's display-handling pass.
+let mergeGoRoundQueue = [];
 
 let elapsedS = 0;
 launchBall(rulesState, elapsedS);
@@ -197,6 +203,7 @@ const MECHANISM_TAGS = new Set([
   `${slide.ramp.id}_exit`, `${monkeyBars.ramp.id}_exit`, `${tunnel.ramp.id}_exit`,
   `${slide.ramp.id}_rollback`, `${monkeyBars.ramp.id}_rollback`, `${tunnel.ramp.id}_rollback`,
   SW_SANDBOX_ENTRY, SW_SANDBOX_EJECT,
+  SW_MERRYGOROUND,
 ]);
 
 function tagOf(event) {
@@ -209,11 +216,12 @@ function tagOf(event) {
  * the frame loop below. This is the queue: nothing here calls into rules state directly. */
 function processMechanismEvents(events) {
   const fired = [];
+  mergeGoRoundQueue = [];
   for (const event of events) {
     const tag = tagOf(event);
     if (!tag || !MECHANISM_TAGS.has(tag)) continue;
 
-    if (SPARK_TAGS.has(tag)) flashSparkAt(ball.pos.x, ball.pos.y);
+    if (SPARK_TAGS.has(tag)) flashSparkAt(event.ball.pos.x, event.ball.pos.y);
 
     if (hopscotch.targets.some((t) => t.tag === tag)) {
       for (const f of game.applyDropHit(hopscotchBankState, tag, elapsedS)) {
@@ -247,7 +255,11 @@ function processMechanismEvents(events) {
         if (eventLog) eventLog.log(tag);
       }
     } else if (tag === SW_SANDBOX_ENTRY) {
-      game.armScoop(scoop, elapsedS);
+      game.armScoop(scoop, elapsedS, event.ball);
+      fired.push(tag);
+      if (eventLog) eventLog.log(tag);
+    } else if (tag === SW_MERRYGOROUND) {
+      mergeGoRoundQueue.push(event.ball);
       fired.push(tag);
       if (eventLog) eventLog.log(tag);
     } else {
@@ -472,6 +484,97 @@ tiltGroup.add(buildTunnelMesh(tunnel.ramp.points));
   tiltGroup.add(group);
 }
 
+// --- T8: THE MERRY-GO-ROUND. A small carousel — base, pole, conical roof — that spins
+// continuously (doc: "the ride keeps spinning with the ball visibly aboard"), faster once
+// multiball is actually running. A locked ball is reparented onto this group at one of
+// three 120°-apart mount points so it visibly rides along with the rotation; released
+// balls are handed back to tiltGroup and driven by physics again like any other ball. ---
+const mgrGroup = new THREE.Group();
+{
+  const baseMat = new THREE.MeshStandardMaterial({ color: 0xe0a832, metalness: 0.2, roughness: 0.5 });
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.06, 0.012, 20), baseMat);
+  base.position.y = 0.006;
+  mgrGroup.add(base);
+  const pole = coloredMesh(new THREE.CylinderGeometry(0.006, 0.006, 0.09, 8), 0xb8b8b8);
+  pole.position.y = 0.05;
+  mgrGroup.add(pole);
+  const roof = coloredMesh(new THREE.ConeGeometry(0.05, 0.03, 8), 0x4a7a3a);
+  roof.position.y = 0.1;
+  mgrGroup.add(roof);
+  mgrGroup.userData.roofMat = roof.material;
+}
+{
+  const p = toSceneVec(merryGoRound.centre.x, merryGoRound.centre.y, 0);
+  mgrGroup.position.set(p.x, p.y, p.z);
+}
+tiltGroup.add(mgrGroup);
+
+const MGR_MOUNT_RADIUS = 0.045;
+const MGR_BALL_HEIGHT = 0.02;
+const MGR_SPIN_IDLE = 0.6; // rad/s — always turning, per the design doc
+const MGR_SPIN_MULTIBALL = 2.4;
+
+function mgrSlotLocalPos(slot) {
+  const angle = (slot / 3) * Math.PI * 2;
+  return { x: MGR_MOUNT_RADIUS * Math.cos(angle), y: MGR_BALL_HEIGHT, z: MGR_MOUNT_RADIUS * Math.sin(angle) };
+}
+
+/** A genuine lock (1st or 2nd, or the 3rd on its way into multiballStart's release):
+ * reparent the ball's mesh onto the carousel group so it visibly rides the rotation. */
+function mountAtMergeGoRound(entry, slot) {
+  if (!entry) return;
+  tiltGroup.remove(entry.mesh);
+  mgrGroup.add(entry.mesh);
+  const lp = mgrSlotLocalPos(slot);
+  entry.mesh.position.set(lp.x, lp.y, lp.z);
+  entry.mgrMounted = true;
+}
+
+/** The design doc's "flings all three out at once (staggered 400ms)" and the SANDBOX
+ * add-a-ball share this exit path: hand the mesh back to tiltGroup (the per-frame ball-mesh
+ * sync takes over from here) and give the ball an outward launch into the main field. */
+function releaseFromMergeGoRound(entry, speed) {
+  if (!entry) return;
+  if (entry.mgrMounted) {
+    mgrGroup.remove(entry.mesh);
+    tiltGroup.add(entry.mesh);
+    entry.mgrMounted = false;
+  }
+  entry.phys.captured = false;
+  entry.phys.layer = 'playfield';
+  entry.phys.z = 0;
+  const dx = -0.15, dy = -1; // outward/downward toward the main field — one fixed release
+                             // heading for all three, not a per-slot vector; adequate for
+                             // this beat, not claimed to be geometrically exact.
+  const len = Math.hypot(dx, dy);
+  // Cleared past the capture radius, same reasoning as the SANDBOX scoop's eject clearance:
+  // leaving it dead-centre with world.js's checkCaptures still active would just re-capture
+  // it on the very next physics step.
+  const clear = merryGoRound.radius * 1.05;
+  entry.phys.pos = { x: merryGoRound.centre.x + (dx / len) * clear, y: merryGoRound.centre.y + (dy / len) * clear };
+  entry.phys.vel = { x: (dx / len) * Math.max(speed, 0.6), y: (dy / len) * Math.max(speed, 0.6) };
+}
+
+/** An unlit pass-through, or a re-lock during an already-active multiball: the ball was
+ * physically captured this frame (world.js's checkCaptures always fires on entry) but never
+ * mounted, so there's no mesh to reparent — just kick it back out, nudged clear of the
+ * capture radius the same way the SANDBOX scoop's eject does. */
+function ejectFromMergeGoRound(entry) {
+  if (!entry) return;
+  entry.phys.captured = false;
+  const dx = -0.15, dy = -1;
+  const len = Math.hypot(dx, dy);
+  const clear = merryGoRound.radius * 1.05;
+  entry.phys.pos = { x: merryGoRound.centre.x + (dx / len) * clear, y: merryGoRound.centre.y + (dy / len) * clear };
+  entry.phys.vel = { x: (dx / len) * 1.4, y: (dy / len) * 1.4 };
+}
+
+// The 3 balls mounted while building toward the 3rd lock; consumed (and cleared) the moment
+// multiballStart releases them.
+let mgrMountedSlots = [];
+// Scheduled releases from a 'multiballStart': {entry, atS}, 400ms apart per §4.4.
+let mgrReleaseQueue = [];
+
 // --- Cheap hit-flash: a small pool of additive spark sprites (spark.jpg, per the
 // reference), flashed at the ball's position on a bumper/slingshot hit and faded out over
 // ~0.2s. Reuses a fixed pool rather than allocating per hit. ---
@@ -495,22 +598,47 @@ function flashSparkAt(x, y) {
 }
 const SPARK_TAGS = new Set([SW_POP_DUCK, SW_POP_HORSE, SW_POP_ROCKET, SW_SLING_LEFT, SW_SLING_RIGHT]);
 
-// --- Ball ---
-const ball = addBall(world, { id: 'b0', pos: { ...recess.LAUNCH_POSITION }, vel: { x: 0, y: 0 }, radius: BALL_RADIUS, active: false });
+// --- Balls (T8: N-ball, not one global `ball`) ---------------------------------------
+// physics/world.js already steps every ball in world.balls each tick (T1); what's new here
+// is main.js tracking a *set* of {phys, mesh} pairs instead of one, so multiball locks,
+// releases and the SANDBOX add-a-ball can each put another physical ball into play without
+// disturbing whichever ball(s) are already rolling.
 const ballGeo = new THREE.SphereGeometry(BALL_RADIUS, 24, 16);
 const ballMat = new THREE.MeshStandardMaterial({ color: 0xcc2222, metalness: 0.2, roughness: 0.4 });
-const ballMesh = new THREE.Mesh(ballGeo, ballMat);
-tiltGroup.add(ballMesh);
+let ballIdSeq = 0;
+let balls = [];
 
-function serveBall() {
-  ball.pos = { ...recess.LAUNCH_POSITION };
-  ball.vel = { x: 0, y: 0 };
-  ball.active = true;
-  ball.layer = 'playfield';
-  ball.captured = false;
-  ball.z = 0;
+function spawnBall(pos, vel) {
+  const phys = addBall(world, {
+    id: `b${ballIdSeq++}`, pos: { ...pos }, vel: { ...vel },
+    radius: BALL_RADIUS, active: true, layer: 'playfield', captured: false, z: 0,
+  });
+  const mesh = new THREE.Mesh(ballGeo, ballMat);
+  tiltGroup.add(mesh);
+  const entry = { phys, mesh };
+  balls.push(entry);
+  return entry;
 }
-serveBall();
+
+function despawnBall(entry) {
+  removeBall(world, entry.phys.id);
+  tiltGroup.remove(entry.mesh);
+  balls = balls.filter((b) => b !== entry);
+}
+
+function findBallEntry(physBall) {
+  return balls.find((b) => b.phys === physBall) ?? null;
+}
+
+// The ball currently sitting in the launch lane waiting for a manual plunge — set only by a
+// normal serve/DO-OVER ('ballServed'/'ballSaved'), never by an auto-plunged post-lock ball,
+// a multiball release or an add-a-ball spawn (none of those wait for the player's plunger).
+let chuteBall = null;
+
+function serveToChute() {
+  chuteBall = spawnBall(recess.LAUNCH_POSITION, { x: 0, y: 0 });
+}
+serveToChute();
 
 // --- Input: flippers, plunger, nudge ---
 let plungerPower = 0;
@@ -530,9 +658,10 @@ wireInput(canvas, {
     plungerPower = p;
   },
   onPlungerRelease: () => {
-    if (charging) {
+    if (charging && chuteBall) {
       if (plungerPower < SOFT_PLUNGE_THRESHOLD) pendingSoftPlunge = true;
-      ball.vel = { x: 0, y: Math.max(0.6, plungerPower) * PLUNGER_MAX_SPEED };
+      chuteBall.phys.vel = { x: 0, y: Math.max(0.6, plungerPower) * PLUNGER_MAX_SPEED };
+      chuteBall = null;
       charging = false;
       plungerPower = 0;
     }
@@ -540,7 +669,10 @@ wireInput(canvas, {
   onNudge: ({ x, y }) => {
     const len = Math.hypot(x, y) || 1;
     const impulse = 0.35;
-    ball.vel = { x: ball.vel.x + (x / len) * impulse, y: ball.vel.y + (y / len) * impulse };
+    for (const b of balls) {
+      if (b.phys.captured) continue;
+      b.phys.vel = { x: b.phys.vel.x + (x / len) * impulse, y: b.phys.vel.y + (y / len) * impulse };
+    }
   },
   onFlipperEdge: () => game.advanceFunPointer(funLamps),
 });
@@ -560,6 +692,12 @@ function resizeToWindow() {
 window.addEventListener('resize', resizeToWindow);
 resizeToWindow();
 
+// A single-frame deferral for tags that can only be known *after* this frame's processRules
+// call has already returned (the SANDBOX add-a-ball spawn's SW_BALL_ADDED — see the
+// 'addABall' display handling below). One frame (~16ms) of lag on that bookkeeping is
+// imperceptible and keeps processRules the sole thing that ever mutates rules state.
+let pendingNextFrameTags = [];
+
 let last = performance.now();
 function frame(now) {
   const dt = Math.min((now - last) / 1000, 0.05);
@@ -567,7 +705,8 @@ function frame(now) {
   elapsedS += dt;
 
   const events = advance(world, dt);
-  const scoreTags = processMechanismEvents(events);
+  const scoreTags = [...pendingNextFrameTags, ...processMechanismEvents(events)];
+  pendingNextFrameTags = [];
   game.tickDropBank(hopscotchBankState, elapsedS);
   game.tickDropBank(sandBankState, elapsedS);
   game.tickSpinner(tetherballSpinner, dt);
@@ -580,23 +719,47 @@ function frame(now) {
     const evel = sandbox.eject.vel;
     const evLen = Math.hypot(evel.x, evel.y) || 1;
     const clear = sandbox.captureZone.radius * 1.3;
-    ball.pos = {
-      x: sandbox.captureZone.centre.x + (evel.x / evLen) * clear,
-      y: sandbox.captureZone.centre.y + (evel.y / evLen) * clear,
-    };
-    ball.vel = { x: evel.x, y: evel.y };
-    ball.captured = false;
+    if (scoop.ball) {
+      scoop.ball.pos = {
+        x: sandbox.captureZone.centre.x + (evel.x / evLen) * clear,
+        y: sandbox.captureZone.centre.y + (evel.y / evLen) * clear,
+      };
+      scoop.ball.vel = { x: evel.x, y: evel.y };
+      scoop.ball.captured = false;
+    }
     scoreTags.push(sandbox.eject.tag);
     if (eventLog) eventLog.log(sandbox.eject.tag);
   }
 
+  // T8's staggered multiball release (400ms apart, per §4.4/§9's T8 row) — scheduled by the
+  // 'multiballStart' display handling below, drained here so a release due this frame lands
+  // in this same frame's scoreTags batch (SW_BALL_ADDED) rather than lagging a frame behind.
+  if (mgrReleaseQueue.length > 0) {
+    const due = mgrReleaseQueue.filter((r) => elapsedS >= r.atS);
+    if (due.length > 0) {
+      mgrReleaseQueue = mgrReleaseQueue.filter((r) => elapsedS < r.atS);
+      for (const r of due) {
+        releaseFromMergeGoRound(r.entry, 1.6);
+        scoreTags.push(SW_BALL_ADDED);
+      }
+    }
+  }
+
   // The drain check is geometric (recess.isDrained), not a physics collision event, but it
-  // still goes through the same switch-event queue as everything else — SW_DRAIN is pushed
-  // onto this frame's tag batch rather than calling into rules state (or serveBall)
-  // directly. rules/game.js's processEvents is what decides DO-OVER save vs end-of-ball;
-  // main.js only reacts to the 'ballServed'/'ballSaved' display events it comes back with.
-  if (!ball.captured && recess.isDrained(ball)) {
-    scoreTags.push(SW_DRAIN);
+  // still goes through the same switch-event queue as everything else — SW_DRAIN/SW_BALL_LOST
+  // are pushed onto this frame's tag batch rather than calling into rules state (or
+  // respawning a ball) directly. rules/game.js's processEvents is what decides DO-OVER save
+  // vs end-of-ball vs "just one of several multiball balls going away"; main.js only reacts
+  // to the display events it comes back with. Ball-count-aware (T8): only the truly last
+  // live ball's drain is SW_DRAIN — anything draining while others remain live is SW_BALL_LOST,
+  // so multiball's own ball count (rules/multiball.js) tracks reality instead of main.js
+  // silently ending a ball that still has siblings in play.
+  for (const entry of [...balls]) {
+    if (entry.phys.captured || !recess.isDrained(entry.phys)) continue;
+    if (entry === chuteBall) chuteBall = null;
+    despawnBall(entry);
+    const stillLive = balls.some((b) => !b.phys.captured);
+    scoreTags.push(stillLive ? SW_BALL_LOST : SW_DRAIN);
   }
 
   if (pendingSoftPlunge) {
@@ -606,22 +769,69 @@ function frame(now) {
 
   const display = processRules(rulesState, scoreTags, elapsedS);
   for (const d of display) {
-    if (d.kind === 'ballServed' || d.kind === 'ballSaved') serveBall();
+    if (d.kind === 'ballServed' || d.kind === 'ballSaved') serveToChute();
     // Auto-launch the next ball on a turn change — there's no "plunge to start" menu flow
     // yet (ui/menus.js is T12), so without this the game would silently stop taking balls
     // after the first one ends. gameOver is checked instead so a real end-of-game doesn't
     // immediately re-launch a ball that has nowhere to go.
     if (d.kind === 'turnChange' && !rulesState.gameOver) {
       for (const d2 of launchBall(rulesState, elapsedS)) {
-        if (d2.kind === 'ballServed') serveBall();
+        if (d2.kind === 'ballServed') serveToChute();
       }
     }
+
+    // T8: MERRY-GO-ROUND lock/eject/multiball. Each of these display kinds corresponds 1:1,
+    // in emission order, to a queued SW_MERRYGOROUND capture from this same frame's physics
+    // events — see mergeGoRoundQueue's doc comment.
+    if (d.kind === 'merryGoRoundEject') {
+      ejectFromMergeGoRound(findBallEntry(mergeGoRoundQueue.shift()));
+    } else if (d.kind === 'lock') {
+      const entry = findBallEntry(mergeGoRoundQueue.shift());
+      mgrMountedSlots.push(entry);
+      mountAtMergeGoRound(entry, d.locks - 1);
+    } else if (d.kind === 'lockedBallServed') {
+      // "locking ball N serves a new ball" — auto-plunged, not waiting in the chute.
+      spawnBall(recess.LAUNCH_POSITION, { x: 0, y: PLUNGER_MAX_SPEED * 0.7 });
+    } else if (d.kind === 'multiballStart') {
+      // The 3rd lock's own capture is still queued (it triggered this very display event) —
+      // it's the third mounted ball, never separately reported via a 'lock' display.
+      const thirdEntry = findBallEntry(mergeGoRoundQueue.shift());
+      mountAtMergeGoRound(thirdEntry, 2);
+      const releasing = [...mgrMountedSlots, thirdEntry];
+      mgrMountedSlots = [];
+      releasing.forEach((entry, i) => mgrReleaseQueue.push({ entry, atS: elapsedS + i * 0.4 }));
+    } else if (d.kind === 'addABall') {
+      // The SANDBOX shot that triggered this is a *separate* ball from whichever one the
+      // scoop is already timing an ordinary eject for (armed above) — this spawns another.
+      const evel = sandbox.eject.vel;
+      const evLen = Math.hypot(evel.x, evel.y) || 1;
+      spawnBall(
+        { x: sandbox.captureZone.centre.x, y: sandbox.captureZone.centre.y },
+        { x: (evel.x / evLen) * 1.8, y: (evel.y / evLen) * 1.8 }
+      );
+      pendingNextFrameTags.push(SW_BALL_ADDED); // see its declaration below
+    } else if (d.kind === 'multiballForceEnd') {
+      // A ball ended outright mid-multiball (tilt) — nothing should keep riding the carousel
+      // or wait in a staggered release queue into a ball that no longer exists.
+      for (const entry of mgrMountedSlots) releaseFromMergeGoRound(entry, 0);
+      mgrMountedSlots = [];
+      for (const r of mgrReleaseQueue) releaseFromMergeGoRound(r.entry, 0);
+      mgrReleaseQueue = [];
+    }
+
     if (eventLog) eventLog.log(`${d.kind}${'tag' in d ? ':' + d.tag : ''}`);
   }
 
-  const p = toSceneVec(ball.pos.x, ball.pos.y, ball.radius + (ball.z || 0));
-  ballMesh.position.set(p.x, p.y, p.z);
+  for (const entry of balls) {
+    if (entry.mgrMounted) continue; // carried by mgrGroup's own rotation instead
+    const p = toSceneVec(entry.phys.pos.x, entry.phys.pos.y, entry.phys.radius + (entry.phys.z || 0));
+    entry.mesh.position.set(p.x, p.y, p.z);
+  }
   for (const flipper of Object.values(flippers)) updateFlipperMesh(flipper);
+
+  const mgrActive = activePlayer(rulesState).multiball.active;
+  mgrGroup.rotation.y += (mgrActive ? MGR_SPIN_MULTIBALL : MGR_SPIN_IDLE) * dt;
+  mgrGroup.userData.roofMat.color.set(activePlayer(rulesState).multiball.lockLit ? 0xffee55 : 0x4a7a3a);
 
   for (const [tag, mesh] of hopscotchMeshes) mesh.visible = !hopscotchBankState.dropped.has(tag);
   for (const [tag, mesh] of sandMeshes) mesh.visible = !sandBankState.dropped.has(tag);
@@ -649,8 +859,10 @@ function frame(now) {
 requestAnimationFrame(frame);
 
 window.__pinball = {
-  world, ball, flippers, advance, isDrained: recess.isDrained,
+  world, flippers, advance, isDrained: recess.isDrained,
+  get ball() { return balls[0]?.phys; }, // the primary/first ball, for single-ball-era scripts
+  get balls() { return balls.map((b) => b.phys); },
   rulesState, activePlayer: () => activePlayer(rulesState),
   hopscotchBankState, sandBankState, funLamps, tetherballSpinner, pinwheelSpinner,
-  slide, monkeyBars, tunnel, sandbox, scoop,
+  slide, monkeyBars, tunnel, sandbox, scoop, merryGoRound,
 };

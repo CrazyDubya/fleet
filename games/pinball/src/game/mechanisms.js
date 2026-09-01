@@ -97,11 +97,17 @@ export function tickSpinner(spinner, dt) {
 const SCOOP_HOLD_S = 1.0;
 
 export function createScoop() {
-  return { ejectAt: null };
+  return { ejectAt: null, ball: null };
 }
 
-export function armScoop(scoop, elapsedS) {
+// `ball` (T8): which physical ball entered, so the eject can reposition the right one now
+// that more than one ball can be in play at once. If a second ball enters the sandbox
+// before the first is ejected (only possible during multiball), it overwrites `ball` — the
+// scoop holds one ball's worth of state, and a simultaneous second entry is a rare edge case
+// the design doc doesn't specifically cover; not worth a queue for T8.
+export function armScoop(scoop, elapsedS, ball) {
   scoop.ejectAt = elapsedS + SCOOP_HOLD_S;
+  scoop.ball = ball;
 }
 
 /** Returns true exactly once, on the tick the hold period elapses. */

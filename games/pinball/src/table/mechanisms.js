@@ -11,6 +11,7 @@ import {
   SW_TREEHOUSE,
   SW_FUN,
   SW_TETHERBALL_SPIN, SW_PINWHEEL_SPIN,
+  SW_MERRYGOROUND,
 } from './switches.js';
 
 const POP_SKIRT_RADIUS = 0.03;
@@ -112,4 +113,26 @@ export function buildSpinners() {
   const tetherball = Zone({ x: -0.178, y: 0.38 }, { x: -0.162, y: 0.38 }, SW_TETHERBALL_SPIN);
   const pinwheel = Zone({ x: -0.075, y: 0.43 }, { x: -0.045, y: 0.43 }, SW_PINWHEEL_SPIN);
   return { tetherball, pinwheel };
+}
+
+/**
+ * MERRY-GO-ROUND lock (T8). §4.3: centre (0.010, 0.900), r 0.075, fed from the top orbit
+ * (THE TUNNEL). Modelled as a capture zone, same pattern as the SANDBOX scoop — the ball
+ * always physically settles into it on entry; rules/multiball.js decides afterwards whether
+ * that's a genuine lock, a re-lock jackpot escalator, or an unlit pass-through that gets
+ * kicked straight back out (world.js's checkCaptures doesn't gate on game state, deliberately
+ * matching the SANDBOX scoop's existing shape rather than adding a second capture pattern).
+ *
+ * Geometry deviation, recorded: §4.3's tunnel exit (table/ramps.js's buildTunnelRamp,
+ * frozen by T5/T5b) dumps at SPRING_RIDER_FEED (-0.050, 0.780) heading down-left into the
+ * spring riders, not directly at (0.010, 0.900) — reworking a T5 ramp exit is out of this
+ * task's scope. The merry-go-round sits just past the spring riders on the natural rebound
+ * line up toward TREEHOUSE, so "fed from the top orbit" reads as "reachable off a tunnel
+ * shot", not "the tunnel's exit point is inside it" — the same kind of deviation T4/T5
+ * recorded for the lane-inner clip and the tunnel gate placement.
+ */
+export function buildMerryGoRound() {
+  const centre = { x: 0.01, y: 0.9 };
+  const radius = 0.075;
+  return { centre, radius, captureZone: { centre, radius, tag: SW_MERRYGOROUND } };
 }
