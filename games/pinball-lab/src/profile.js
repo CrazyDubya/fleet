@@ -7,7 +7,7 @@
 import os from 'node:os';
 import { performance } from 'node:perf_hooks';
 import { runTrialWithMeta } from './instrument.js';
-import { buildE1PilotCfgs } from './sweep.js';
+import { buildE1PilotCfgs, buildE2SeriesACfgs, buildE2SeriesBCfgs } from './sweep.js';
 
 function parseArgs(argv) {
   const args = {};
@@ -22,9 +22,19 @@ function parseArgs(argv) {
   return args;
 }
 
-function cfgsFor(exp) {
+// `--n <N>` restricts an e2 profile to one N's cfgs (all layout variants) — §2.8: "N=50 is the
+// expensive cell ... profile it specifically", not just averaged into the whole grid.
+function cfgsFor(exp, args) {
   if (exp === 'e1') return buildE1PilotCfgs();
-  throw new Error(`profile.js: unknown --exp '${exp}' (only 'e1' exists in LAB-1)`);
+  if (exp === 'e2') {
+    const series = args.series === 'B' ? buildE2SeriesBCfgs() : buildE2SeriesACfgs();
+    if (args.n === undefined) return series;
+    const n = Number(args.n);
+    const filtered = series.filter((c) => c.N === n);
+    if (filtered.length === 0) throw new Error(`profile.js: no e2 cfgs with N=${n}`);
+    return filtered;
+  }
+  throw new Error(`profile.js: unknown --exp '${exp}'`);
 }
 
 function main() {
@@ -37,7 +47,7 @@ function main() {
     return;
   }
 
-  const cfgs = cfgsFor(exp);
+  const cfgs = cfgsFor(exp, args);
   let totalSteps = 0;
   let totalBytes = 0;
 

@@ -103,6 +103,20 @@ export function bitFraction(flags, bit) {
   return count / flags.length;
 }
 
+/** §4.4's divergence chaos measure, part 1: median of `|delta|` over a set of paired-trial
+ * deltas (e.g. exit-x under a 1e-6 rad inbound perturbation). */
+export function medianAbsDelta(deltas) {
+  if (deltas.length === 0) return null;
+  return percentile(deltas.map(Math.abs), 50);
+}
+
+/** §4.4's divergence chaos measure, part 2: fraction of `|delta|` values exceeding a
+ * threshold (5cm per the program handoff). */
+export function fractionExceeding(deltas, threshold) {
+  if (deltas.length === 0) return 0;
+  return deltas.filter((d) => Math.abs(d) > threshold).length / deltas.length;
+}
+
 /** Frequency table over discrete string values (terminal states, phases, policy names). */
 export function tally(xs) {
   const counts = new Map();

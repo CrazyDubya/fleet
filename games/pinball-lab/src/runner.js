@@ -15,6 +15,7 @@ import { performance } from 'node:perf_hooks';
 import { execFileSync } from 'node:child_process';
 import { sdFromAcc, uniformSd } from './metrics.js';
 import { INJECTION as E1_INJECTION, CRADLE_INJECTION as E1_CRADLE_INJECTION } from './arenas/e1_flippers.js';
+import { INJECTION_SPEED as E2_SPEED, INJECTION_ANGLE_DEG as E2_ANGLE } from './arenas/e2_bumpers.js';
 
 // §2.4a: "every run computes the sd of the sampled inbound quantities and fails loudly if any
 // falls below a floor." The floor is a fraction of the theoretical Uniform(lo,hi) sd for that
@@ -30,6 +31,17 @@ const NEVER_CONTACT_RATE_FLOOR = 0.3;
 // CRADLE_INJECTION) than the main E1 family — the §2.4a floor has to be checked against the
 // band a cfg actually draws from, not the wider main-family band, or every cradle cfg fails
 // this check by construction regardless of how real its ensemble is.
+const E2_INJECTION_X_MARGIN = 0.02; // mirrors instrument.js's own constant (kept in sync by the smoke test)
+// §2.4a "arena on target": E2 has no `never` policy to gate the check on (no actuation at
+// all), so this is checked against EVERY e2 cfg's overall bumper-contact rate instead of just
+// one baseline cfg — a config where the ball mostly threads past every bumper untouched would
+// be measuring drains, not a bumper field, the same failure mode §2.4a's E1 rule guards
+// against. 0.20 is set from a real measured floor, not guessed: N=1 (area fraction 2.6%, a
+// single small bumper in a wide-open field) legitimately contacts on only ~34% of trials in a
+// 6,000-trial smoke run — that's the sparsest mandated config, and it clears 0.20 with real
+// headroom while still catching a genuinely broken arena (near-0% contact).
+const E2_CONTACT_RATE_FLOOR = 0.2;
+
 function injectionRangesFor(exp, cfg) {
   if (exp === 'e1') {
     const band = cfg?.cradle ? E1_CRADLE_INJECTION : E1_INJECTION;
@@ -37,6 +49,17 @@ function injectionRangesFor(exp, cfg) {
       x0: [band.xMin, band.xMax],
       speed0: [band.speedMin, band.speedMax],
       angle0Deg: [band.angleMinDeg, band.angleMaxDeg],
+    };
+  }
+  if (exp === 'e2') {
+    // x0's range depends on cfg.fieldWidth (Series B grows the field per config), so this
+    // needs a cfg, unlike e1's fixed bands — meta.json's per-cfg inboundSds still trace back
+    // correctly since injectionRangesFor is called once per cfg in the loop below.
+    const halfW = (cfg?.fieldWidth ?? 0) / 2;
+    return {
+      x0: [-halfW + E2_INJECTION_X_MARGIN, halfW - E2_INJECTION_X_MARGIN],
+      speed0: [E2_SPEED.min, E2_SPEED.max],
+      angle0Deg: [E2_ANGLE.min, E2_ANGLE.max],
     };
   }
   throw new Error(`injectionRangesFor: unknown exp '${exp}'`);
@@ -177,6 +200,16 @@ async function main() {
       console.error(JSON.stringify({
         ok: false,
         error: `§2.4a arena-on-target check failed: 'never' baseline touched a flipper in only ${(contactRate * 100).toFixed(1)}% of trials (need > ${NEVER_CONTACT_RATE_FLOOR * 100}%) — the injection band or aim needs adjusting, not the trial duration`,
+        cfgId: cfg.cfgId, cfg, contactRate,
+      }));
+      process.exitCode = 1;
+      return;
+    }
+
+    if (exp === 'e2' && contactRate <= E2_CONTACT_RATE_FLOOR) {
+      console.error(JSON.stringify({
+        ok: false,
+        error: `§2.4a arena-on-target check failed: N=${cfg.N} (af=${cfg.areaFraction?.toFixed(3)}, layout ${cfg.layoutVariant}) touched a bumper in only ${(contactRate * 100).toFixed(1)}% of trials (need > ${E2_CONTACT_RATE_FLOOR * 100}%) — the field measures drains, not bumpers`,
         cfgId: cfg.cfgId, cfg, contactRate,
       }));
       process.exitCode = 1;
