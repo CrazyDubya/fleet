@@ -33,13 +33,38 @@ export function setActive(flipper, active) {
   flipper.active = active;
 }
 
-/** Advance a flipper's angle by dt seconds toward its current target. */
+/**
+ * Advance a flipper's angle by dt seconds toward its current target.
+ *
+ * `flipper.omegaProfile(u)` (optional; pinball-lab/E1 hook, design doc-external) reshapes the
+ * up-stroke's angular rate as a function of `u` = fraction of the up-stroke's *duration*
+ * elapsed (not fraction of angle covered — a profile driven by position rather than time
+ * feeds back on itself, and one that tapers to 0 at u=1, like a coil easing into the stop,
+ * would asymptotically never quite finish the sweep). The multiplier is expected to be
+ * pre-normalised by its caller (mean 1 over u in [0,1]) so the sweep still completes in
+ * ~upMs; this function does no normalising of its own. Undefined (the default, and every
+ * flipper RECESS itself builds) ⇒ `rate` stays the plain constant-rate baseline below,
+ * bit-identical to before this hook existed.
+ */
 export function updateFlipper(flipper, dt) {
   const target = flipper.active ? flipper.activeAngle : flipper.restAngle;
   const durationMs = flipper.active ? flipper.upMs : flipper.downMs;
   const durationS = durationMs / 1000;
   const sweep = Math.abs(flipper.activeAngle - flipper.restAngle);
-  const maxDelta = durationS > 0 ? (sweep / durationS) * dt : Math.abs(target - flipper.angle);
+  let rate = durationS > 0 ? sweep / durationS : Infinity;
+  if (flipper.active && flipper.omegaProfile && durationS > 0) {
+    flipper._upElapsedS = (flipper._upElapsedS || 0) + dt;
+    const u = flipper._upElapsedS / durationS;
+    // u >= 1: time's nominally up. Force completion rather than trust the profile's own
+    // discretised integral to have landed exactly on the target — a coarse step count (a
+    // 14ms sweep is only ~3 physics substeps) means a profile shaped to taper toward 0 right
+    // at u=1 (easeOut, sCurve) can otherwise undershoot and then never move again, since its
+    // own rate at u=1 is 0. This is what "still completes in ~upMs" is actually enforcing.
+    rate = u >= 1 ? Infinity : rate * flipper.omegaProfile(u);
+  } else {
+    flipper._upElapsedS = 0;
+  }
+  const maxDelta = durationS > 0 ? rate * dt : Math.abs(target - flipper.angle);
 
   const prevAngle = flipper.angle;
   const diff = target - flipper.angle;

@@ -1,0 +1,1807 @@
+{
+  "exp": "e1",
+  "out": "data/e1/pilot-01",
+  "instrumentCommitSha": "adbaa50869eff488ea7e7f1449ef1686f6ec1be2",
+  "generatedAt": "2026-09-01T03:50:03.911Z",
+  "units": {
+    "length": "m",
+    "speed": "m/s",
+    "angle": "deg (recorded), rad (internal)",
+    "time_dt_field": "ms",
+    "time_dw_field": "s"
+  },
+  "cfgCount": 12,
+  "trialCount": 10000,
+  "flaggedFraction": 0.0833,
+  "secs": 1.887149209,
+  "cfgs": [
+    {
+      "cfgId": "6c7d9477",
+      "cfg": {
+        "cfgId": "6c7d9477",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "never"
+      },
+      "trials": 834,
+      "flagged": 0,
+      "shards": [
+        {
+          "path": "6c7d9477/shard-0.jsonl.gz",
+          "seedStart": 0,
+          "count": 105
+        },
+        {
+          "path": "6c7d9477/shard-1.jsonl.gz",
+          "seedStart": 105,
+          "count": 105
+        },
+        {
+          "path": "6c7d9477/shard-2.jsonl.gz",
+          "seedStart": 210,
+          "count": 104
+        },
+        {
+          "path": "6c7d9477/shard-3.jsonl.gz",
+          "seedStart": 314,
+          "count": 104
+        },
+        {
+          "path": "6c7d9477/shard-4.jsonl.gz",
+          "seedStart": 418,
+          "count": 104
+        },
+        {
+          "path": "6c7d9477/shard-5.jsonl.gz",
+          "seedStart": 522,
+          "count": 104
+        },
+        {
+          "path": "6c7d9477/shard-6.jsonl.gz",
+          "seedStart": 626,
+          "count": 104
+        },
+        {
+          "path": "6c7d9477/shard-7.jsonl.gz",
+          "seedStart": 730,
+          "count": 104
+        }
+      ]
+    },
+    {
+      "cfgId": "61547799",
+      "cfg": {
+        "cfgId": "61547799",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "fixedDelay",
+        "d": 0
+      },
+      "trials": 834,
+      "flagged": 0,
+      "shards": [
+        {
+          "path": "61547799/shard-0.jsonl.gz",
+          "seedStart": 0,
+          "count": 105
+        },
+        {
+          "path": "61547799/shard-1.jsonl.gz",
+          "seedStart": 105,
+          "count": 105
+        },
+        {
+          "path": "61547799/shard-2.jsonl.gz",
+          "seedStart": 210,
+          "count": 104
+        },
+        {
+          "path": "61547799/shard-3.jsonl.gz",
+          "seedStart": 314,
+          "count": 104
+        },
+        {
+          "path": "61547799/shard-4.jsonl.gz",
+          "seedStart": 418,
+          "count": 104
+        },
+        {
+          "path": "61547799/shard-5.jsonl.gz",
+          "seedStart": 522,
+          "count": 104
+        },
+        {
+          "path": "61547799/shard-6.jsonl.gz",
+          "seedStart": 626,
+          "count": 104
+        },
+        {
+          "path": "61547799/shard-7.jsonl.gz",
+          "seedStart": 730,
+          "count": 104
+        }
+      ]
+    },
+    {
+      "cfgId": "3eeefdfc",
+      "cfg": {
+        "cfgId": "3eeefdfc",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "fixedDelay",
+        "d": 50
+      },
+      "trials": 834,
+      "flagged": 0,
+      "shards": [
+        {
+          "path": "3eeefdfc/shard-0.jsonl.gz",
+          "seedStart": 0,
+          "count": 105
+        },
+        {
+          "path": "3eeefdfc/shard-1.jsonl.gz",
+          "seedStart": 105,
+          "count": 105
+        },
+        {
+          "path": "3eeefdfc/shard-2.jsonl.gz",
+          "seedStart": 210,
+          "count": 104
+        },
+        {
+          "path": "3eeefdfc/shard-3.jsonl.gz",
+          "seedStart": 314,
+          "count": 104
+        },
+        {
+          "path": "3eeefdfc/shard-4.jsonl.gz",
+          "seedStart": 418,
+          "count": 104
+        },
+        {
+          "path": "3eeefdfc/shard-5.jsonl.gz",
+          "seedStart": 522,
+          "count": 104
+        },
+        {
+          "path": "3eeefdfc/shard-6.jsonl.gz",
+          "seedStart": 626,
+          "count": 104
+        },
+        {
+          "path": "3eeefdfc/shard-7.jsonl.gz",
+          "seedStart": 730,
+          "count": 104
+        }
+      ]
+    },
+    {
+      "cfgId": "9c8f8fa3",
+      "cfg": {
+        "cfgId": "9c8f8fa3",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "fixedDelay",
+        "d": 100
+      },
+      "trials": 834,
+      "flagged": 0,
+      "shards": [
+        {
+          "path": "9c8f8fa3/shard-0.jsonl.gz",
+          "seedStart": 0,
+          "count": 105
+        },
+        {
+          "path": "9c8f8fa3/shard-1.jsonl.gz",
+          "seedStart": 105,
+          "count": 105
+        },
+        {
+          "path": "9c8f8fa3/shard-2.jsonl.gz",
+          "seedStart": 210,
+          "count": 104
+        },
+        {
+          "path": "9c8f8fa3/shard-3.jsonl.gz",
+          "seedStart": 314,
+          "count": 104
+        },
+        {
+          "path": "9c8f8fa3/shard-4.jsonl.gz",
+          "seedStart": 418,
+          "count": 104
+        },
+        {
+          "path": "9c8f8fa3/shard-5.jsonl.gz",
+          "seedStart": 522,
+          "count": 104
+        },
+        {
+          "path": "9c8f8fa3/shard-6.jsonl.gz",
+          "seedStart": 626,
+          "count": 104
+        },
+        {
+          "path": "9c8f8fa3/shard-7.jsonl.gz",
+          "seedStart": 730,
+          "count": 104
+        }
+      ]
+    },
+    {
+      "cfgId": "b156f110",
+      "cfg": {
+        "cfgId": "b156f110",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "fixedDelay",
+        "d": 150
+      },
+      "trials": 833,
+      "flagged": 0,
+      "shards": [
+        {
+          "path": "b156f110/shard-0.jsonl.gz",
+          "seedStart": 0,
+          "count": 105
+        },
+        {
+          "path": "b156f110/shard-1.jsonl.gz",
+          "seedStart": 105,
+          "count": 104
+        },
+        {
+          "path": "b156f110/shard-2.jsonl.gz",
+          "seedStart": 209,
+          "count": 104
+        },
+        {
+          "path": "b156f110/shard-3.jsonl.gz",
+          "seedStart": 313,
+          "count": 104
+        },
+        {
+          "path": "b156f110/shard-4.jsonl.gz",
+          "seedStart": 417,
+          "count": 104
+        },
+        {
+          "path": "b156f110/shard-5.jsonl.gz",
+          "seedStart": 521,
+          "count": 104
+        },
+        {
+          "path": "b156f110/shard-6.jsonl.gz",
+          "seedStart": 625,
+          "count": 104
+        },
+        {
+          "path": "b156f110/shard-7.jsonl.gz",
+          "seedStart": 729,
+          "count": 104
+        }
+      ]
+    },
+    {
+      "cfgId": "1daae80c",
+      "cfg": {
+        "cfgId": "1daae80c",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "fixedDelay",
+        "d": 200
+      },
+      "trials": 833,
+      "flagged": 0,
+      "shards": [
+        {
+          "path": "1daae80c/shard-0.jsonl.gz",
+          "seedStart": 0,
+          "count": 105
+        },
+        {
+          "path": "1daae80c/shard-1.jsonl.gz",
+          "seedStart": 105,
+          "count": 104
+        },
+        {
+          "path": "1daae80c/shard-2.jsonl.gz",
+          "seedStart": 209,
+          "count": 104
+        },
+        {
+          "path": "1daae80c/shard-3.jsonl.gz",
+          "seedStart": 313,
+          "count": 104
+        },
+        {
+          "path": "1daae80c/shard-4.jsonl.gz",
+          "seedStart": 417,
+          "count": 104
+        },
+        {
+          "path": "1daae80c/shard-5.jsonl.gz",
+          "seedStart": 521,
+          "count": 104
+        },
+        {
+          "path": "1daae80c/shard-6.jsonl.gz",
+          "seedStart": 625,
+          "count": 104
+        },
+        {
+          "path": "1daae80c/shard-7.jsonl.gz",
+          "seedStart": 729,
+          "count": 104
+        }
+      ]
+    },
+    {
+      "cfgId": "03ede277",
+      "cfg": {
+        "cfgId": "03ede277",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "proximity",
+        "R": 0.07,
+        "L": 0
+      },
+      "trials": 833,
+      "flagged": 833,
+      "shards": [
+        {
+          "path": "03ede277/shard-0.jsonl.gz",
+          "seedStart": 0,
+          "count": 105
+        },
+        {
+          "path": "03ede277/shard-1.jsonl.gz",
+          "seedStart": 105,
+          "count": 104
+        },
+        {
+          "path": "03ede277/shard-2.jsonl.gz",
+          "seedStart": 209,
+          "count": 104
+        },
+        {
+          "path": "03ede277/shard-3.jsonl.gz",
+          "seedStart": 313,
+          "count": 104
+        },
+        {
+          "path": "03ede277/shard-4.jsonl.gz",
+          "seedStart": 417,
+          "count": 104
+        },
+        {
+          "path": "03ede277/shard-5.jsonl.gz",
+          "seedStart": 521,
+          "count": 104
+        },
+        {
+          "path": "03ede277/shard-6.jsonl.gz",
+          "seedStart": 625,
+          "count": 104
+        },
+        {
+          "path": "03ede277/shard-7.jsonl.gz",
+          "seedStart": 729,
+          "count": 104
+        }
+      ]
+    },
+    {
+      "cfgId": "04315c9f",
+      "cfg": {
+        "cfgId": "04315c9f",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "proximity",
+        "R": 0.07,
+        "L": 40
+      },
+      "trials": 833,
+      "flagged": 0,
+      "shards": [
+        {
+          "path": "04315c9f/shard-0.jsonl.gz",
+          "seedStart": 0,
+          "count": 105
+        },
+        {
+          "path": "04315c9f/shard-1.jsonl.gz",
+          "seedStart": 105,
+          "count": 104
+        },
+        {
+          "path": "04315c9f/shard-2.jsonl.gz",
+          "seedStart": 209,
+          "count": 104
+        },
+        {
+          "path": "04315c9f/shard-3.jsonl.gz",
+          "seedStart": 313,
+          "count": 104
+        },
+        {
+          "path": "04315c9f/shard-4.jsonl.gz",
+          "seedStart": 417,
+          "count": 104
+        },
+        {
+          "path": "04315c9f/shard-5.jsonl.gz",
+          "seedStart": 521,
+          "count": 104
+        },
+        {
+          "path": "04315c9f/shard-6.jsonl.gz",
+          "seedStart": 625,
+          "count": 104
+        },
+        {
+          "path": "04315c9f/shard-7.jsonl.gz",
+          "seedStart": 729,
+          "count": 104
+        }
+      ]
+    },
+    {
+      "cfgId": "db0bc0cf",
+      "cfg": {
+        "cfgId": "db0bc0cf",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "proximity",
+        "R": 0.1,
+        "L": 0
+      },
+      "trials": 833,
+      "flagged": 0,
+      "shards": [
+        {
+          "path": "db0bc0cf/shard-0.jsonl.gz",
+          "seedStart": 0,
+          "count": 105
+        },
+        {
+          "path": "db0bc0cf/shard-1.jsonl.gz",
+          "seedStart": 105,
+          "count": 104
+        },
+        {
+          "path": "db0bc0cf/shard-2.jsonl.gz",
+          "seedStart": 209,
+          "count": 104
+        },
+        {
+          "path": "db0bc0cf/shard-3.jsonl.gz",
+          "seedStart": 313,
+          "count": 104
+        },
+        {
+          "path": "db0bc0cf/shard-4.jsonl.gz",
+          "seedStart": 417,
+          "count": 104
+        },
+        {
+          "path": "db0bc0cf/shard-5.jsonl.gz",
+          "seedStart": 521,
+          "count": 104
+        },
+        {
+          "path": "db0bc0cf/shard-6.jsonl.gz",
+          "seedStart": 625,
+          "count": 104
+        },
+        {
+          "path": "db0bc0cf/shard-7.jsonl.gz",
+          "seedStart": 729,
+          "count": 104
+        }
+      ]
+    },
+    {
+      "cfgId": "b1f67129",
+      "cfg": {
+        "cfgId": "b1f67129",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "proximity",
+        "R": 0.1,
+        "L": 40
+      },
+      "trials": 833,
+      "flagged": 0,
+      "shards": [
+        {
+          "path": "b1f67129/shard-0.jsonl.gz",
+          "seedStart": 0,
+          "count": 105
+        },
+        {
+          "path": "b1f67129/shard-1.jsonl.gz",
+          "seedStart": 105,
+          "count": 104
+        },
+        {
+          "path": "b1f67129/shard-2.jsonl.gz",
+          "seedStart": 209,
+          "count": 104
+        },
+        {
+          "path": "b1f67129/shard-3.jsonl.gz",
+          "seedStart": 313,
+          "count": 104
+        },
+        {
+          "path": "b1f67129/shard-4.jsonl.gz",
+          "seedStart": 417,
+          "count": 104
+        },
+        {
+          "path": "b1f67129/shard-5.jsonl.gz",
+          "seedStart": 521,
+          "count": 104
+        },
+        {
+          "path": "b1f67129/shard-6.jsonl.gz",
+          "seedStart": 625,
+          "count": 104
+        },
+        {
+          "path": "b1f67129/shard-7.jsonl.gz",
+          "seedStart": 729,
+          "count": 104
+        }
+      ]
+    },
+    {
+      "cfgId": "050caf60",
+      "cfg": {
+        "cfgId": "050caf60",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "proximity",
+        "R": 0.14,
+        "L": 0
+      },
+      "trials": 833,
+      "flagged": 0,
+      "shards": [
+        {
+          "path": "050caf60/shard-0.jsonl.gz",
+          "seedStart": 0,
+          "count": 105
+        },
+        {
+          "path": "050caf60/shard-1.jsonl.gz",
+          "seedStart": 105,
+          "count": 104
+        },
+        {
+          "path": "050caf60/shard-2.jsonl.gz",
+          "seedStart": 209,
+          "count": 104
+        },
+        {
+          "path": "050caf60/shard-3.jsonl.gz",
+          "seedStart": 313,
+          "count": 104
+        },
+        {
+          "path": "050caf60/shard-4.jsonl.gz",
+          "seedStart": 417,
+          "count": 104
+        },
+        {
+          "path": "050caf60/shard-5.jsonl.gz",
+          "seedStart": 521,
+          "count": 104
+        },
+        {
+          "path": "050caf60/shard-6.jsonl.gz",
+          "seedStart": 625,
+          "count": 104
+        },
+        {
+          "path": "050caf60/shard-7.jsonl.gz",
+          "seedStart": 729,
+          "count": 104
+        }
+      ]
+    },
+    {
+      "cfgId": "279b3e0b",
+      "cfg": {
+        "cfgId": "279b3e0b",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "proximity",
+        "R": 0.14,
+        "L": 40
+      },
+      "trials": 833,
+      "flagged": 0,
+      "shards": [
+        {
+          "path": "279b3e0b/shard-0.jsonl.gz",
+          "seedStart": 0,
+          "count": 105
+        },
+        {
+          "path": "279b3e0b/shard-1.jsonl.gz",
+          "seedStart": 105,
+          "count": 104
+        },
+        {
+          "path": "279b3e0b/shard-2.jsonl.gz",
+          "seedStart": 209,
+          "count": 104
+        },
+        {
+          "path": "279b3e0b/shard-3.jsonl.gz",
+          "seedStart": 313,
+          "count": 104
+        },
+        {
+          "path": "279b3e0b/shard-4.jsonl.gz",
+          "seedStart": 417,
+          "count": 104
+        },
+        {
+          "path": "279b3e0b/shard-5.jsonl.gz",
+          "seedStart": 521,
+          "count": 104
+        },
+        {
+          "path": "279b3e0b/shard-6.jsonl.gz",
+          "seedStart": 625,
+          "count": 104
+        },
+        {
+          "path": "279b3e0b/shard-7.jsonl.gz",
+          "seedStart": 729,
+          "count": 104
+        }
+      ]
+    }
+  ],
+  "cfgSummaries": [
+    {
+      "cfgId": "6c7d9477",
+      "cfg": {
+        "cfgId": "6c7d9477",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "never"
+      },
+      "trials": 834,
+      "flaggedCount": 0,
+      "flaggedFraction": 0,
+      "flagBreakdown": {
+        "IMPACTS_EXHAUSTED": 0,
+        "ESCAPED": 0,
+        "TIMEOUT": 0,
+        "STALLED": 0,
+        "NAN": 0
+      },
+      "terms": {
+        "drain": 834
+      },
+      "columns": {
+        "vi": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "ai": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "hs": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "ha": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "hw": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "dt": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "vo": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "ao": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "n": {
+          "n": 834,
+          "mean": 0,
+          "sd": 0
+        },
+        "xx": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "xs": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "xa": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        }
+      },
+      "fanWidthXa": null
+    },
+    {
+      "cfgId": "61547799",
+      "cfg": {
+        "cfgId": "61547799",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "fixedDelay",
+        "d": 0
+      },
+      "trials": 834,
+      "flaggedCount": 0,
+      "flaggedFraction": 0,
+      "flagBreakdown": {
+        "IMPACTS_EXHAUSTED": 0,
+        "ESCAPED": 0,
+        "TIMEOUT": 0,
+        "STALLED": 0,
+        "NAN": 0
+      },
+      "terms": {
+        "drain": 834
+      },
+      "columns": {
+        "vi": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "ai": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "hs": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "ha": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "hw": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "dt": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "vo": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "ao": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "n": {
+          "n": 834,
+          "mean": 0,
+          "sd": 0
+        },
+        "xx": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "xs": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "xa": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        }
+      },
+      "fanWidthXa": null
+    },
+    {
+      "cfgId": "3eeefdfc",
+      "cfg": {
+        "cfgId": "3eeefdfc",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "fixedDelay",
+        "d": 50
+      },
+      "trials": 834,
+      "flaggedCount": 0,
+      "flaggedFraction": 0,
+      "flagBreakdown": {
+        "IMPACTS_EXHAUSTED": 0,
+        "ESCAPED": 0,
+        "TIMEOUT": 0,
+        "STALLED": 0,
+        "NAN": 0
+      },
+      "terms": {
+        "drain": 834
+      },
+      "columns": {
+        "vi": {
+          "n": 834,
+          "mean": 0.9841575177770677,
+          "sd": 0.000596543997651796
+        },
+        "ai": {
+          "n": 834,
+          "mean": 220.6468525095262,
+          "sd": 0.0709699700670947
+        },
+        "hs": {
+          "n": 834,
+          "mean": 0,
+          "sd": 0
+        },
+        "ha": {
+          "n": 834,
+          "mean": 229.99999999999997,
+          "sd": 0
+        },
+        "hw": {
+          "n": 834,
+          "mean": 0,
+          "sd": 0
+        },
+        "dt": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "vo": {
+          "n": 834,
+          "mean": 0.8405849673364773,
+          "sd": 0.0007814385630866888
+        },
+        "ao": {
+          "n": 834,
+          "mean": 20.430621924958547,
+          "sd": 1.1113436351211856
+        },
+        "n": {
+          "n": 834,
+          "mean": 2,
+          "sd": 0
+        },
+        "xx": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "xs": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "xa": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        }
+      },
+      "fanWidthXa": null
+    },
+    {
+      "cfgId": "9c8f8fa3",
+      "cfg": {
+        "cfgId": "9c8f8fa3",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "fixedDelay",
+        "d": 100
+      },
+      "trials": 834,
+      "flaggedCount": 0,
+      "flaggedFraction": 0,
+      "flagBreakdown": {
+        "IMPACTS_EXHAUSTED": 0,
+        "ESCAPED": 0,
+        "TIMEOUT": 0,
+        "STALLED": 0,
+        "NAN": 0
+      },
+      "terms": {
+        "drain": 834
+      },
+      "columns": {
+        "vi": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "ai": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "hs": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "ha": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "hw": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "dt": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "vo": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "ao": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "n": {
+          "n": 834,
+          "mean": 0,
+          "sd": 0
+        },
+        "xx": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "xs": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "xa": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        }
+      },
+      "fanWidthXa": null
+    },
+    {
+      "cfgId": "b156f110",
+      "cfg": {
+        "cfgId": "b156f110",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "fixedDelay",
+        "d": 150
+      },
+      "trials": 833,
+      "flaggedCount": 0,
+      "flaggedFraction": 0,
+      "flagBreakdown": {
+        "IMPACTS_EXHAUSTED": 0,
+        "ESCAPED": 0,
+        "TIMEOUT": 0,
+        "STALLED": 0,
+        "NAN": 0
+      },
+      "terms": {
+        "drain": 833
+      },
+      "columns": {
+        "vi": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "ai": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "hs": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "ha": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "hw": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "dt": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "vo": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "ao": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "n": {
+          "n": 833,
+          "mean": 0,
+          "sd": 0
+        },
+        "xx": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "xs": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "xa": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        }
+      },
+      "fanWidthXa": null
+    },
+    {
+      "cfgId": "1daae80c",
+      "cfg": {
+        "cfgId": "1daae80c",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "fixedDelay",
+        "d": 200
+      },
+      "trials": 833,
+      "flaggedCount": 0,
+      "flaggedFraction": 0,
+      "flagBreakdown": {
+        "IMPACTS_EXHAUSTED": 0,
+        "ESCAPED": 0,
+        "TIMEOUT": 0,
+        "STALLED": 0,
+        "NAN": 0
+      },
+      "terms": {
+        "drain": 833
+      },
+      "columns": {
+        "vi": {
+          "n": 833,
+          "mean": 0.989367202247857,
+          "sd": 0.0008291162738424509
+        },
+        "ai": {
+          "n": 833,
+          "mean": 221.35448004349038,
+          "sd": 0.022804539170979996
+        },
+        "hs": {
+          "n": 833,
+          "mean": 0,
+          "sd": 0
+        },
+        "ha": {
+          "n": 833,
+          "mean": 229.99999999999997,
+          "sd": 0
+        },
+        "hw": {
+          "n": 833,
+          "mean": 0,
+          "sd": 0
+        },
+        "dt": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "vo": {
+          "n": 833,
+          "mean": 0.8773838015531199,
+          "sd": 0.0018665580402961789
+        },
+        "ao": {
+          "n": 833,
+          "mean": 325.08862358606905,
+          "sd": 1.163109123705297
+        },
+        "n": {
+          "n": 833,
+          "mean": 2,
+          "sd": 0
+        },
+        "xx": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "xs": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "xa": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        }
+      },
+      "fanWidthXa": null
+    },
+    {
+      "cfgId": "03ede277",
+      "cfg": {
+        "cfgId": "03ede277",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "proximity",
+        "R": 0.07,
+        "L": 0
+      },
+      "trials": 833,
+      "flaggedCount": 833,
+      "flaggedFraction": 1,
+      "flagBreakdown": {
+        "IMPACTS_EXHAUSTED": 1,
+        "ESCAPED": 0,
+        "TIMEOUT": 0,
+        "STALLED": 0,
+        "NAN": 0
+      },
+      "terms": {
+        "drain": 833
+      },
+      "columns": {
+        "vi": {
+          "n": 833,
+          "mean": 2.1247770816433573,
+          "sd": 0.001077221576057479
+        },
+        "ai": {
+          "n": 833,
+          "mean": 303.8779766979807,
+          "sd": 0.02126446883944102
+        },
+        "hs": {
+          "n": 833,
+          "mean": 0.7680376341485889,
+          "sd": 0.00032785946960553323
+        },
+        "ha": {
+          "n": 833,
+          "mean": 181.1904761904742,
+          "sd": 2.0191537105329064e-12
+        },
+        "hw": {
+          "n": 833,
+          "mean": -102.22642761681215,
+          "sd": 1.4930361944081348e-12
+        },
+        "dt": {
+          "n": 833,
+          "mean": 8.333333333333236,
+          "sd": 6.754211355655848e-14
+        },
+        "vo": {
+          "n": 833,
+          "mean": 3.8600544104590577,
+          "sd": 0.0016247513593167415
+        },
+        "ao": {
+          "n": 833,
+          "mean": 80.76438049701765,
+          "sd": 0.004856687139932184
+        },
+        "n": {
+          "n": 833,
+          "mean": 7,
+          "sd": 0
+        },
+        "xx": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "xs": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "xa": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        }
+      },
+      "fanWidthXa": null
+    },
+    {
+      "cfgId": "04315c9f",
+      "cfg": {
+        "cfgId": "04315c9f",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "proximity",
+        "R": 0.07,
+        "L": 40
+      },
+      "trials": 833,
+      "flaggedCount": 0,
+      "flaggedFraction": 0,
+      "flagBreakdown": {
+        "IMPACTS_EXHAUSTED": 0,
+        "ESCAPED": 0,
+        "TIMEOUT": 0,
+        "STALLED": 0,
+        "NAN": 0
+      },
+      "terms": {
+        "drain": 833
+      },
+      "columns": {
+        "vi": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "ai": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "hs": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "ha": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "hw": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "dt": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "vo": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "ao": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "n": {
+          "n": 833,
+          "mean": 0,
+          "sd": 0
+        },
+        "xx": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "xs": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "xa": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        }
+      },
+      "fanWidthXa": null
+    },
+    {
+      "cfgId": "db0bc0cf",
+      "cfg": {
+        "cfgId": "db0bc0cf",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "proximity",
+        "R": 0.1,
+        "L": 0
+      },
+      "trials": 833,
+      "flaggedCount": 0,
+      "flaggedFraction": 0,
+      "flagBreakdown": {
+        "IMPACTS_EXHAUSTED": 0,
+        "ESCAPED": 0,
+        "TIMEOUT": 0,
+        "STALLED": 0,
+        "NAN": 0
+      },
+      "terms": {
+        "drain": 833
+      },
+      "columns": {
+        "vi": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "ai": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "hs": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "ha": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "hw": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "dt": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "vo": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "ao": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "n": {
+          "n": 833,
+          "mean": 0,
+          "sd": 0
+        },
+        "xx": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "xs": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "xa": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        }
+      },
+      "fanWidthXa": null
+    },
+    {
+      "cfgId": "b1f67129",
+      "cfg": {
+        "cfgId": "b1f67129",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "proximity",
+        "R": 0.1,
+        "L": 40
+      },
+      "trials": 833,
+      "flaggedCount": 0,
+      "flaggedFraction": 0,
+      "flagBreakdown": {
+        "IMPACTS_EXHAUSTED": 0,
+        "ESCAPED": 0,
+        "TIMEOUT": 0,
+        "STALLED": 0,
+        "NAN": 0
+      },
+      "terms": {
+        "drain": 833
+      },
+      "columns": {
+        "vi": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "ai": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "hs": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "ha": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "hw": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "dt": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "vo": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "ao": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "n": {
+          "n": 833,
+          "mean": 0,
+          "sd": 0
+        },
+        "xx": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "xs": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "xa": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        }
+      },
+      "fanWidthXa": null
+    },
+    {
+      "cfgId": "050caf60",
+      "cfg": {
+        "cfgId": "050caf60",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "proximity",
+        "R": 0.14,
+        "L": 0
+      },
+      "trials": 833,
+      "flaggedCount": 0,
+      "flaggedFraction": 0,
+      "flagBreakdown": {
+        "IMPACTS_EXHAUSTED": 0,
+        "ESCAPED": 0,
+        "TIMEOUT": 0,
+        "STALLED": 0,
+        "NAN": 0
+      },
+      "terms": {
+        "shotline": 833
+      },
+      "columns": {
+        "vi": {
+          "n": 833,
+          "mean": 2.1882631212615355,
+          "sd": 0.0010653255854827482
+        },
+        "ai": {
+          "n": 833,
+          "mean": 297.8140817012666,
+          "sd": 0.018301917873287478
+        },
+        "hs": {
+          "n": 833,
+          "mean": 0.23958111326698722,
+          "sd": 0.002261770273526778
+        },
+        "ha": {
+          "n": 833,
+          "mean": 32,
+          "sd": 0
+        },
+        "hw": {
+          "n": 833,
+          "mean": 0,
+          "sd": 0
+        },
+        "dt": {
+          "n": 833,
+          "mean": 50.00000000000001,
+          "sd": 1.2086483478542044e-13
+        },
+        "vo": {
+          "n": 833,
+          "mean": 1.8619446313805441,
+          "sd": 0.0008078559787230911
+        },
+        "ao": {
+          "n": 833,
+          "mean": 126.73005644710656,
+          "sd": 0.022637074468715247
+        },
+        "n": {
+          "n": 833,
+          "mean": 1,
+          "sd": 0
+        },
+        "xx": {
+          "n": 833,
+          "mean": -0.12674710919419604,
+          "sd": 0.0003093737766922655
+        },
+        "xs": {
+          "n": 833,
+          "mean": 1.0432828188321404,
+          "sd": 0.000021293583852523377
+        },
+        "xa": {
+          "n": 833,
+          "mean": 62.711506963179495,
+          "sd": 0.028717557240121032
+        }
+      },
+      "fanWidthXa": 0.08446607443531917
+    },
+    {
+      "cfgId": "279b3e0b",
+      "cfg": {
+        "cfgId": "279b3e0b",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "proximity",
+        "R": 0.14,
+        "L": 40
+      },
+      "trials": 833,
+      "flaggedCount": 0,
+      "flaggedFraction": 0,
+      "flagBreakdown": {
+        "IMPACTS_EXHAUSTED": 0,
+        "ESCAPED": 0,
+        "TIMEOUT": 0,
+        "STALLED": 0,
+        "NAN": 0
+      },
+      "terms": {
+        "drain": 833
+      },
+      "columns": {
+        "vi": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "ai": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "hs": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "ha": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "hw": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "dt": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "vo": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "ao": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "n": {
+          "n": 833,
+          "mean": 0,
+          "sd": 0
+        },
+        "xx": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "xs": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "xa": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        }
+      },
+      "fanWidthXa": null
+    }
+  ]
+}
