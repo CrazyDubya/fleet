@@ -278,3 +278,16 @@ class GitCommitMessagesAreInert(unittest.TestCase):
     def test_chained_delete_after_commit_still_denied(self):
         d, _ = prompts.decide_auto('git commit -m "x" && rm -rf /Users/pup/fleet/src', _ROOT)
         self.assertEqual(d, "deny")
+
+
+class NestedClaudeSessionsAreDenied(unittest.TestCase):
+    def test_headless_fable_call_denied(self):
+        d, why = prompts.decide_auto('claude -p --model claude-fable-5 "design this"', _ROOT)
+        self.assertEqual(d, "deny"); self.assertIn("pool accounting", why)
+
+    def test_claude_version_is_fine(self):
+        self.assertEqual(prompts.decide_auto("claude --version", _ROOT)[0], "allow-auto")
+
+    def test_fleet_send_mentioning_model_flag_still_inert(self):
+        cmd = 'bin/fleet send opus2 --lane consult --done x "should we use claude -p --model here? no"'
+        self.assertEqual(prompts.decide_auto(cmd, _ROOT)[0], "allow-auto")

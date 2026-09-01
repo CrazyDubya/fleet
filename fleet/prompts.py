@@ -15,6 +15,9 @@ from . import packet as packet_mod
 from .paths import profile_state
 
 DENY = [
+    (re.compile(r"(?:^|[;&|(]\s*|\btimeout\s+\d+\s+|\bnohup\s+)claude\s[^|;&\n]*(-p\b|--print\b|--model\b|--session-id\b)"),
+     "nested claude sessions from fleet threads bypass the registry and pool accounting; route via fleet send"),
+
     (re.compile(r"(^|[\s;&|])git\s+push\b"), "git push"),
     (re.compile(r"(^|[\s;&|])git\s+reset\s+--hard\b"), "git reset --hard"),
     (re.compile(r"(^|[\s;&|])git\s+clean\s+-[a-zA-Z]*f"), "git clean -f"),
