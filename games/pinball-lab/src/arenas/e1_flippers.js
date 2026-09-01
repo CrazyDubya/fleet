@@ -44,6 +44,16 @@ export const INJECTION = {
   angleMinDeg: 200, angleMaxDeg: 340,
 };
 
+// §3.5 cradle family injection: "delivered down the inlane line at 0.6-1.8 m/s" while both
+// flippers are held active from t=0. Centred over the pivot span so the ball actually lands
+// on a raised flipper capsule rather than passing between them; angle band is near-straight-
+// down (270° = -y) with enough spread to land anywhere along either capsule, not just its tip.
+export const CRADLE_INJECTION = {
+  xMin: -0.05, xMax: 0.05,
+  speedMin: 0.6, speedMax: 1.8,
+  angleMinDeg: 260, angleMaxDeg: 280,
+};
+
 /** ω(t) profiles (§2.2/§3.3): each is a rate multiplier over u = fraction of the up-stroke
  * travelled, pre-normalised so its mean over u in [0,1] is exactly 1 — the sweep completes in
  * ~upMs under every profile, only the shape of the rate curve differs. Verified analytically

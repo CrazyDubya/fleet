@@ -13,7 +13,7 @@ import { advance } from '../../pinball/src/physics/world.js';
 import { STEP_DT, MAX_IMPACTS } from '../../pinball/src/physics/constants.js';
 import { range } from '../../pinball/src/physics/rng.js';
 import { seededRng } from './seed.js';
-import { buildE1World, SHOT_LINE_Y, INJECTION } from './arenas/e1_flippers.js';
+import { buildE1World, SHOT_LINE_Y, INJECTION, CRADLE_INJECTION } from './arenas/e1_flippers.js';
 import { createPolicy } from './policy.js';
 
 export const FLAGS = {
@@ -79,9 +79,14 @@ function runE1Trial(cfg, seed, opts) {
   // Ranges live in arenas/e1_flippers.js's INJECTION (§2.4a: "use the shot line and the
   // flipper geometry to choose the band"), not hardcoded here, so they're tuned alongside
   // the geometry they have to land on.
-  const x0 = range(rng, INJECTION.xMin, INJECTION.xMax);
-  const speed0 = range(rng, INJECTION.speedMin, INJECTION.speedMax);
-  const angle0Deg = range(rng, INJECTION.angleMinDeg, INJECTION.angleMaxDeg);
+  // §3.5 cradle family (cfg.cradle === true) samples from CRADLE_INJECTION (delivered down
+  // the inlane at 0.6-1.8 m/s) instead of the main shot-line band; everything else about the
+  // trial loop below is unchanged, so a cradled ball's settle is observed by the same
+  // STALLED-flag machinery every other trial already uses.
+  const band = cfg.cradle ? CRADLE_INJECTION : INJECTION;
+  const x0 = range(rng, band.xMin, band.xMax);
+  const speed0 = range(rng, band.speedMin, band.speedMax);
+  const angle0Deg = range(rng, band.angleMinDeg, band.angleMaxDeg);
   const angle0 = (angle0Deg * Math.PI) / 180;
   ball.pos = { x: x0, y: shotLineY };
   ball.vel = { x: speed0 * Math.cos(angle0), y: speed0 * Math.sin(angle0) };
@@ -215,6 +220,14 @@ function runE1Trial(cfg, seed, opts) {
     xa: crossing?.xa ?? null,
     term,
     f: flags,
+    // §3.5 cradle family only (null on every ordinary trial, kept out of NUMERIC_COLUMNS'
+    // pilot summary so it doesn't skew non-cradle aggregates): cr = settled while touching a
+    // flipper (the STALLED flag can only fire in an arena with no bottom wall by resting on
+    // something, and `contacts>0` narrows that to "on a flipper capsule"); st = settle time
+    // (s); bn = flipper-contact substeps before settling, a bounce-count proxy.
+    cr: cfg.cradle ? ((flags & FLAGS.STALLED) !== 0 && contacts > 0 ? 1 : 0) : null,
+    st: cfg.cradle && (flags & FLAGS.STALLED) !== 0 ? stallSinceS : null,
+    bn: cfg.cradle ? contacts : null,
   };
   // `inbound` and `steps` are meta, not part of the §3.4 record — runTrial() strips them.
   // §2.4a needs the raw injected state (not vi/ai, which are null on a no-contact trial) to

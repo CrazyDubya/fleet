@@ -33,6 +33,21 @@ export function createPolicy(cfg) {
     };
   }
 
+  // §3.5 cradle family: both flippers raised at t=0 and held — "the flipper is held active
+  // from t=0", not fired in response to the ball at all.
+  if (cfg.pol === 'heldActive') {
+    let fired = false;
+    return {
+      tick(elapsedS, ball, flippers) {
+        if (fired) return [];
+        fired = true;
+        setActive(flippers.left, true);
+        setActive(flippers.right, true);
+        return [{ side: 'left', firedAtS: elapsedS }, { side: 'right', firedAtS: elapsedS }];
+      },
+    };
+  }
+
   if (cfg.pol === 'proximity') {
     const { R, L } = cfg;
     const latencyS = L / 1000;

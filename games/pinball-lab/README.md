@@ -6,18 +6,43 @@ and never copies it, so results transfer to the game. See
 `ledger/handoffs/opus2/20260901T031204Z-pinball-lab-program.md` for the full program spec;
 this README is "how to run it", not a restatement of the contract.
 
-## Status: LAB-1 (E1 harness + 10k-trial pilot)
+## Status: LAB-2 done (E1 Stage A screen + Stage B characterise, 1,000,000 balls)
 
-E1 ("flippers only") is built and piloted. E2 (bumpers) and E3 (paths) are specified in the
+E1 ("flippers only") is fully characterised. E2 (bumpers) and E3 (paths) are specified in the
 program handoff but not yet built — `instrument.js`'s `buildWorld`/`runTrial` dispatch on
 `cfg.exp` and currently only handle `'e1'`.
 
-**This is a pilot, not the full sweep.** One fixed geometry (RECESS's current live flipper
-constants) × the three actuation-policy families, ~10,000 trials total — enough to prove
-every piece of the harness and every §3.4 record column works, not to characterise the
-flipper transfer function. That full characterisation (the geometry × policy Stage A/B sweep,
-1,000,000 trials, the binned transfer function, fan width, timing sensitivity, Pareto front)
-is LAB-2.
+The full §3.3 Stage A/B sweep is run and aggregated:
+
+- **Stage A (screen)**: 3,888 geometries × 9 reduced-policy cells, 400,000 trials
+  (`src/stageA.js` — a batched runner distinct from `runner.js`; see its header for why:
+  34,992 cfgs at ~11 trials/cfg would spend most of the wall-clock on worker spin-up if run
+  one-worker-per-cfg the way the pilot's `runner.js` does). Ranks geometries by fan width and
+  by a cradle-rate proxy, keeps the union of the top 12 each (24 geometries), and writes
+  `ranking.json`/`selected-geometries.json` alongside the usual `meta.json`.
+- **Stage B (characterise)**: those 24 geometries × the full 42-point policy sweep (540,000
+  trials, via `runner.js` as usual) + the §3.5 cradle family (24 geometries × 2,500 trials =
+  60,000, `pol: 'heldActive'`). 400,000 + 540,000 + 60,000 = exactly 1,000,000.
+- `src/lab2Report.js` streams both Stage B runs' shards once and writes the §3.6 deliverable:
+  `data/summaries/e1-lab2-<runId>.{json,md}` — the binned transfer function, fan width and
+  timing sensitivity per geometry, the Pareto front, cradle rate + vo/vi gradient, and a
+  recommendation paragraph.
+
+**LAB-1 pilot note, still true and still separate**: one fixed geometry × the three
+actuation-policy families, ~10,000 trials — proves the harness end-to-end; superseded for
+characterisation purposes by the Stage A/B run above, not deleted (`cfgs/e1-pilot.json`,
+`data/summaries/e1-pilot-01.*` still exist).
+
+## Running the Stage A/B sweep
+
+```bash
+node src/stageA.js --out data/e1/stageA-<runId>                      # 400k trials, ~15s
+node src/sweep.js --exp e1 --grid stageB --geometries data/e1/stageA-<runId>/selected-geometries.json --out cfgs/e1-stageB.json
+node src/sweep.js --exp e1 --grid cradle --geometries data/e1/stageA-<runId>/selected-geometries.json --out cfgs/e1-cradle.json
+node src/runner.js --exp e1 --cfgs cfgs/e1-stageB.json --trials 540000 --out data/e1/stageB-main-<runId>
+node src/runner.js --exp e1 --cfgs cfgs/e1-cradle.json --trials 60000 --out data/e1/stageB-cradle-<runId>
+node src/lab2Report.js --stageB data/e1/stageB-main-<runId> --cradle data/e1/stageB-cradle-<runId> --out <runId>
+```
 
 ## Running it
 

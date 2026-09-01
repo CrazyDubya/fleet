@@ -10,8 +10,10 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 const SRC_DIR = path.join(import.meta.dirname, '..', 'src');
-const TIMING_ALLOWED = new Set(['runner.js', 'profile.js']);
-const WALLCLOCK_ALLOWED = new Set(['runner.js']); // Date.now/new Date() — meta.json timestamps only
+// stageA.js (LAB-2's batched Stage A screen runner) and lab2Report.js (its aggregator) are
+// the same category as runner.js/profile.js/aggregate.js: orchestration CLIs, never a trial.
+const TIMING_ALLOWED = new Set(['runner.js', 'profile.js', 'stageA.js']);
+const WALLCLOCK_ALLOWED = new Set(['runner.js', 'stageA.js', 'lab2Report.js']); // Date.now/new Date() — meta.json/summary timestamps only
 
 function walk(dir) {
   const out = [];

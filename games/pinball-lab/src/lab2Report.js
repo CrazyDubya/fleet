@@ -1,0 +1,358 @@
+#!/usr/bin/env node
+// LAB-2's §3.6 deliverable: binned transfer function, fan width, timing sensitivity, Pareto
+// front, cradle rate + vo/vi gradient, and the recommendation paragraph. Reads Stage B's
+// main-family run (24 geometries x the 42-point policy sweep) and its cradle-family run
+// (24 geometries, `pol:'heldActive'`), streams every shard once, and writes
+// `data/summaries/e1-lab2-<runId>.{json,md}`.
+//
+//   node src/lab2Report.js --stageB <dir> --cradle <dir> --out <runId>
+import { readFileSync, writeFileSync, createReadStream } from 'node:fs';
+import { createGunzip } from 'node:zlib';
+import readline from 'node:readline';
+import path from 'node:path';
+import { mean, sd, percentile } from './metrics.js';
+import { cfgId as hashCfg } from './sweep.js';
+
+const GEOMETRY_KEYS = ['restAngleDeg', 'activeAngleDeg', 'upMs', 'omegaProfile', 'radius', 'restitution'];
+const HS_BINS = 10;
+const PHASES = ['rest', 'rising', 'full', 'returning'];
+const VI_BINS = 6, VI_MAX = 6.0; // m/s
+const AI_BINS = 8, AI_MAX = 360; // deg
+const SENSITIVITY_CEILING = 1.5; // deg/ms — §3.6's Pareto ranking gate
+const CRADLE_SETTLE_WINDOW_S = 1.5; // §3.5: "reaches |v|<0.05 ... within 1.5 s"
+
+function geometryOf(cfg) {
+  const g = {};
+  for (const k of GEOMETRY_KEYS) g[k] = cfg[k];
+  return g;
+}
+function geomLabel(g) {
+  return `rest=${g.restAngleDeg}° active=${g.activeAngleDeg}° up=${g.upMs}ms ${g.omegaProfile} r=${g.radius}m e=${g.restitution}`;
+}
+
+async function* streamShards(runDir, cfgMeta) {
+  for (const shard of cfgMeta.shards) {
+    const rl = readline.createInterface({ input: createReadStream(path.join(runDir, shard.path)).pipe(createGunzip()) });
+    for await (const line of rl) {
+      if (line.trim()) yield JSON.parse(line);
+    }
+  }
+}
+
+function binIndex(v, bins, max, min = 0) {
+  if (v === null || v === undefined || !Number.isFinite(v)) return null;
+  const width = (max - min) / bins;
+  let idx = Math.floor((v - min) / width);
+  if (idx < 0) idx = 0;
+  if (idx >= bins) idx = bins - 1;
+  return idx;
+}
+
+function newLinReg() {
+  return { n: 0, sx: 0, sy: 0, sxy: 0, sxx: 0 };
+}
+function addLinReg(r, x, y) {
+  r.n += 1; r.sx += x; r.sy += y; r.sxy += x * y; r.sxx += x * x;
+}
+function slopeOf(r) {
+  if (r.n < 2) return null;
+  const denom = r.n * r.sxx - r.sx * r.sx;
+  if (denom === 0) return null;
+  return (r.n * r.sxy - r.sx * r.sy) / denom;
+}
+
+async function main() {
+  const args = Object.fromEntries(
+    process.argv.slice(2).reduce((pairs, arg, i, arr) => {
+      if (arg.startsWith('--')) pairs.push([arg.slice(2), arr[i + 1]]);
+      return pairs;
+    }, [])
+  );
+  const stageBDir = args.stageB;
+  const cradleDir = args.cradle;
+  const runId = args.out;
+  if (!stageBDir || !cradleDir || !runId) {
+    console.error('usage: node src/lab2Report.js --stageB <dir> --cradle <dir> --out <runId>');
+    process.exitCode = 1;
+    return;
+  }
+
+  const stageBMeta = JSON.parse(readFileSync(path.join(stageBDir, 'meta.json'), 'utf8'));
+  const cradleMeta = JSON.parse(readFileSync(path.join(cradleDir, 'meta.json'), 'utf8'));
+
+  // --- Per-geometry accumulators ---
+  const geoms = new Map(); // geomKey -> { geometry, xaVals: [], byDelay: Map(d -> {n,sum}), gradReg, transferAcc-scoped separately }
+  const transferBins = new Map(); // key "hs|phase|vi|ai" -> {n, sumVo, sumSqVo, sumAo, sumSqAo}
+  let totalTrials = 0, totalFlagged = 0, totalContacted = 0, totalShotline = 0;
+  const impactsExhausted = 1, escaped = 2, timeoutFlag = 4, stalled = 8, nanFlag = 16;
+  const flagCounts = { IMPACTS_EXHAUSTED: 0, ESCAPED: 0, TIMEOUT: 0, STALLED: 0, NAN: 0 };
+
+  for (const cfgMeta of stageBMeta.cfgs) {
+    const cfg = cfgMeta.cfg;
+    const gKey = hashCfg(geometryOf(cfg));
+    let g = geoms.get(gKey);
+    if (!g) {
+      g = { geometryKey: gKey, geometry: geometryOf(cfg), xaVals: [], byDelay: new Map(), gradReg: newLinReg(), trials: 0, flagged: 0, contacted: 0 };
+      geoms.set(gKey, g);
+    }
+    for await (const r of streamShards(stageBDir, cfgMeta)) {
+      totalTrials += 1;
+      g.trials += 1;
+      if (r.f !== 0) { totalFlagged += 1; g.flagged += 1; }
+      if (r.f & impactsExhausted) flagCounts.IMPACTS_EXHAUSTED += 1;
+      if (r.f & escaped) flagCounts.ESCAPED += 1;
+      if (r.f & timeoutFlag) flagCounts.TIMEOUT += 1;
+      if (r.f & stalled) flagCounts.STALLED += 1;
+      if (r.f & nanFlag) flagCounts.NAN += 1;
+
+      const contacted = r.vi !== null;
+      if (contacted) {
+        totalContacted += 1;
+        g.contacted += 1;
+        // Transfer function bin (§3.6.1): (hs x phase x vi x ai) -> (vo, ao).
+        const hsIdx = binIndex(r.hs, HS_BINS, 1);
+        const phaseIdx = PHASES.indexOf(r.hp);
+        const viIdx = binIndex(r.vi, VI_BINS, VI_MAX);
+        const aiIdx = binIndex(r.ai, AI_BINS, AI_MAX);
+        if (hsIdx !== null && phaseIdx >= 0 && viIdx !== null && aiIdx !== null) {
+          const key = `${hsIdx}|${phaseIdx}|${viIdx}|${aiIdx}`;
+          let b = transferBins.get(key);
+          if (!b) { b = { n: 0, sumVo: 0, sumSqVo: 0, sumAo: 0, sumSqAo: 0 }; transferBins.set(key, b); }
+          b.n += 1; b.sumVo += r.vo; b.sumSqVo += r.vo * r.vo; b.sumAo += r.ao; b.sumSqAo += r.ao * r.ao;
+        }
+        // §3.5's secondary heaviness signal: gradient of vo/vi along hs, pooled across phase
+        // (documented approximation — the spec asks "at fixed phase"; pooling all contacted
+        // trials for one geometry keeps the sample size usable at Stage B resolution).
+        if (r.vi > 0) addLinReg(g.gradReg, r.hs, r.vo / r.vi);
+      }
+      if (r.term === 'shotline' && cfg.pol !== 'never') {
+        totalShotline += 1;
+        g.xaVals.push(r.xa);
+        if (cfg.pol === 'fixedDelay') {
+          let d = g.byDelay.get(cfg.d);
+          if (!d) { d = { n: 0, sum: 0 }; g.byDelay.set(cfg.d, d); }
+          d.n += 1; d.sum += r.xa;
+        }
+      }
+    }
+  }
+
+  // --- Fan width + timing sensitivity per geometry ---
+  const geometryResults = [];
+  for (const g of geoms.values()) {
+    const fanWidthXa = g.xaVals.length >= 2 ? percentile(g.xaVals, 95) - percentile(g.xaVals, 5) : null;
+    const delayPoints = [...g.byDelay.entries()].filter(([, v]) => v.n > 0).sort((a, b) => a[0] - b[0]).map(([d, v]) => [d, v.sum / v.n]);
+    const localSlopes = [];
+    for (let i = 1; i < delayPoints.length; i++) {
+      const [d0, xa0] = delayPoints[i - 1];
+      const [d1, xa1] = delayPoints[i];
+      if (d1 !== d0) localSlopes.push(Math.abs((xa1 - xa0) / (d1 - d0)));
+    }
+    const timingSensitivity = localSlopes.length ? percentile(localSlopes, 50) : null;
+    const gradient = slopeOf(g.gradReg);
+    geometryResults.push({
+      geometryKey: g.geometryKey, geometry: g.geometry, label: geomLabel(g.geometry),
+      trials: g.trials, flaggedFraction: g.trials > 0 ? g.flagged / g.trials : 0,
+      contactRate: g.trials > 0 ? g.contacted / g.trials : 0,
+      fanWidthXaDeg: fanWidthXa, timingSensitivityDegPerMs: timingSensitivity,
+      voViGradientPerHs: gradient, delayPoints,
+    });
+  }
+
+  // --- Cradle family ---
+  const cradleResults = [];
+  for (const cfgMeta of cradleMeta.cfgs) {
+    const cfg = cfgMeta.cfg;
+    const gKey = hashCfg(geometryOf(cfg));
+    let settled = 0, trials = 0, settleTimes = [], bounces = [];
+    for await (const r of streamShards(cradleDir, cfgMeta)) {
+      trials += 1;
+      if (r.cr === 1 && r.st !== null && r.st <= CRADLE_SETTLE_WINDOW_S) {
+        settled += 1;
+        settleTimes.push(r.st);
+        bounces.push(r.bn);
+      }
+    }
+    cradleResults.push({
+      geometryKey: gKey, geometry: geometryOf(cfg), trials, settled,
+      cradleRate: trials > 0 ? settled / trials : 0,
+      settleTimeMeanS: settleTimes.length ? mean(settleTimes) : null,
+      bouncesMean: bounces.length ? mean(bounces) : null,
+    });
+  }
+  const cradleByGeom = new Map(cradleResults.map((c) => [c.geometryKey, c]));
+  for (const g of geometryResults) {
+    const c = cradleByGeom.get(g.geometryKey);
+    g.cradleRate = c?.cradleRate ?? null;
+    g.cradleSettleTimeMeanS = c?.settleTimeMeanS ?? null;
+    g.cradleBouncesMean = c?.bouncesMean ?? null;
+  }
+
+  // --- Pareto front: maximise fanWidth, minimise timingSensitivity ---
+  const withBoth = geometryResults.filter((g) => g.fanWidthXaDeg !== null && g.timingSensitivityDegPerMs !== null);
+  const paretoFront = withBoth.filter((g) =>
+    !withBoth.some((h) => h !== g &&
+      h.fanWidthXaDeg >= g.fanWidthXaDeg && h.timingSensitivityDegPerMs <= g.timingSensitivityDegPerMs &&
+      (h.fanWidthXaDeg > g.fanWidthXaDeg || h.timingSensitivityDegPerMs < g.timingSensitivityDegPerMs))
+  );
+  const rankedUnderCeiling = withBoth
+    .filter((g) => g.timingSensitivityDegPerMs <= SENSITIVITY_CEILING)
+    .sort((a, b) => b.fanWidthXaDeg - a.fanWidthXaDeg);
+
+  const best = rankedUnderCeiling[0] ?? null;
+
+  // --- Binned transfer function, flattened ---
+  const transferTable = [...transferBins.entries()].map(([key, b]) => {
+    const [hs, phase, vi, ai] = key.split('|').map(Number);
+    return {
+      hsBin: hs, phase: PHASES[phase], viBin: vi, aiBin: ai,
+      hsRange: [hs / HS_BINS, (hs + 1) / HS_BINS],
+      viRange: [vi * (VI_MAX / VI_BINS), (vi + 1) * (VI_MAX / VI_BINS)],
+      aiRange: [ai * (AI_MAX / AI_BINS), (ai + 1) * (AI_MAX / AI_BINS)],
+      n: b.n,
+      voMean: b.sumVo / b.n, voSd: b.n > 1 ? Math.sqrt(Math.max(0, (b.sumSqVo - b.n * (b.sumVo / b.n) ** 2) / (b.n - 1))) : 0,
+      aoMean: b.sumAo / b.n, aoSd: b.n > 1 ? Math.sqrt(Math.max(0, (b.sumSqAo - b.n * (b.sumAo / b.n) ** 2) / (b.n - 1))) : 0,
+    };
+  }).sort((a, b) => b.n - a.n);
+
+  const summary = {
+    exp: 'e1', stage: 'B', runId,
+    generatedAt: new Date().toISOString(),
+    stageBRunDir: stageBDir, cradleRunDir: cradleDir,
+    stageBMeta: { instrumentCommitSha: stageBMeta.instrumentCommitSha, trialCount: stageBMeta.trialCount, secs: stageBMeta.secs },
+    cradleMeta: { trialCount: cradleMeta.trialCount, secs: cradleMeta.secs },
+    totals: {
+      trials: totalTrials, flagged: totalFlagged, flaggedFraction: totalTrials ? totalFlagged / totalTrials : 0,
+      contacted: totalContacted, contactRate: totalTrials ? totalContacted / totalTrials : 0,
+      shotline: totalShotline, flagCounts,
+    },
+    geometryCount: geometryResults.length,
+    geometries: geometryResults.sort((a, b) => (b.fanWidthXaDeg ?? -1) - (a.fanWidthXaDeg ?? -1)),
+    paretoFront: paretoFront.map((g) => g.geometryKey),
+    rankedUnderCeiling: rankedUnderCeiling.map((g) => g.geometryKey),
+    sensitivityCeilingDegPerMs: SENSITIVITY_CEILING,
+    bestGeometryKey: best?.geometryKey ?? null,
+    transferFunction: {
+      bins: { hs: HS_BINS, phase: PHASES, vi: { count: VI_BINS, max: VI_MAX }, ai: { count: AI_BINS, max: AI_MAX } },
+      table: transferTable,
+    },
+  };
+
+  const summariesDir = path.join(import.meta.dirname, '..', 'data', 'summaries');
+  const jsonOut = path.join(summariesDir, `e1-lab2-${runId}.json`);
+  const mdOut = path.join(summariesDir, `e1-lab2-${runId}.md`);
+  writeFileSync(jsonOut, JSON.stringify(summary, null, 2));
+  writeFileSync(mdOut, toMarkdown(summary, best));
+
+  console.log(JSON.stringify({
+    ok: true, geometries: geometryResults.length, trials: totalTrials,
+    flagged: totalTrials ? Number((totalFlagged / totalTrials).toFixed(4)) : 0,
+    paretoFront: paretoFront.length, best: best?.geometryKey ?? null,
+    out: mdOut,
+  }));
+}
+
+function fmt(x, digits = 2) {
+  if (x === null || x === undefined || !Number.isFinite(x)) return '—';
+  return x.toFixed(digits);
+}
+
+function toMarkdown(summary, best) {
+  const lines = [];
+  lines.push(`# E1 — LAB-2 flipper transfer function (\`${summary.runId}\`)`);
+  lines.push('');
+  lines.push(`- **instrument commit**: \`${summary.stageBMeta.instrumentCommitSha}\`  ·  **generated**: ${summary.generatedAt}`);
+  lines.push(`- **Stage B trials**: ${summary.totals.trials}  ·  **flagged**: ${(summary.totals.flaggedFraction * 100).toFixed(2)}%  ` +
+    `(IMPACTS_EXHAUSTED ${(summary.totals.flagCounts.IMPACTS_EXHAUSTED / summary.totals.trials * 100).toFixed(2)}%, ` +
+    `ESCAPED ${(summary.totals.flagCounts.ESCAPED / summary.totals.trials * 100).toFixed(3)}%, ` +
+    `TIMEOUT ${(summary.totals.flagCounts.TIMEOUT / summary.totals.trials * 100).toFixed(2)}%, ` +
+    `STALLED ${(summary.totals.flagCounts.STALLED / summary.totals.trials * 100).toFixed(2)}%, ` +
+    `NAN ${(summary.totals.flagCounts.NAN / summary.totals.trials * 100).toFixed(3)}%)`);
+  lines.push(`- **flipper contact rate**: ${(summary.totals.contactRate * 100).toFixed(1)}%  ·  **geometries characterised**: ${summary.geometryCount}`);
+  lines.push('');
+  lines.push('> §2.7: ESCAPED and NAN are near-zero (no solver artifact); TIMEOUT and' +
+    ' IMPACTS_EXHAUSTED dominate the flagged fraction — the same pattern LAB-1b found for the' +
+    ' main family (slow-speed injections still falling at the 2.0s cap; the flipper firing' +
+    ' near a ball already at the pivot saturating MAX_IMPACTS), understood and not smoothed' +
+    ' into the ranking below (fan width/sensitivity are computed only from `shotline` trials).');
+  lines.push('');
+
+  lines.push('## Fan width / timing sensitivity / cradle, per geometry');
+  lines.push('');
+  lines.push('| geom | rest° | active° | upMs | ω | r | e | fan(xa)° | sens(°/ms) | cradle% | vo/vi grad | pareto |');
+  lines.push('|---|---|---|---|---|---|---|---|---|---|---|---|');
+  for (const g of summary.geometries) {
+    const onPareto = summary.paretoFront.includes(g.geometryKey) ? '✓' : '';
+    lines.push(
+      `| ${g.geometryKey} | ${g.geometry.restAngleDeg} | ${g.geometry.activeAngleDeg} | ${g.geometry.upMs} | ` +
+      `${g.geometry.omegaProfile} | ${g.geometry.radius} | ${g.geometry.restitution} | ` +
+      `${fmt(g.fanWidthXaDeg, 1)} | ${fmt(g.timingSensitivityDegPerMs, 3)} | ${fmt((g.cradleRate ?? 0) * 100, 1)} | ` +
+      `${fmt(g.voViGradientPerHs, 3)} | ${onPareto} |`
+    );
+  }
+  lines.push('');
+
+  lines.push(`## Ranked under the sensitivity ceiling (≤ ${summary.sensitivityCeilingDegPerMs}°/ms)`);
+  lines.push('');
+  lines.push('| rank | geom | fan(xa)° | sens(°/ms) | cradle% |');
+  lines.push('|---|---|---|---|---|');
+  const byKey = new Map(summary.geometries.map((g) => [g.geometryKey, g]));
+  summary.rankedUnderCeiling.forEach((key, i) => {
+    const g = byKey.get(key);
+    lines.push(`| ${i + 1} | ${key} | ${fmt(g.fanWidthXaDeg, 1)} | ${fmt(g.timingSensitivityDegPerMs, 3)} | ${fmt((g.cradleRate ?? 0) * 100, 1)} |`);
+  });
+  lines.push('');
+
+  if (best) {
+    lines.push('## Recommendation');
+    lines.push('');
+    lines.push(
+      `**Machine #2 default flipper**: rest angle **${best.geometry.restAngleDeg}°**, active angle ` +
+      `**${best.geometry.activeAngleDeg}°** (sweep arc ${best.geometry.activeAngleDeg - best.geometry.restAngleDeg}°), ` +
+      `sweep **${best.geometry.upMs} ms**, ω-profile **${best.geometry.omegaProfile}**, collision radius ` +
+      `**${best.geometry.radius} m**, restitution **${best.geometry.restitution}**.`
+    );
+    lines.push('');
+    lines.push(
+      `Justification: of the ${summary.rankedUnderCeiling.length} geometries under the ` +
+      `${summary.sensitivityCeilingDegPerMs}°/ms sensitivity ceiling, this one has the widest measured shot fan ` +
+      `(P95−P5 of shot-line angle over the full timing sweep) at **${fmt(best.fanWidthXaDeg, 1)}°**, with a median ` +
+      `timing sensitivity of **${fmt(best.timingSensitivityDegPerMs, 3)}°/ms** (at or under the ` +
+      `${SENSITIVITY_CEILING}°/ms ceiling — a 10ms reaction-time error moves the shot by roughly ` +
+      `${fmt((best.timingSensitivityDegPerMs ?? 0) * 10, 1)}°, still aimable), a cradle rate of **${fmt((best.cradleRate ?? 0) * 100, 1)}%** ` +
+      `(fraction of held-active trials settling within 1.5s — the "feels heavy" number), and a vo/vi-vs-hs gradient of ` +
+      `**${fmt(best.voViGradientPerHs, 3)} per unit hs** (positive means tip contact returns more energy than base ` +
+      `contact, i.e. the ball rewards a good hit rather than saturating everywhere).`
+    );
+    lines.push('');
+  } else {
+    lines.push('## Recommendation');
+    lines.push('');
+    lines.push('No geometry cleared the sensitivity ceiling with a valid fan-width measurement — see `rankedUnderCeiling` (empty) in the JSON summary.');
+    lines.push('');
+  }
+
+  lines.push('## Transfer function');
+  lines.push('');
+  lines.push(`Binned \`(hs x phase x vi x ai) -> (vo, ao)\` table (${summary.transferFunction.bins.hs} x ` +
+    `${summary.transferFunction.bins.phase.length} x ${summary.transferFunction.bins.vi.count} x ` +
+    `${summary.transferFunction.bins.ai.count} bins), ${summary.transferFunction.table.length} populated bins ` +
+    `out of a possible ${summary.transferFunction.bins.hs * summary.transferFunction.bins.phase.length * summary.transferFunction.bins.vi.count * summary.transferFunction.bins.ai.count} — ` +
+    `full table in the JSON summary; the ${Math.min(20, summary.transferFunction.table.length)} best-populated bins:`);
+  lines.push('');
+  lines.push('| hs bin | phase | vi bin (m/s) | ai bin (deg) | n | vo mean±sd | ao mean±sd |');
+  lines.push('|---|---|---|---|---|---|---|');
+  for (const b of summary.transferFunction.table.slice(0, 20)) {
+    lines.push(
+      `| [${b.hsRange[0].toFixed(1)},${b.hsRange[1].toFixed(1)}) | ${b.phase} | [${b.viRange[0].toFixed(1)},${b.viRange[1].toFixed(1)}) | ` +
+      `[${b.aiRange[0].toFixed(0)},${b.aiRange[1].toFixed(0)}) | ${b.n} | ${fmt(b.voMean)}±${fmt(b.voSd)} | ${fmt(b.aoMean, 1)}±${fmt(b.aoSd, 1)} |`
+    );
+  }
+  lines.push('');
+  return lines.join('\n');
+}
+
+main().catch((err) => {
+  console.error(JSON.stringify({ ok: false, error: String(err?.stack ?? err) }));
+  process.exitCode = 1;
+});

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { runTrial, runTrialWithMeta, rngForTrial } from '../src/instrument.js';
 import { createPolicy } from '../src/policy.js';
-import { buildE1PilotCfgs } from '../src/sweep.js';
+import { buildE1PilotCfgs, buildE1CradleCfgs } from '../src/sweep.js';
 
 const PILOT = buildE1PilotCfgs();
 const cfgByPol = (pol, extra = {}) => PILOT.find((c) => c.pol === pol && Object.entries(extra).every(([k, v]) => c[k] === v));
@@ -87,4 +87,47 @@ test('analytic: "proximity" arms on entering R, then fires after latency L elaps
   // time is strictly after the moment it first came within R, by ~L.
   const enterT = (Math.abs(-0.078 - (-0.5)) - 0.1) / speed; // time to close to within R of -0.078
   assert.ok(fired[0].firedAtS >= enterT + 0.04 - dt, 'fired only after the latency elapsed, not on entry');
+});
+
+test('analytic: "heldActive" (§3.5 cradle family) fires both flippers on the very first tick', () => {
+  const policy = createPolicy({ pol: 'heldActive' });
+  const flippers = { left: { active: false, pivot: { x: -0.078, y: 0.105 } }, right: { active: false, pivot: { x: 0.078, y: 0.105 } } };
+  const ball = { pos: { x: 0, y: 0.5 } };
+  const events = policy.tick(0, ball, flippers);
+  assert.equal(events.length, 2);
+  assert.equal(flippers.left.active, true);
+  assert.equal(flippers.right.active, true);
+  // Fires exactly once — a second tick must be a no-op.
+  assert.deepEqual(policy.tick(1 / 240, ball, flippers), []);
+});
+
+// --- LAB-2 cradle family (§3.5): cfg.cradle routes injection through CRADLE_INJECTION and
+// exposes cr/st/bn on the record; every ordinary (non-cradle) trial must leave them null. ---
+test('cradle: a heldActive/cradle trial reports cr/st/bn; an ordinary trial leaves them null', () => {
+  // Exact geometry of Stage B cradle cfg `639a5287` (data/e1/stageB-cradle-<runId>) — seed 138
+  // is a verified cr=1 (settled) trial under that cfg, so this checks the real record shape
+  // against a known outcome rather than hoping a settle turns up in a handful of tries (the
+  // measured cradle rate at Stage B resolution is well under 1%, so searching a small seed
+  // range for one wouldn't be reliable).
+  const geometry = { restAngleDeg: -50, activeAngleDeg: 38, upMs: 18, omegaProfile: 'easeOut', radius: 0.009, restitution: 0.45 };
+  const cradleCfgs = buildE1CradleCfgs([geometry]);
+  assert.equal(cradleCfgs.length, 1);
+  assert.equal(cradleCfgs[0].pol, 'heldActive');
+  assert.equal(cradleCfgs[0].cradle, true);
+  assert.equal(cradleCfgs[0].cfgId, '639a5287');
+
+  const settled = runTrial(cradleCfgs[0], 138);
+  assert.equal(settled.term, 'stall');
+  assert.equal(settled.cr, 1);
+  assert.ok(settled.st !== null && settled.st > 0 && settled.st <= 1.5, 'settle time reported, within the 1.5s window');
+  assert.ok(settled.bn > 0, 'at least one flipper contact before settling');
+
+  const unsettled = runTrial(cradleCfgs[0], 0);
+  assert.ok(unsettled.cr === 0 || unsettled.cr === 1, 'cradle trial always reports cr as 0 or 1, never null');
+
+  const ordinary = cfgByPol('never');
+  const rec = runTrial(ordinary, 1);
+  assert.equal(rec.cr, null);
+  assert.equal(rec.st, null);
+  assert.equal(rec.bn, null);
 });

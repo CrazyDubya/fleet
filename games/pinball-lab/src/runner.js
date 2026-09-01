@@ -14,7 +14,7 @@ import os from 'node:os';
 import { performance } from 'node:perf_hooks';
 import { execFileSync } from 'node:child_process';
 import { sdFromAcc, uniformSd } from './metrics.js';
-import { INJECTION as E1_INJECTION } from './arenas/e1_flippers.js';
+import { INJECTION as E1_INJECTION, CRADLE_INJECTION as E1_CRADLE_INJECTION } from './arenas/e1_flippers.js';
 
 // §2.4a: "every run computes the sd of the sampled inbound quantities and fails loudly if any
 // falls below a floor." The floor is a fraction of the theoretical Uniform(lo,hi) sd for that
@@ -26,12 +26,17 @@ const INBOUND_SD_FLOOR_FRACTION = 0.5;
 // "> 30%" per §2.4a, checked against the `never` policy cfg specifically.
 const NEVER_CONTACT_RATE_FLOOR = 0.3;
 
-function injectionRangesFor(exp) {
+// §3.5 cradle cfgs sample from a different, narrower band (arenas/e1_flippers.js's
+// CRADLE_INJECTION) than the main E1 family — the §2.4a floor has to be checked against the
+// band a cfg actually draws from, not the wider main-family band, or every cradle cfg fails
+// this check by construction regardless of how real its ensemble is.
+function injectionRangesFor(exp, cfg) {
   if (exp === 'e1') {
+    const band = cfg?.cradle ? E1_CRADLE_INJECTION : E1_INJECTION;
     return {
-      x0: [E1_INJECTION.xMin, E1_INJECTION.xMax],
-      speed0: [E1_INJECTION.speedMin, E1_INJECTION.speedMax],
-      angle0Deg: [E1_INJECTION.angleMinDeg, E1_INJECTION.angleMaxDeg],
+      x0: [band.xMin, band.xMax],
+      speed0: [band.speedMin, band.speedMax],
+      angle0Deg: [band.angleMinDeg, band.angleMaxDeg],
     };
   }
   throw new Error(`injectionRangesFor: unknown exp '${exp}'`);
@@ -147,7 +152,7 @@ async function main() {
     const cfgContacts = results.reduce((a, r) => a + r.contactCount, 0);
     const contactRate = cfgTrials > 0 ? cfgContacts / cfgTrials : 0;
 
-    const ranges = injectionRangesFor(exp);
+    const ranges = injectionRangesFor(exp, cfg);
     const inboundSds = {};
     const degenerate = [];
     for (const key of Object.keys(ranges)) {
