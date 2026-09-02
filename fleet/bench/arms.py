@@ -82,12 +82,34 @@ def fleet_wait_done(run: str, t0: float, timeout_s: int, handoff_dir: Path, capt
         sleep(POLL_S)
 
 
+def _target_busy(registry_entries: dict) -> bool:
+    """True when FLEET_TARGET is mid-turn. Best-effort: on any error, report NOT
+    busy so a broken probe degrades to today's behaviour rather than silently
+    disabling the fleet arm forever."""
+    try:
+        from fleet import status as status_mod
+        for r in status_mod.rows(entries=registry_entries):
+            if getattr(r, "name", None) == FLEET_TARGET:
+                return getattr(r, "state", "") == "busy"
+    except Exception:
+        return False
+    return False
+
+
 def run_fleet(packet_text: str, refs: list[str], done: str, run: str, root: Path, timeout_s: int, lane: str,
               profile: str, registry_entries: dict, send=send_mod.send_packet, capture=None, sleep=time.sleep, clock=time.time) -> ArmResult:
     from fleet.registry import transcript_for
     by_thread = {name: transcript_for(e, registry_entries) for name, e in registry_entries.items()}
     p = packet_mod.Packet(to=FLEET_TARGET, sender="bench", lane=lane, effort=packet_mod.LANES[lane].effort, reply="file",
                           refs=refs, done=done, id=run, body=packet_text)
+    # The fleet arm drives the LIVE thread, so a bench run that fires while the
+    # operator has real work in flight commandeers it mid-task. Observed twice
+    # (2026-09-01 and 09-02 3AM runs), both times interrupting a pinball-lab
+    # experiment. Skip rather than collide: a skipped arm is honest missing data,
+    # a collided one corrupts both the bench measurement and the live work.
+    if _target_busy(registry_entries):
+        return ArmResult("skipped", by_thread, None,
+                         f"{FLEET_TARGET} busy with operator work; arm skipped to avoid collision")
     t0 = clock()
     try:
         send(p, profile)

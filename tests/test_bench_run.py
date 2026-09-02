@@ -256,3 +256,41 @@ class SweepTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_fleet_arm_skips_when_target_busy():
+    """The fleet arm drives the LIVE thread. If the operator has work in flight,
+    the arm must skip rather than commandeer it - observed twice in production
+    (2026-09-01 and 09-02 3AM runs), both interrupting a pinball-lab experiment."""
+    from fleet.bench import arms
+
+    class R:
+        def __init__(self, name, state): self.name, self.state = name, state
+
+    import fleet.status as status_mod
+    orig = status_mod.rows
+    try:
+        status_mod.rows = lambda **kw: [R("sonnet2", "busy"), R("opus2", "idle")]
+        assert arms._target_busy({}) is True
+        status_mod.rows = lambda **kw: [R("sonnet2", "idle")]
+        assert arms._target_busy({}) is False
+        # a broken probe must degrade to "not busy", never silently disable the arm
+        def boom(**kw): raise RuntimeError("registry unreadable")
+        status_mod.rows = boom
+        assert arms._target_busy({}) is False
+    finally:
+        status_mod.rows = orig
+
+
+def test_fleet_arm_records_skip_without_sending():
+    from fleet.bench import arms
+    sent = []
+    orig = arms._target_busy
+    try:
+        arms._target_busy = lambda entries: True
+        res = arms.run_fleet("body", [], "done", "run1", __import__("pathlib").Path("."), 5,
+                             "build", "v2", {}, send=lambda p, prof: sent.append(p))
+        assert res.status == "skipped"
+        assert sent == [], "a skipped arm must not send a packet to the live thread"
+    finally:
+        arms._target_busy = orig
