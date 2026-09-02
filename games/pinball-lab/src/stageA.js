@@ -23,6 +23,7 @@ import { execFileSync } from 'node:child_process';
 import { sdFromAcc, uniformSd, percentile, histogram, entropyBits } from './metrics.js';
 import { INJECTION } from './arenas/e1_flippers.js';
 import { buildE1StageACfgs, cfgId as hashCfg, buildE3AllCfgs } from './sweep.js';
+import { flagGateResult, FLAG_GATE_FRACTION } from './gate.js';
 
 const DEFAULT_TOTAL_TRIALS = 400000; // §3.3 Stage A budget; --trials overrides for smoke tests
 const INBOUND_SD_FLOOR_FRACTION = 0.5;
@@ -138,9 +139,12 @@ async function runE4Stage(args) {
   // target" takes this form for E4, replacing E1's never-baseline-contact-rate check; (2) the
   // flagged-fraction gate excludes STALLED (for a cradle experiment STALLED IS the
   // measurement); (3) CREEP is reported prominently, watched for correlating with high-cp cfgs.
+  // LAB-11/P0-1: (2) is now actually ENFORCED (`flagGate` below) — it was computed and
+  // reported but never compared to the §2.7 threshold before this fix.
   const c0 = perCfgSummary.find((c) => c.arm === 'C0');
   const c0Ok = !c0 || c0.cp < 0.01;
   const flaggedExclStalledFraction = totalTrials > 0 ? totalFlaggedExclStalled / totalTrials : 0;
+  const flagGate = flagGateResult({ trials: totalTrials, flagged: totalFlaggedExclStalled });
 
   const secs = (performance.now() - start) / 1000;
   const meta = {
@@ -153,6 +157,7 @@ async function runE4Stage(args) {
     cp: totalTrials ? totalCp / totalTrials : 0, cv: totalTrials ? totalCv / totalTrials : 0,
     creep: totalTrials ? totalCreep / totalTrials : 0,
     c0Cp: c0?.cp ?? null, c0OnTarget: c0Ok,
+    flagGateOk: flagGate.ok,
     secs,
     shards: results.map((r) => ({ path: path.relative(out, r.outPath) })),
     cfgs: cfgs.map((cfg) => ({ cfg, trials: perCfgByIndex.get(cfg.cfgId).trials })),
@@ -164,6 +169,12 @@ async function runE4Stage(args) {
 
   if (!c0Ok) {
     console.error(JSON.stringify({ ok: false, error: `§7 gate: C0 control cp=${((c0?.cp ?? 0) * 100).toFixed(2)}% >= 1%`, out }));
+    process.exitCode = 1;
+    return;
+  }
+
+  if (!flagGate.ok) {
+    console.error(JSON.stringify({ ok: false, error: `§2.7 gate: flagged fraction (excl STALLED) ${(flagGate.fraction * 100).toFixed(2)}% exceeds ${(FLAG_GATE_FRACTION * 100).toFixed(0)}%`, out }));
     process.exitCode = 1;
     return;
   }
@@ -533,11 +544,15 @@ async function main() {
   const selected = geometries.filter((g) => selectedKeys.has(g.geometryKey));
 
   const secs = (performance.now() - start) / 1000;
+  // LAB-11/P0-1: §2.7's gate applied uniformly here too — E1's Stage A screen has no
+  // STALLED-as-measurement exception (that's E4-only, §7), so it's the plain any-bit fraction.
+  const flagGate = flagGateResult({ trials: totalTrials, flagged: totalFlagged });
   const meta = {
     exp: 'e1', stage: 'A', out, instrumentCommitSha: instrumentCommitSha(),
     generatedAt: new Date().toISOString(),
     cfgCount: cfgs.length, trialCount: totalTrials,
     flaggedFraction: totalTrials > 0 ? totalFlagged / totalTrials : 0,
+    flagGateOk: flagGate.ok,
     inboundSds, neverBaselineContactRate: neverContactRate, neverTrials,
     geometryCount: geometries.length, secs,
     shards: results.map((r, i) => ({ path: path.relative(out, r.outPath) })),
@@ -553,6 +568,12 @@ async function main() {
   };
   writeFileSync(path.join(out, 'ranking.json'), JSON.stringify(ranking, null, 2));
   writeFileSync(path.join(out, 'selected-geometries.json'), JSON.stringify(selected.map((g) => g.geometry), null, 2));
+
+  if (!flagGate.ok) {
+    console.error(JSON.stringify({ ok: false, error: `§2.7 gate: flagged fraction ${(flagGate.fraction * 100).toFixed(2)}% exceeds ${(FLAG_GATE_FRACTION * 100).toFixed(0)}%`, out }));
+    process.exitCode = 1;
+    return;
+  }
 
   console.log(JSON.stringify({
     ok: true, cfgs: cfgs.length, trials: totalTrials,

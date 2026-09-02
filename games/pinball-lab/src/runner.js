@@ -16,6 +16,7 @@ import { execFileSync } from 'node:child_process';
 import { sdFromAcc, uniformSd } from './metrics.js';
 import { INJECTION as E1_INJECTION, CRADLE_INJECTION as E1_CRADLE_INJECTION } from './arenas/e1_flippers.js';
 import { INJECTION_SPEED as E2_SPEED, INJECTION_ANGLE_DEG as E2_ANGLE } from './arenas/e2_bumpers.js';
+import { flagGateResult, FLAG_GATE_FRACTION } from './gate.js';
 
 // §2.4a: "every run computes the sd of the sampled inbound quantities and fails loudly if any
 // falls below a floor." The floor is a fraction of the theoretical Uniform(lo,hi) sd for that
@@ -234,16 +235,27 @@ async function main() {
     ensembleInboundSds[key] = cfgMeta.reduce((a, c) => a + c.inboundSds[key], 0) / cfgMeta.length;
   }
   const neverCfg = cfgMeta.find((c) => c.cfg.pol === 'never');
+  // LAB-11/P0-1: §2.7's gate applied here too — this path (direct E1/E2 runs, including Stage
+  // B and the cradle family) had no exclusion documented anywhere, so it's the plain any-bit
+  // fraction, same as E1 Stage A's screen; only E4 (§7) has a STALLED exception.
+  const flagGate = flagGateResult({ trials: totalRun, flagged: totalFlagged });
 
   const meta = {
     exp, out, instrumentCommitSha: instrumentCommitSha(),
     generatedAt: new Date().toISOString(),
     units: { length: 'm', speed: 'm/s', angle: 'deg (recorded), rad (internal)', time_dt_field: 'ms', time_dw_field: 's' },
     cfgCount: cfgs.length, trialCount: totalRun, flaggedFraction: totalRun > 0 ? totalFlagged / totalRun : 0,
+    flagGateOk: flagGate.ok,
     ensembleInboundSds, neverBaselineContactRate: neverCfg?.contactRate ?? null,
     secs, cfgs: cfgMeta,
   };
   writeFileSync(path.join(out, 'meta.json'), JSON.stringify(meta, null, 2));
+
+  if (!flagGate.ok) {
+    console.error(JSON.stringify({ ok: false, error: `§2.7 gate: flagged fraction ${(flagGate.fraction * 100).toFixed(2)}% exceeds ${(FLAG_GATE_FRACTION * 100).toFixed(0)}%`, out }));
+    process.exitCode = 1;
+    return;
+  }
 
   console.log(JSON.stringify({
     ok: true, cfgs: cfgs.length, trials: totalRun,

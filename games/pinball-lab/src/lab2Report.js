@@ -109,23 +109,37 @@ async function main() {
       if (contacted) {
         totalContacted += 1;
         g.contacted += 1;
-        // Transfer function bin (§3.6.1): (hs x phase x vi x ai) -> (vo, ao).
-        const hsIdx = binIndex(r.hs, HS_BINS, 1);
-        const phaseIdx = PHASES.indexOf(r.hp);
-        const viIdx = binIndex(r.vi, VI_BINS, VI_MAX);
-        const aiIdx = binIndex(r.ai, AI_BINS, AI_MAX);
-        if (hsIdx !== null && phaseIdx >= 0 && viIdx !== null && aiIdx !== null) {
-          const key = `${hsIdx}|${phaseIdx}|${viIdx}|${aiIdx}`;
-          let b = transferBins.get(key);
-          if (!b) { b = { n: 0, sumVo: 0, sumSqVo: 0, sumAo: 0, sumSqAo: 0 }; transferBins.set(key, b); }
-          b.n += 1; b.sumVo += r.vo; b.sumSqVo += r.vo * r.vo; b.sumAo += r.ao; b.sumSqAo += r.ao * r.ao;
+        // §2.7 / P0-2 (LAB-11): "flagged trials are excluded from distributions" — LAB-2's own
+        // handoff claimed this for the transfer function and gradient but the code never
+        // checked `r.f`, only `term`/`contacted` (which only screens NAN/ESCAPED/TIMEOUT/
+        // STALLED as a side effect of those flags always `break`-ing with their own term;
+        // IMPACTS_EXHAUSTED sets its flag WITHOUT breaking, so it silently rode along).
+        // `contacted`/`totalContacted`/`contactRate` themselves are left as "contacted at
+        // all" (unchanged meaning) — only the distributions the fix is actually about are
+        // gated here.
+        if (r.f === 0) {
+          // Transfer function bin (§3.6.1): (hs x phase x vi x ai) -> (vo, ao).
+          const hsIdx = binIndex(r.hs, HS_BINS, 1);
+          const phaseIdx = PHASES.indexOf(r.hp);
+          const viIdx = binIndex(r.vi, VI_BINS, VI_MAX);
+          const aiIdx = binIndex(r.ai, AI_BINS, AI_MAX);
+          if (hsIdx !== null && phaseIdx >= 0 && viIdx !== null && aiIdx !== null) {
+            const key = `${hsIdx}|${phaseIdx}|${viIdx}|${aiIdx}`;
+            let b = transferBins.get(key);
+            if (!b) { b = { n: 0, sumVo: 0, sumSqVo: 0, sumAo: 0, sumSqAo: 0 }; transferBins.set(key, b); }
+            b.n += 1; b.sumVo += r.vo; b.sumSqVo += r.vo * r.vo; b.sumAo += r.ao; b.sumSqAo += r.ao * r.ao;
+          }
+          // §3.5's secondary heaviness signal: gradient of vo/vi along hs, pooled across phase
+          // (documented approximation — the spec asks "at fixed phase"; pooling all contacted
+          // trials for one geometry keeps the sample size usable at Stage B resolution).
+          if (r.vi > 0) addLinReg(g.gradReg, r.hs, r.vo / r.vi);
         }
-        // §3.5's secondary heaviness signal: gradient of vo/vi along hs, pooled across phase
-        // (documented approximation — the spec asks "at fixed phase"; pooling all contacted
-        // trials for one geometry keeps the sample size usable at Stage B resolution).
-        if (r.vi > 0) addLinReg(g.gradReg, r.hs, r.vo / r.vi);
       }
-      if (r.term === 'shotline' && cfg.pol !== 'never') {
+      // P0-2: fan width / timing-sensitivity is the OTHER distribution LAB-2's handoff claimed
+      // was flag-filtered ("computed only from shotline trials") but wasn't — `term ===
+      // 'shotline'` alone doesn't exclude a trial that also set IMPACTS_EXHAUSTED earlier in
+      // the same run (flags accumulate across the whole trial; term is just what broke the loop).
+      if (r.term === 'shotline' && r.f === 0 && cfg.pol !== 'never') {
         totalShotline += 1;
         g.xaVals.push(r.xa);
         if (cfg.pol === 'fixedDelay') {
