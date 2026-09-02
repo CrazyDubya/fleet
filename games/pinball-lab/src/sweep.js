@@ -8,7 +8,7 @@ import {
   NOMINAL_SKIRT_RADIUS, SERIES_B_AREA_FRACTION,
   seriesASkirtRadius, seriesBFieldSize, effectiveAreaFraction,
 } from './arenas/e2_bumpers.js';
-import { buildE4World, pocketSolve } from './arenas/e4_pocket.js';
+import { buildE4World, pocketSolve, LEFT_PIVOT } from './arenas/e4_pocket.js';
 
 /** First 8 hex of sha256 over the sorted-key JSON of `cfg` — same value regardless of key
  * insertion order, so two callers building "the same" cfg by different code paths agree. */
@@ -416,6 +416,98 @@ export function buildE4StageCCfgs(topAssembliesWithGeoms) {
   return filterBuildable(withCfgIds(cfgs));
 }
 
+// --- LAB-10: EXPERIMENT 5a — the release diagnostic (opus2 roadmap §3, E5a). LAB-6's Stage C
+// only ever released from its top-cp rows, which the report itself flags as clustering at
+// hsS≈0 — so E4's "catch/playability tradeoff" claim was never tested against a ball resting
+// further out on the flipper. E5a re-runs the SAME release protocol (holdThenRelease, same
+// upMs/releaseDelayMs grids, same 'drop' injection, same 6.0s release window) but chooses its
+// assemblies by STRATIFYING ACROSS hsS instead of ranking by cp — deliberately including
+// low-cp/high-hsS geometries Stage C never touched. Zero new physics: same arena
+// (arenas/e4_pocket.js), same instrument.js release classification; only the assembly-
+// selection axis changes.
+const E5A_DEG = Math.PI / 180;
+const E5A_FLIPPER_LENGTH = 0.075; // physics/constants.js FLIPPER.lower.length — same constant
+// Stage C's flipper-geometry crossing narrowed to activeAngleDeg only (Stage B's own grid,
+// E4_STAGEB_ACTIVE) — this is the dimension that actually moves hsS at fixed guide geometry
+// (pocketSolve's intersection point slides along the flipper as its direction rotates);
+// restAngleDeg/restitution held at LAB-2's winner, same as every other E4 stage's "the flipper
+// held fixed except where the design explicitly re-sweeps it" convention.
+export const E5A_ACTIVE_ANGLES = E4_STAGEB_ACTIVE;
+export const E5A_N_BINS = 16;
+
+/** Analytic hsS for a W1 guide + activeAngleDeg + radius, using the SAME two-contact solve
+ * (`pocketSolve`) and the SAME clamped-projection definition instrument.js's `classifySettle`
+ * uses for the measured `hsS` (0 = pivot, 1 = tip) — this is the predicted rest position along
+ * the flipper, not a re-derivation of the physics. `null` when the pair isn't feasible
+ * (mirrors `withPocketSolve`'s own feasibility check). Canonical left (`side: 1`) only — hsS is
+ * side-symmetric by construction (the whole assembly is built mirrored), so the right side
+ * carries no independent information. */
+function predictHsS({ gapX, tiltDeg, endDy, guideE, activeAngleDeg, radius }) {
+  const sol = pocketSolve({ gapX, tiltDeg, endDy, activeAngleDeg, flipperRadius: radius, side: 1 });
+  if (!sol.feasible) return null;
+  const dir = { x: Math.cos(activeAngleDeg * E5A_DEG), y: Math.sin(activeAngleDeg * E5A_DEG) };
+  const t = (sol.point.x - LEFT_PIVOT.x) * dir.x + (sol.point.y - LEFT_PIVOT.y) * dir.y;
+  return Math.max(0, Math.min(1, t / E5A_FLIPPER_LENGTH));
+}
+
+/** The W1 grid (gapX x tiltDeg x endDy x guideE, §2.1 — same 120-guide grid Stage A1
+ * screened) crossed with Stage B's activeAngleDeg values, radius held at the winner's, scored
+ * by predicted hsS and picked one-per-quantile-bin across the WHOLE feasible range —
+ * deliberately unlike Stage C's "rank by cp, take the top 6", which is exactly the selection
+ * this diagnostic is testing for confound. Adjacent bins can collide on a sparse tail (few
+ * feasible points at the extremes); de-duplicated by (gapX,tiltDeg,endDy,guideE,activeAngleDeg)
+ * rather than padded back to E5A_N_BINS, so the sample can legitimately come back thinner than
+ * 16 if the feasible hsS range is narrow. */
+export function buildE5aAssemblies() {
+  const guides = expandGrid(E4_W1_GRID);
+  const candidates = [];
+  for (const g of guides) {
+    // Radius crossed too (A1's own §6.1 dimension, E4_RADII) — fixing it at the winner's alone
+    // caps the reachable hsS at ~0.18 (checked); a genuine "whole hsS range" sweep needs the
+    // full A1 W1-grid x radius space (1,080 combinations, unclamped hsS spans roughly
+    // [-0.38, +0.25] before the classifySettle-matching clamp to [0,1] below).
+    for (const radius of E4_RADII) {
+      for (const activeAngleDeg of E5A_ACTIVE_ANGLES) {
+        const hsSPredicted = predictHsS({ ...g, activeAngleDeg, radius });
+        if (hsSPredicted === null) continue;
+        candidates.push({ ...g, activeAngleDeg, radius, hsSPredicted, guide: withPocketSolve(g, { activeAngleDeg, radius }) });
+      }
+    }
+  }
+  candidates.sort((a, b) => a.hsSPredicted - b.hsSPredicted);
+  const n = candidates.length;
+  const seen = new Set();
+  const picked = [];
+  for (let i = 0; i < E5A_N_BINS && n > 0; i++) {
+    const idx = Math.min(n - 1, Math.floor((i + 0.5) * n / E5A_N_BINS));
+    const cand = candidates[idx];
+    const key = `${cand.gapX}|${cand.tiltDeg}|${cand.endDy}|${cand.guideE}|${cand.activeAngleDeg}|${cand.radius}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    picked.push(cand);
+  }
+  return picked;
+}
+
+export function buildE5aCfgs() {
+  const assemblies = buildE5aAssemblies();
+  const cfgs = [];
+  for (const asm of assemblies) {
+    for (const upMs of E4_STAGEC_UPMS) {
+      for (const releaseDelayMs of E4_STAGEC_RELEASE_DELAY_MS) {
+        cfgs.push(e4Base({
+          restAngleDeg: E4_LAB2_WINNER.restAngleDeg, activeAngleDeg: asm.activeAngleDeg, upMs,
+          omegaProfile: E4_LAB2_WINNER.omegaProfile, radius: asm.radius, restitution: E4_LAB2_WINNER.restitution,
+          inj: 'drop', guide: asm.guide, feed: null, post: null, outlaneW: null,
+          pol: 'holdThenRelease', releaseDelayMs, release: true, arm: 'E5a', hsSPredicted: asm.hsSPredicted,
+        }));
+      }
+    }
+  }
+  const { cfgs: kept, excluded, total } = filterBuildable(withCfgIds(cfgs));
+  return { cfgs: kept, excluded, total, assemblyCount: assemblies.length };
+}
+
 // --- LAB-4: the §5 EXPERIMENT 3 (paths) cfg sets, per the program handoff §5.1/§5.3. Each
 // family is its own small grid (documented per family below), `withCfgIds`-hashed the same
 // way as every other experiment; `splitEvenly(1e6, 5)` gives each family 200,000 trials
@@ -572,12 +664,18 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const { cfgs, excluded, total } = buildE4StageCCfgs(topAssembliesWithGeoms);
     writeFileSync(out, JSON.stringify(cfgs) + '\n');
     console.log(JSON.stringify({ ok: true, cfgs: cfgs.length, excluded, total, out }));
+  } else if (args.exp === 'e4' && args.grid === 'e5a') {
+    const out = args.out ?? 'cfgs/e4-e5a.json';
+    const { cfgs, excluded, total, assemblyCount } = buildE5aCfgs();
+    writeFileSync(out, JSON.stringify(cfgs) + '\n');
+    console.log(JSON.stringify({ ok: true, cfgs: cfgs.length, excluded, total, assemblyCount, out }));
   } else {
     console.error('usage: node src/sweep.js --exp e1 --grid pilot|stageA|stageB|cradle --out <path.json> [--geometries <path.json>]');
     console.error('       node src/sweep.js --exp e2 --grid seriesA|seriesB --out <path.json>');
     console.error('       node src/sweep.js --exp e2 --grid divergence --seriesA <path.json> --out <path.json>');
     console.error('       node src/sweep.js --exp e4 --grid slice|stageA1 [--out <path.json>]');
     console.error('       node src/sweep.js --exp e4 --grid stageA2|stageB|stageC --top <path.json> [--out <path.json>]');
+    console.error('       node src/sweep.js --exp e4 --grid e5a [--out <path.json>]');
     process.exit(1);
   }
 }

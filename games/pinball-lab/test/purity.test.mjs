@@ -16,7 +16,8 @@ const TIMING_ALLOWED = new Set(['runner.js', 'profile.js', 'stageA.js']);
 // e2Report.js is the same category as lab2Report.js: an orchestration CLI writing a summary
 // timestamp, never a trial.
 // e4Report.js (LAB-6) is the same category: an orchestration CLI writing a summary timestamp.
-const WALLCLOCK_ALLOWED = new Set(['runner.js', 'stageA.js', 'lab2Report.js', 'e2Report.js', 'e4Report.js']); // Date.now/new Date() — meta.json/summary timestamps only
+// e5aReport.js (LAB-10) is the same category: an orchestration CLI writing a summary timestamp.
+const WALLCLOCK_ALLOWED = new Set(['runner.js', 'stageA.js', 'lab2Report.js', 'e2Report.js', 'e4Report.js', 'e5aReport.js']); // Date.now/new Date() — meta.json/summary timestamps only
 
 function walk(dir) {
   const out = [];

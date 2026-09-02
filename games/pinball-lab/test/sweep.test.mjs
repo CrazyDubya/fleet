@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import {
   buildGeometryGrid, buildStageAPolicies, buildE1StageACfgs,
   buildStageBPolicies, buildE1StageBCfgs, buildE1CradleCfgs,
+  buildE5aAssemblies, buildE5aCfgs, E4_STAGEC_UPMS, E4_STAGEC_RELEASE_DELAY_MS,
 } from '../src/sweep.js';
 
 test('§3.3 geometry grid is exactly 6x3x6x4x3x3 = 3,888 cfgs, all cfgIds unique', () => {
@@ -53,4 +54,26 @@ test('cradle cfgs: one per geometry, pol heldActive, cradle true', () => {
   const cfgs = buildE1CradleCfgs(geoms);
   assert.equal(cfgs.length, 24);
   assert.ok(cfgs.every((c) => c.pol === 'heldActive' && c.cradle === true));
+});
+
+// LAB-10 / E5a (release diagnostic): the whole point is a stratified spread of hsS —
+// not a rank-by-cp top-N the way Stage C's assemblies were — so the strongest possible test
+// is "the assemblies actually span a wide hsS range", not just a count.
+test('E5a assemblies span a wide hsS range, not clustered at one point', () => {
+  const assemblies = buildE5aAssemblies();
+  assert.ok(assemblies.length >= 10, `expected a real spread of assemblies, got ${assemblies.length}`);
+  const hsSVals = assemblies.map((a) => a.hsSPredicted);
+  assert.ok(hsSVals.every((h) => h >= 0 && h <= 1), 'hsS is the classifySettle-matching clamped [0,1] projection');
+  const spread = Math.max(...hsSVals) - Math.min(...hsSVals);
+  assert.ok(spread > 0.1, `expected hsS spread > 0.1 across the sample, got ${spread}`);
+  // Sorted, no duplicate (guide, activeAngleDeg, radius) triples.
+  const keys = new Set(assemblies.map((a) => `${a.gapX}|${a.tiltDeg}|${a.endDy}|${a.guideE}|${a.activeAngleDeg}|${a.radius}`));
+  assert.equal(keys.size, assemblies.length);
+});
+
+test('E5a cfgs: assemblies x upMs x releaseDelayMs, holdThenRelease + release:true throughout', () => {
+  const { cfgs, assemblyCount } = buildE5aCfgs();
+  assert.ok(cfgs.length <= assemblyCount * E4_STAGEC_UPMS.length * E4_STAGEC_RELEASE_DELAY_MS.length);
+  assert.ok(cfgs.every((c) => c.pol === 'holdThenRelease' && c.release === true && c.arm === 'E5a'));
+  assert.equal(new Set(cfgs.map((c) => c.cfgId)).size, cfgs.length);
 });
