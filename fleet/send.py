@@ -110,13 +110,29 @@ def _read_pending(path: Path) -> list[dict]:
         return []
 
 
+def _atomic_write(path: Path, text: str) -> None:
+    """Write via a sibling .tmp + os.replace, as registry.save and
+    prompts.record_decision already do.
+
+    _pending_lock serialises WRITERS, but the reader is hooks/v2/hold.sh - a
+    separate bash process that does not take the lock. A plain write_text
+    truncates first, and hold.sh's `jq ... 2>/dev/null || echo '[]'` turns a
+    half-written read into "no pending replies", silently letting a thread end
+    a turn while a reply really is outstanding. os.replace is atomic, so a
+    reader sees either the whole old file or the whole new one.
+    """
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(text)
+    os.replace(tmp, path)
+
+
 def _add_pending(sender: str, pid: str, to: str, state: Path) -> None:
     path = _pending_path(sender, state)
     path.parent.mkdir(parents=True, exist_ok=True)
     with _pending_lock(path):
         items = _read_pending(path)
         items.append({"id": pid, "to": to, "t": time.time()})
-        path.write_text(json.dumps(items))
+        _atomic_write(path, json.dumps(items))
 
 
 def clear_pending(sender: str, pid: str, profile: str, state: Path | None = None) -> bool:
@@ -129,5 +145,5 @@ def clear_pending(sender: str, pid: str, profile: str, state: Path | None = None
         keep = [i for i in items if i.get("id") != pid]
         if len(keep) == len(items):
             return False
-        path.write_text(json.dumps(keep))
+        _atomic_write(path, json.dumps(keep))
         return True

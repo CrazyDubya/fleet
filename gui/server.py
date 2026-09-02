@@ -1,3 +1,4 @@
+import hmac
 import json
 import mimetypes
 import os
@@ -108,11 +109,14 @@ class Handler(BaseHTTPRequestHandler):
         parts = urlsplit(self.path)
         qs = parse_qs(parts.query)
         k = qs.get("k", [None])[0]
-        if k == TOKEN:
+        if k is not None and hmac.compare_digest(k, TOKEN):
             self.send_response(302)
+            # HttpOnly: widget pages are machine-written code served from this
+            # same origin, so without it any widget's JS can read the session
+            # token out of document.cookie.
             self.send_header(
                 "Set-Cookie",
-                f"fleet_gui={TOKEN}; Path=/; SameSite=Lax; Max-Age=31536000",
+                f"fleet_gui={TOKEN}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000",
             )
             self.send_header("Location", parts.path)
             self.end_headers()

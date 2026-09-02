@@ -1,3 +1,4 @@
+import hmac
 import secrets
 from pathlib import Path
 
@@ -17,5 +18,7 @@ def check_cookie(handler, token: str) -> bool:
     for part in cookie.split(";"):
         part = part.strip()
         if part.startswith("fleet_gui="):
-            return part[len("fleet_gui="):] == token
+            # constant-time: a plain == leaks the token prefix-by-prefix to a
+            # caller that can time the response.
+            return hmac.compare_digest(part[len("fleet_gui="):], token)
     return False
