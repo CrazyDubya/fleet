@@ -416,6 +416,82 @@ export function buildE4StageCCfgs(topAssembliesWithGeoms) {
   return filterBuildable(withCfgIds(cfgs));
 }
 
+// --- LAB-4: the §5 EXPERIMENT 3 (paths) cfg sets, per the program handoff §5.1/§5.3. Each
+// family is its own small grid (documented per family below), `withCfgIds`-hashed the same
+// way as every other experiment; `splitEvenly(1e6, 5)` gives each family 200,000 trials
+// (§5.1's "200k trials per family") regardless of its own cfg count. P2-P4 carry
+// `inputPrior`/`shotlineSamplesPath` (§5.3's E1 coupling) on every cfg alike — the coupling
+// is a property of the RUN, not of any one geometry point in a family's grid. ---
+
+export const E3_SHOTLINE_SAMPLES_PATH = 'data/summaries/e1-lab2-20260901T073830Z-shotline.json';
+
+function withE1Coupling(cfgs, inputPrior, shotlineSamplesPath) {
+  return cfgs.map((c) => ({ ...c, inputPrior, shotlineSamplesPath: inputPrior === 'e1' ? shotlineSamplesPath : null }));
+}
+
+// P1 launch lane: laneWidth x deflectorAngleDeg x gateThresholdFrac x plungerSpeed = 4x4x3x6 = 288.
+export const E3_P1_GRID = {
+  laneWidth: [0.028, 0.034, 0.040, 0.045],
+  deflectorAngleDeg: [15, 28, 41, 55],
+  gateThresholdFrac: [0.35, 0.6, 0.85], // fraction of the lane's own height, not an absolute y
+  plungerSpeed: [1.0, 1.8, 2.6, 3.4, 4.2, 5.0],
+};
+export function buildE3P1Cfgs() {
+  return withCfgIds(expandGrid(E3_P1_GRID).map((g) => ({ exp: 'e3', family: 'P1', ...g })));
+}
+
+// P2 orbit: radius x entryAngleDeg x exitTangentDeg x wallRestitution = 4x5x5x3 = 300.
+export const E3_P2_GRID = {
+  radius: [0.10, 0.14, 0.18, 0.22],
+  entryAngleDeg: [-20, -10, 0, 10, 20],
+  exitTangentDeg: [-30, -15, 0, 15, 30],
+  wallRestitution: [0.45, 0.65, 0.85],
+};
+export function buildE3P2Cfgs(inputPrior = 'e1', shotlineSamplesPath = E3_SHOTLINE_SAMPLES_PATH) {
+  return withCfgIds(withE1Coupling(expandGrid(E3_P2_GRID).map((g) => ({ exp: 'e3', family: 'P2', ...g })), inputPrior, shotlineSamplesPath));
+}
+
+// P3 return lanes: guideAngleDeg x laneWidth x postX = 5x4x5 = 100.
+export const E3_P3_GRID = {
+  guideAngleDeg: [20, 30, 40, 50, 60],
+  laneWidth: [0.026, 0.031, 0.037, 0.042],
+  postX: [-0.010, -0.005, 0, 0.005, 0.010],
+};
+export function buildE3P3Cfgs(inputPrior = 'e1', shotlineSamplesPath = E3_SHOTLINE_SAMPLES_PATH) {
+  return withCfgIds(withE1Coupling(expandGrid(E3_P3_GRID).map((g) => ({ exp: 'e3', family: 'P3', ...g })), inputPrior, shotlineSamplesPath));
+}
+
+// P4 ramp mouth: mouthWidth x approachAngleDeg x rampMinSpeed = 4x5x5 = 100.
+export const E3_P4_GRID = {
+  mouthWidth: [0.030, 0.040, 0.050, 0.060],
+  approachAngleDeg: [-25, -12, 0, 12, 25],
+  rampMinSpeed: [0.3, 0.525, 0.75, 0.975, 1.2],
+};
+export function buildE3P4Cfgs(inputPrior = 'e1', shotlineSamplesPath = E3_SHOTLINE_SAMPLES_PATH) {
+  return withCfgIds(withE1Coupling(expandGrid(E3_P4_GRID).map((g) => ({ exp: 'e3', family: 'P4', ...g })), inputPrior, shotlineSamplesPath));
+}
+
+// P5 habitrail drop: dropX x dropY x dropSpeed x dropDirectionDeg = 5x4x5x6 = 600. No E1
+// coupling (§5.3 exception — see arenas/e3_paths.js's P5 comment).
+export const E3_P5_GRID = {
+  dropX: [-0.12, -0.06, 0, 0.06, 0.12],
+  dropY: [0.25, 0.35, 0.45, 0.55],
+  dropSpeed: [0.5, 1.0, 1.5, 2.0, 2.5],
+  dropDirectionDeg: [200, 230, 260, 290, 320, 350],
+};
+export function buildE3P5Cfgs() {
+  return withCfgIds(expandGrid(E3_P5_GRID).map((g) => ({ exp: 'e3', family: 'P5', ...g })));
+}
+
+/** All five families' cfgs concatenated, tagged with which family each block belongs to via
+ * `cfg.family` (already set per-builder) — stageA.js's e3 branch uses this to size each
+ * family's share of the 1e6-trial budget independently (§5.1: 200k/family, not 1e6/totalCfgs). */
+export function buildE3AllCfgs() {
+  return {
+    P1: buildE3P1Cfgs(), P2: buildE3P2Cfgs(), P3: buildE3P3Cfgs(), P4: buildE3P4Cfgs(), P5: buildE3P5Cfgs(),
+  };
+}
+
 // `node src/sweep.js --exp e1 --grid pilot --out cfgs/e1-pilot.json` — writes the committed
 // cfg file the CLI contract (§2.9) expects `runner.js --cfgs <path>` to read. Run once; the
 // output is deterministic (cfgId is a pure hash), so re-running only matters if PILOT_* above
@@ -480,6 +556,16 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const { cfgs, excluded, total } = buildE4StageBCfgs(topAssemblies);
     writeFileSync(out, JSON.stringify(cfgs) + '\n');
     console.log(JSON.stringify({ ok: true, cfgs: cfgs.length, excluded, total, out }));
+  } else if (args.exp === 'e3' && args.grid === 'all') {
+    const out = args.out ?? 'cfgs/e3-all.json';
+    const byFamily = buildE3AllCfgs();
+    const cfgs = [...byFamily.P1, ...byFamily.P2, ...byFamily.P3, ...byFamily.P4, ...byFamily.P5];
+    writeFileSync(out, JSON.stringify(cfgs) + '\n');
+    console.log(JSON.stringify({
+      ok: true, cfgs: cfgs.length,
+      byFamily: Object.fromEntries(Object.entries(byFamily).map(([k, v]) => [k, v.length])),
+      out,
+    }));
   } else if (args.exp === 'e4' && args.grid === 'stageC' && args.top) {
     const out = args.out ?? 'cfgs/e4-stageC.json';
     const topAssembliesWithGeoms = JSON.parse(readFileSync(args.top, 'utf8'));

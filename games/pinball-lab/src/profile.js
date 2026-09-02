@@ -7,7 +7,7 @@
 import os from 'node:os';
 import { performance } from 'node:perf_hooks';
 import { runTrialWithMeta } from './instrument.js';
-import { buildE1PilotCfgs, buildE2SeriesACfgs, buildE2SeriesBCfgs, buildE4SliceCfgs, buildE4StageA1Cfgs } from './sweep.js';
+import { buildE1PilotCfgs, buildE2SeriesACfgs, buildE2SeriesBCfgs, buildE4SliceCfgs, buildE4StageA1Cfgs, buildE3AllCfgs } from './sweep.js';
 
 function parseArgs(argv) {
   const args = {};
@@ -39,6 +39,12 @@ function cfgsFor(exp, args) {
     // of both the cheap (heldActive/drop) and the more expensive (release-phase-capable) trials.
     const sample = buildE4StageA1Cfgs().cfgs.filter((_, i) => i % 20 === 0);
     return [...buildE4SliceCfgs(), ...sample];
+  }
+  if (exp === 'e3') {
+    // A round-robin mix across all five families — representative of the real run, which
+    // spends its budget across all of them, not any one family's own cost profile.
+    const byFamily = buildE3AllCfgs();
+    return [...byFamily.P1, ...byFamily.P2, ...byFamily.P3, ...byFamily.P4, ...byFamily.P5];
   }
   throw new Error(`profile.js: unknown --exp '${exp}'`);
 }

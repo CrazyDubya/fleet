@@ -17,6 +17,11 @@ import { buildE1World, SHOT_LINE_Y, INJECTION, CRADLE_INJECTION } from './arenas
 import { createPolicy } from './policy.js';
 import { buildE2World, INJECTION_SPEED as E2_SPEED, INJECTION_ANGLE_DEG as E2_ANGLE } from './arenas/e2_bumpers.js';
 import { buildE4World, classifySettle } from './arenas/e4_pocket.js';
+import {
+  buildE3World, classifyFeed, FLIPPER_ZONE_Y, LAUNCH_BAND, FALLBACK_SPEED, FALLBACK_ANGLE,
+  DEAD_ZONE_SPEED, HALF_WIDTH as E3_HALF_WIDTH, LANE_DEFLECTOR_EFFICIENCY,
+} from './arenas/e3_paths.js';
+import { loadShotlineSamples, sampleShotline } from './e1Coupling.js';
 
 export const FLAGS = {
   IMPACTS_EXHAUSTED: 1,
@@ -34,6 +39,8 @@ const STALL_DURATION_S = 0.5;
 const E1_TIMEOUT_S = 2.0; // §3.1
 const E2_TIMEOUT_S = 12.0; // §4.3
 const E4_TIMEOUT_S = 4.0; // §1.2's revised window, Stages A/B
+const E3_TIMEOUT_S = 12.0; // §5.2
+const E3_DEAD_ZONE_CAP = 300; // per-trial cap on recorded dead-zone samples (see runE3Trial)
 const E4_RELEASE_TIMEOUT_S = 6.0; // Stage C
 const E4_CREEP_THRESHOLD_M = 0.005;
 const E2_INJECTION_X_MARGIN = 0.02; // keep the sampled x strictly inside the side walls
@@ -83,6 +90,7 @@ export function buildWorld(cfg) {
   if (cfg.exp === 'e1') return buildE1World(cfg);
   if (cfg.exp === 'e2') return buildE2World(cfg);
   if (cfg.exp === 'e4') return buildE4World(cfg);
+  if (cfg.exp === 'e3') return buildE3World(cfg);
   throw new Error(`buildWorld: unknown exp '${cfg.exp}'`);
 }
 
@@ -102,6 +110,7 @@ function runTrialFor(exp) {
   if (exp === 'e1') return runE1Trial;
   if (exp === 'e2') return runE2Trial;
   if (exp === 'e4') return runE4Trial;
+  if (exp === 'e3') return runE3Trial;
   throw new Error(`runTrial: unknown exp '${exp}'`);
 }
 
@@ -670,4 +679,215 @@ function runE4Trial(cfg, seed, opts) {
     f: flags,
   };
   return { record, steps, inbound: { x0, speed0, angle0Deg }, contacted: contacts > 0 };
+}
+
+/** EXPERIMENT 3 trial loop (program handoff §5.2, LAB-4): inject per the family's own entry
+ * (a plunge for P1, a flipper shot sourced from E1's shot-line CDF for P2-P4, the family's
+ * own swept parameters directly for P5 — see arenas/e3_paths.js's per-family comments), run
+ * until the ball crosses the flipper zone, drains, stalls, or times out (12s per §5.2).
+ * Structurally the same shape as runE1Trial/runE2Trial; the two things unique to E3 are the
+ * §5.4 dead-zone occupancy sampling (every substep the ball is slower than
+ * DEAD_ZONE_SPEED, capped per trial — see E3_DEAD_ZONE_CAP) and P4's manual ramp-mouth
+ * make/reject hand-off (arenas/e3_paths.js's file header explains why it's manual rather than
+ * the game's own Gate/world.ramps path).
+ */
+function runE3Trial(cfg, seed, opts) {
+  const built = buildWorld(cfg);
+  const { world, ball, bounds, injection } = built;
+  const rng = rngForTrial(cfg, seed);
+
+  let x0, y0, speed0, angle0Deg;
+  if (injection.mode === 'plunge') {
+    // Small per-trial jitter around the grid's plungerSpeed/lane position — §5.1's
+    // plungerSpeed is itself a swept GEOMETRY grid value (a discrete "how hard did the
+    // player pull" bucket), so without this every trial in a cfg would be bit-identical
+    // (the arena has no other source of per-trial variance for a plunge). Jitter magnitude
+    // (±5% speed, ±3mm position) is a modest stand-in for real plunger-pull/ball-seating
+    // variance, not itself a studied quantity.
+    x0 = injection.x + range(rng, -0.001, 0.001);
+    y0 = injection.y;
+    speed0 = cfg.plungerSpeed * range(rng, 0.95, 1.05);
+    angle0Deg = 90;
+  } else if (injection.mode === 'directDrop') {
+    // P5: same jitter rationale as 'plunge' — dropX/dropY/dropSpeed/dropDirectionDeg are
+    // grid values, jittered per trial so a cfg's N trials aren't N copies of one trajectory.
+    x0 = cfg.dropX + range(rng, -0.01, 0.01);
+    y0 = cfg.dropY + range(rng, -0.01, 0.01);
+    speed0 = cfg.dropSpeed * range(rng, 0.9, 1.1);
+    angle0Deg = cfg.dropDirectionDeg + range(rng, -5, 5);
+  } else {
+    // 'flipperShot' (P2-P4): x0 from the shared LAUNCH_BAND; speed/angle from §5.3's E1
+    // coupling when cfg.inputPrior==='e1', else the documented uniform fallback.
+    x0 = range(rng, LAUNCH_BAND.xMin, LAUNCH_BAND.xMax);
+    y0 = LAUNCH_BAND.y;
+    if (cfg.inputPrior === 'e1') {
+      const entry = loadShotlineSamples(cfg.shotlineSamplesPath);
+      const sample = sampleShotline(rng, entry);
+      speed0 = sample.speed;
+      angle0Deg = sample.angleDeg;
+    } else {
+      speed0 = range(rng, FALLBACK_SPEED.min, FALLBACK_SPEED.max);
+      angle0Deg = range(rng, FALLBACK_ANGLE.minDeg, FALLBACK_ANGLE.maxDeg);
+    }
+  }
+  const angle0 = (angle0Deg * Math.PI) / 180;
+  ball.pos = { x: x0, y: y0 };
+  ball.vel = { x: speed0 * Math.cos(angle0), y: speed0 * Math.sin(angle0) };
+
+  let elapsedS = 0;
+  let prevY = ball.pos.y;
+  let flags = 0;
+  let term = null;
+  let crossing = null;
+  let stallSinceS = null;
+  let steps = 0;
+  const deadZoneHits = [];
+  let rampResult = cfg.family === 'P4' ? null : null;
+  let plungeRedirected = false;
+
+  while (term === null) {
+    steps += 1;
+    const events = advance(world, STEP_DT);
+    elapsedS += STEP_DT;
+
+    if (
+      !Number.isFinite(ball.pos.x) || !Number.isFinite(ball.pos.y) ||
+      !Number.isFinite(ball.vel.x) || !Number.isFinite(ball.vel.y)
+    ) {
+      flags |= FLAGS.NAN;
+      term = 'nan';
+      break;
+    }
+
+    if (events.length >= MAX_IMPACTS) flags |= FLAGS.IMPACTS_EXHAUSTED;
+
+    if (opts?.onStep) {
+      opts.onStep({ t: elapsedS, pos: { x: ball.pos.x, y: ball.pos.y }, vel: { x: ball.vel.x, y: ball.vel.y } });
+    }
+
+    // P1's lane-to-field hand-off (see arenas/e3_paths.js's P1 comment for why this is a
+    // scripted redirect rather than a physical deflector wall): a ball that reaches the top
+    // of the lane STILL MOVING UPWARD has cleared the one-way gate below it (a ball that
+    // failed to clear it, or was already falling back, never gets here) — redirect it to
+    // `deflectorAngleDeg` above horizontal, into the field, at LANE_DEFLECTOR_EFFICIENCY of
+    // its arrival speed.
+    if (injection.mode === 'plunge' && !plungeRedirected && ball.pos.y >= injection.laneTopY && ball.vel.y > 0) {
+      plungeRedirected = true;
+      // Capped: verified via replay.js --trace that an uncapped shallow-angle, hard-plunge
+      // redirect (e.g. deflectorAngleDeg=15°, plungerSpeed=5.0) produces an almost purely
+      // horizontal exit velocity that this playfield's weak tilt-gravity (~1.1 m/s²) takes
+      // many seconds and tens of metres to arc back down — no bounding box short of an
+      // unrealistic one contains it, and nothing about that trajectory measures the
+      // deflector's actual redirect behaviour once it's saturated. A real plate/lane has its
+      // own friction and impact losses that cap how much of a hard plunge survives the
+      // redirect; standing in for that with a fixed ceiling (E1's own 3.3's INJECTION speed
+      // ceiling, 4.5 m/s) keeps every family's arena physically containable within its bounds.
+      const arrivalSpeed = Math.min(Math.hypot(ball.vel.x, ball.vel.y), 4.5);
+      const deflAngle = (injection.deflectorAngleDeg * Math.PI) / 180;
+      ball.vel = {
+        x: -arrivalSpeed * LANE_DEFLECTOR_EFFICIENCY * Math.cos(deflAngle),
+        y: arrivalSpeed * LANE_DEFLECTOR_EFFICIENCY * Math.sin(deflAngle),
+      };
+      // The trigger fires the instant y first clears laneTopY — often by under a millimetre,
+      // still within the lane-inner/lane-outer walls' own x-range. Nudge clear of their top
+      // corners (verified via replay.js --trace: without this, the redirected ball's very
+      // next substep re-collides with the lane-inner wall's top endpoint cap, corrupting the
+      // intended redirect into an unpredictable corner graze) before letting normal physics
+      // continue.
+      ball.pos = { x: ball.pos.x, y: injection.laneTopY + 0.01 };
+      prevY = ball.pos.y; // the hand-off is a velocity change in place, not a crossing
+    }
+
+    if (cfg.family === 'P4' && built.gate && rampResult === null) {
+      const gateEvent = events.find((e) => e.tag === 'ramp-mouth');
+      if (gateEvent) {
+        const speedAlong = ball.vel.x * built.gate.allowDir.x + ball.vel.y * built.gate.allowDir.y;
+        if (speedAlong >= built.gate.minSpeed) {
+          rampResult = 'made';
+          const exit = built.gate.exit;
+          ball.pos = { x: exit.pos.x, y: exit.pos.y };
+          ball.vel = { x: exit.dir.x * exit.speed, y: exit.dir.y * exit.speed };
+          prevY = ball.pos.y; // the hand-off is a teleport; don't read it as a flipper-zone crossing
+        } else {
+          rampResult = 'rejected';
+          // Reflect the velocity about the gate's own normal (allowDir) — a bounce back into
+          // the field, standing in for the physical backstop a real too-slow ramp shot meets
+          // (see arenas/e3_paths.js's P4 comment on why no explicit backstop wall is needed).
+          const d = ball.vel.x * built.gate.allowDir.x + ball.vel.y * built.gate.allowDir.y;
+          ball.vel = { x: ball.vel.x - 2 * d * built.gate.allowDir.x, y: ball.vel.y - 2 * d * built.gate.allowDir.y };
+        }
+      }
+    }
+
+    if (
+      ball.pos.x < bounds.xMin || ball.pos.x > bounds.xMax ||
+      ball.pos.y < bounds.yMin || ball.pos.y > bounds.yMax
+    ) {
+      flags |= FLAGS.ESCAPED;
+      term = 'escaped';
+      break;
+    }
+
+    const speed = Math.hypot(ball.vel.x, ball.vel.y);
+    if (speed < DEAD_ZONE_SPEED && deadZoneHits.length < E3_DEAD_ZONE_CAP) {
+      deadZoneHits.push([Math.round(ball.pos.x * 100), Math.round(ball.pos.y * 100)]);
+    }
+
+    if (prevY > FLIPPER_ZONE_Y && ball.pos.y <= FLIPPER_ZONE_Y) {
+      crossing = { x: ball.pos.x, speed, angle: angleDeg(ball.vel) };
+      term = 'reached';
+      break;
+    }
+
+    if (ball.pos.y <= 0.001) {
+      term = 'drain';
+      break;
+    }
+
+    if (speed < STALL_SPEED) {
+      if (stallSinceS === null) stallSinceS = elapsedS;
+      if (elapsedS - stallSinceS > STALL_DURATION_S) {
+        flags |= FLAGS.STALLED;
+        term = 'stall';
+        break;
+      }
+    } else {
+      stallSinceS = null;
+    }
+
+    if (elapsedS >= E3_TIMEOUT_S) {
+      flags |= FLAGS.TIMEOUT;
+      term = 'timeout';
+      break;
+    }
+
+    prevY = ball.pos.y;
+  }
+
+  let feed = null;
+  if (term === 'reached') feed = classifyFeed(crossing.x, Math.abs(crossing.x) <= E3_HALF_WIDTH + 0.005);
+  else if (term === 'drain') feed = classifyFeed(ball.pos.x, Math.abs(ball.pos.x) <= E3_HALF_WIDTH + 0.005);
+
+  const record = {
+    c: cfg.cfgId,
+    s: seed,
+    fam: cfg.family,
+    pr: cfg.inputPrior ?? null,
+    vi: speed0,
+    ai: angle0Deg,
+    term,
+    xx: crossing?.x ?? null,
+    xs: crossing?.speed ?? null,
+    xa: crossing?.angle ?? null,
+    tt: elapsedS,
+    feed,
+    rmp: cfg.family === 'P4' ? rampResult : null,
+    f: flags,
+  };
+  return {
+    record, steps,
+    inbound: { x0, speed0, angle0Deg },
+    contacted: term === 'reached',
+    deadZoneHits,
+  };
 }
