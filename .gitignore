@@ -1,7 +1,19 @@
 __pycache__/
 state/
 ledger/
-sonnet/.claude/
-opus/.claude/
-fable/.claude/
-haiku-fs/.claude/
+.playwright-mcp/
+
+# Thread working directories. A thread's cwd holds its Claude state, its
+# browser-automation scratch, and whatever screenshots it took while driving a
+# live GUI - sonnet2's pinball captures alone are 12M. No thread dir has ever
+# held tracked source (verified), so they are ignored whole rather than by a
+# */*.png glob that would silently swallow a real file later.
+fable/
+haiku-fs/
+haiku-fs2/
+haiku-router2/
+muse2/
+opus/
+opus2/
+sonnet/
+sonnet2/

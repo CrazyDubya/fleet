@@ -1,0 +1,9 @@
+#!/bin/sh
+# usage: fleet-gui-fable start|stop|status   (port 8765, binds 0.0.0.0 → reachable on Tailscale/LAN)
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P); PID="$ROOT/state/gui-fable.pid"; LOG="$ROOT/state/gui-fable.log"
+case "${1:-start}" in
+  start) [ -f "$PID" ] && kill -0 "$(cat "$PID")" 2>/dev/null && { echo "already running (pid $(cat "$PID"))"; sed -n 1p "$LOG"; exit 0; }
+         nohup python3 "$ROOT/gui-fable/server.py" >"$LOG" 2>&1 & echo $! >"$PID"; sleep 1; sed -n 1p "$LOG";;
+  stop)  [ -f "$PID" ] && kill "$(cat "$PID")" 2>/dev/null; rm -f "$PID"; echo stopped;;
+  status) [ -f "$PID" ] && kill -0 "$(cat "$PID")" 2>/dev/null && { echo running; sed -n 1p "$LOG"; } || echo stopped;;
+esac

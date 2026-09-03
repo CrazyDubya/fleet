@@ -1,0 +1,50 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="/manifest.json"><title>fleet</title>
+<style>
+:root{--bg:#0b0e14;--panel:#141922;--fg:#e6e9ef;--dim:#8a93a6;--acc:#5ec1ff;--ok:#4cd07d;--warn:#f5b642;--bad:#ff6b6b;
+  --sat:env(safe-area-inset-top);--sab:env(safe-area-inset-bottom)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.4 -apple-system,system-ui,sans-serif;overflow-x:hidden;overscroll-behavior:none}
+header{position:sticky;top:0;z-index:5;background:var(--bg);padding:calc(var(--sat) + 8px) 12px 8px;display:flex;gap:8px;align-items:center;border-bottom:1px solid #222}
+header h1{font-size:17px;margin:0;flex:1}
+#dot{width:10px;height:10px;border-radius:50%;background:var(--bad)}#dot.on{background:var(--ok)}
+nav{display:flex;gap:6px;overflow-x:auto;padding:8px 12px;scrollbar-width:none}
+nav button{flex:0 0 auto;min-height:44px;padding:0 16px;border:1px solid #2a3140;border-radius:12px;background:var(--panel);color:var(--dim);font-size:15px}
+nav button.on{color:var(--fg);border-color:var(--acc)}
+main{padding:0 12px calc(var(--sab) + 16px)}
+section.widget{display:none}section.widget.on{display:block}
+.card{background:var(--panel);border-radius:14px;padding:12px;margin:10px 0}
+.card h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--dim);margin:0 0 8px}
+table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:6px 4px;text-align:left;white-space:nowrap}th{color:var(--dim);font-weight:500}
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+input,textarea,select{width:100%;min-height:44px;padding:10px;border-radius:10px;border:1px solid #2a3140;background:#0f131a;color:var(--fg);font:inherit}
+.btn{min-height:44px;padding:0 18px;border-radius:10px;border:0;background:var(--acc);color:#001;font-weight:600;font-size:15px}
+.row{display:flex;gap:8px;align-items:center}.mono{font-family:ui-monospace,Menlo,monospace;font-size:13px;white-space:pre-wrap;word-break:break-word}
+.tag{display:inline-block;padding:2px 8px;border-radius:8px;background:#1e2633;font-size:12px;color:var(--dim)}
+.hot{color:var(--ok)}.cooling{color:var(--warn)}.cold,.new{color:var(--dim)}
+</style></head><body>
+<header><div id="dot"></div><h1>fleet</h1><span id="clock" class="tag"></span></header>
+<nav id="nav"></nav><main id="main"></main>
+<script type="module">
+// Core: loads every widgets/*.js. A widget exports {name, icon?, mount(el, api)} and optionally refresh().
+const api = {
+  get: (u)=>fetch(u).then(r=>r.json()),
+  post: (u,b)=>fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}).then(r=>r.json()),
+  el: (tag,attrs={},...kids)=>{const e=document.createElement(tag);for(const[k,v]of Object.entries(attrs))k==='class'?e.className=v:k.startsWith('on')?e.addEventListener(k.slice(2),v):e.setAttribute(k,v);e.append(...kids);return e;},
+  fmtAge: (t)=>{const m=Math.floor((Date.now()/1000-t)/60);return m<1?'now':m<60?m+'m':m<1440?Math.floor(m/60)+'h':Math.floor(m/1440)+'d'},
+};
+const nav=document.getElementById('nav'), main=document.getElementById('main'); const widgets=[];
+const names=await api.get('/widgets/');
+for(const f of names){ try{ const m=await import('/widgets/'+f+'?v='+Date.now()); const w=m.default; const sec=api.el('section',{class:'widget',id:'w-'+w.name}); main.append(sec); w.el=sec; widgets.push(w);
+  nav.append(api.el('button',{onclick:()=>show(w.name)},(w.icon||'')+' '+w.name)); await w.mount(sec,api);}catch(e){console.error('widget',f,e); main.append(api.el('div',{class:'card bad'},'widget '+f+' failed: '+e.message));} }
+function show(n){localStorage.setItem('tab',n);widgets.forEach((w,i)=>{w.el.classList.toggle('on',w.name===n);nav.children[i].classList.toggle('on',w.name===n)});}
+show(widgets.some(w=>w.name===localStorage.getItem('tab'))?localStorage.getItem('tab'):widgets[0]?.name);
+setInterval(()=>{document.getElementById('clock').textContent=new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})},1000);
+// live: reload on server-side file change; poll widgets otherwise
+const es=new EventSource('/events'); const dot=document.getElementById('dot');
+es.onopen=()=>dot.classList.add('on'); es.onerror=()=>dot.classList.remove('on');
+es.addEventListener('reload',()=>{ if(sessionStorage.getItem('noreload')) widgets.forEach(w=>w.refresh?.()); else location.reload(); });
+setInterval(()=>widgets.forEach(w=>w.refresh?.()),15000);
+</script></body></html>
