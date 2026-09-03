@@ -180,6 +180,7 @@ def run_one(task: tasks_mod.TaskSpec, arm: str, root: Path, runs_path: Path = RU
         missing = [r for r in task.refs if not (root / r).exists()]
         if missing:  # a task that cites a moved handoff measures nothing but the arm's confusion
             _add_error(row, "missing ref: " + ", ".join(missing))
+            row["status"] = "skipped"  # the arm was never invoked; not its failure
             stamp()
             return
         if resolved.expect is not None:
@@ -190,6 +191,7 @@ def run_one(task: tasks_mod.TaskSpec, arm: str, root: Path, runs_path: Path = RU
             if e.returncode != 0:
                 resolved = tasks_mod.with_expect(resolved, "")
                 _add_error(row, f"expect: exit {e.returncode}: {(e.stderr or '').strip()[-200:]}")
+                row["status"] = "skipped"  # setup failed before the arm ran
                 stamp()
                 return
             resolved = tasks_mod.with_expect(resolved, (e.stdout or "").strip())

@@ -50,6 +50,29 @@ class ReportTests(unittest.TestCase):
         rows = [{**r, "judge": None, "judge_usd": 0.0} for r in ROWS]
         self.assertIsNone(report.summarize(rows)["t1"]["fleet"]["judge_usd_med"])
 
+    def test_non_attempts_stay_out_of_the_pass_rate(self):
+        # 11 real runs where `claude -p` exited at startup on an inert Write() rule were
+        # scored as 11 sonnet failures, which is how the report claimed fleet/sonnet 3.00.
+        # A run the arm never attempted must not be a failure by the arm.
+        skips = [{**ROWS[0], "run": f"s{i}", "arm": "sonnet", "status": "skipped",
+                  "wall_s": 1.1, "usd": 0.0, "measured": True} for i in range(11)]
+        base = report.summarize(ROWS)["t1"]["sonnet"]["pass_rate"]
+        a = report.summarize(ROWS + skips)["t1"]["sonnet"]
+        self.assertEqual(a["pass_rate"], base)          # unchanged by 11 non-attempts
+        self.assertEqual((a["n"], a["attempts"], a["skipped"]), (13, 2, 11))  # still visible in n
+
+    def test_headline_n_is_the_pass_rates_own_denominator(self):
+        skips = [{**ROWS[0], "run": f"s{i}", "arm": "sonnet", "status": "skipped"} for i in range(11)]
+        h = report.summarize(ROWS + skips)["headline"]
+        self.assertEqual((h["n"]["sonnet"], h["runs"]["sonnet"], h["skipped"]["sonnet"]), (2, 13, 11))
+        self.assertIn("n=2(+11 skip)", report.render(report.summarize(ROWS + skips)))
+
+    def test_a_skipped_run_is_not_counted_as_an_error(self):
+        skip = {**ROWS[0], "run": "s0", "arm": "sonnet", "status": "skipped"}
+        a = report.summarize(ROWS + [skip])["t1"]["sonnet"]
+        self.assertEqual((a["errors"], a["skipped"]), (0, 1))
+        self.assertIn("skip", report.render(report.summarize(ROWS + [skip])))
+
     def test_unmeasured_rows_count_in_n_but_not_in_the_medians(self):
         ghost = {**ROWS[0], "run": "r7", "status": "error", "measured": False, "wall_s": 1.0, "usd": 99.0,
                  "judge": None, "judge_usd": 99.0, "pool": {"fable": 99.0, "other": 0.0, "weekly": {"haiku": 0, "opus": 0, "sonnet": 0}},

@@ -13,6 +13,11 @@ from fleet.paths import transcript_path
 ARMS = {"fable": "claude-fable-5", "sonnet": "claude-sonnet-5"}
 FLEET_TARGET = "sonnet2"
 POLL_S = 1  # done-detection poll: t1 is only as precise as this interval
+# A dispatch is "in flight" only while the thread is plausibly still working it. The
+# gaps this guard exists to cover - a permission dialog, the pause between turns - are
+# minutes; past this, an outstanding send with no handoff means the work ended without
+# one, not that it is still running.
+DISPATCH_STALE_MIN = 30
 _WS = re.compile(r"\s+")
 
 
@@ -56,7 +61,15 @@ def run_single_turn(model: str, packet: str, run: str, root: Path, timeout_s: in
         return ArmResult("timeout", by_thread, out, "claude -p exceeded timeout_s")
     out.write_text(r.stdout or "")
     if r.returncode != 0:
-        return ArmResult("error", by_thread, out, f"claude -p exit {r.returncode}: {(r.stderr or '')[-300:]}")
+        # No stdout at all means the CLI rejected its OWN invocation - bad settings,
+        # bad flags - and exited before a single turn. The arm never attempted the
+        # task, so this is missing data like a skipped fleet arm, not a failure by
+        # the model. Reported as `error` it looked like 11 straight sonnet failures
+        # when the real cause was an inert Write() rule in settings/v2/hot.json
+        # (fixed in a55136d); the arm had been zeroed out for three days.
+        started = bool((r.stdout or "").strip())
+        return ArmResult("error" if started else "skipped", by_thread, out,
+                         f"claude -p exit {r.returncode}: {(r.stderr or '')[-300:]}")
     return ArmResult("done", by_thread, out, "")
 
 
@@ -82,7 +95,7 @@ def fleet_wait_done(run: str, t0: float, timeout_s: int, handoff_dir: Path, capt
         sleep(POLL_S)
 
 
-def _dispatch_in_flight(now=None, events=None, handoff=None) -> str:
+def _dispatch_in_flight(now=None, events=None, handoff=None, idle_minutes=None) -> str:
     """Non-empty when an operator dispatch is still awaiting its `@done` handoff.
 
     `state == idle` is NOT enough. A thread pauses between the steps of a long
@@ -95,9 +108,18 @@ def _dispatch_in_flight(now=None, events=None, handoff=None) -> str:
     "Owned" means: the newest `send` to this thread is newer than its newest
     handoff. Idle means "not speaking", not "not busy".
 
+    Bounded by thread idleness, because "newest send is newer than newest
+    handoff" NEVER clears on its own. Plenty of legitimate operator sends ask
+    for an inline answer and write no handoff at all - two such probes on
+    2026-09-03 at 09:11 and 09:13 latched this guard on and disabled the fleet
+    arm for the rest of the day. A guard that can only ever say "busy" is not a
+    guard, it is an outage.
+
     Fails open like every other probe here - an unreadable ledger reports
     available rather than disabling the arm.
     """
+    if idle_minutes is not None and idle_minutes >= DISPATCH_STALE_MIN:
+        return ""
     try:
         from fleet import ledger
         sends = [e for e in (events if events is not None else ledger.read_events(tail=4000))
@@ -130,16 +152,18 @@ def _target_unavailable(registry_entries: dict, capture=None) -> str:
     the fleet arm forever. A capture that SUCCEEDS and shows no input box is
     not an error - it is a blocked thread, and it is reported as such.
     """
+    idle_minutes = None
     try:
         from fleet import status as status_mod
         for r in status_mod.rows(entries=registry_entries):
             if getattr(r, "name", None) == FLEET_TARGET:
                 if getattr(r, "state", "") == "busy":
                     return "busy with operator work"
+                idle_minutes = getattr(r, "idle_minutes", None)
                 break
     except Exception:
         return ""
-    inflight = _dispatch_in_flight()
+    inflight = _dispatch_in_flight(idle_minutes=idle_minutes)
     if inflight:
         return inflight
     try:
@@ -159,7 +183,8 @@ def _target_unavailable(registry_entries: dict, capture=None) -> str:
 
 
 def run_fleet(packet_text: str, refs: list[str], done: str, run: str, root: Path, timeout_s: int, lane: str,
-              profile: str, registry_entries: dict, send=send_mod.send_packet, capture=None, sleep=time.sleep, clock=time.time) -> ArmResult:
+              profile: str, registry_entries: dict, send=send_mod.send_packet, capture=None, sleep=time.sleep, clock=time.time,
+              unavailable=None) -> ArmResult:
     from fleet.registry import transcript_for
     by_thread = {name: transcript_for(e, registry_entries) for name, e in registry_entries.items()}
     p = packet_mod.Packet(to=FLEET_TARGET, sender="bench", lane=lane, effort=packet_mod.LANES[lane].effort, reply="file",
@@ -171,10 +196,13 @@ def run_fleet(packet_text: str, refs: list[str], done: str, run: str, root: Path
     # busy and the arm sent anyway. Skip rather than collide: a skipped arm is
     # honest missing data, a collided one corrupts both the bench measurement
     # and the live work.
-    unavailable = _target_unavailable(registry_entries)
-    if unavailable:
+    # injectable like every other collaborator here: it reads live tmux and the live
+    # ledger, so a test that cannot stub it passes or fails on whatever the fleet
+    # happens to be doing at that second.
+    why = (unavailable or _target_unavailable)(registry_entries)
+    if why:
         return ArmResult("skipped", by_thread, None,
-                         f"{FLEET_TARGET} {unavailable}; arm skipped to avoid collision")
+                         f"{FLEET_TARGET} {why}; arm skipped to avoid collision")
     t0 = clock()
     try:
         send(p, profile)

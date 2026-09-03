@@ -32,6 +32,25 @@ class SingleTurnTests(unittest.TestCase):
             self.assertEqual(list(r.transcripts_by_thread), ["bench-work-run1"])
             self.assertEqual(r.threads, ["bench-work-run1"])
 
+    def test_startup_refusal_is_skipped_not_error(self):
+        # exit non-zero with NO stdout: the CLI rejected its own invocation before a
+        # single turn, so the arm never attempted the task. Scored as `error` for three
+        # days this read as sonnet failing 11 tasks (real cause: an inert Write() rule).
+        def spawn(argv, **kw):
+            return subprocess.CompletedProcess(argv, 1, stdout="", stderr="Write(...) is not matched")
+        with tempfile.TemporaryDirectory() as d:
+            r = arms.run_single_turn("claude-sonnet-5", "pkt", "run1", Path("/r"), 30, Path(d) / "w", spawn=spawn)
+        self.assertEqual(r.status, "skipped")
+        self.assertIn("exit 1", r.note)
+
+    def test_nonzero_exit_after_output_is_still_an_error(self):
+        # the arm DID run and produced a turn, so its failure is its own
+        def spawn(argv, **kw):
+            return subprocess.CompletedProcess(argv, 1, stdout="partial answer\n", stderr="boom")
+        with tempfile.TemporaryDirectory() as d:
+            r = arms.run_single_turn("claude-sonnet-5", "pkt", "run1", Path("/r"), 30, Path(d) / "w", spawn=spawn)
+        self.assertEqual(r.status, "error")
+
     def test_run_single_turn_timeout(self):
         def spawn(argv, **kw):
             raise subprocess.TimeoutExpired(argv, kw["timeout"])
@@ -80,10 +99,22 @@ class RunFleetTests(unittest.TestCase):
     ENTRIES = {"sonnet2": entry("sonnet2", "/r/sonnet2"), "haiku2": entry("haiku2", "/r/haiku2")}
 
     def _run(self, send, **kw):
+        # the availability guard is stubbed AVAILABLE by default: unstubbed it reads live
+        # tmux and the live ledger, which made these three tests pass or fail on whatever
+        # the fleet was doing at that second (they broke on 2026-09-03 for exactly that).
         with tempfile.TemporaryDirectory() as d:
             return arms.run_fleet("do it", ["maps/a.md"], "done when x", "run77", Path(d), 5, "lookup",
                                   "v2", self.ENTRIES, send=send, capture=kw.pop("capture", lambda: ""),
-                                  sleep=lambda s: None, clock=kw.pop("clock", iter([0.0, 1.0, 9.0]).__next__))
+                                  sleep=lambda s: None, clock=kw.pop("clock", iter([0.0, 1.0, 9.0]).__next__),
+                                  unavailable=kw.pop("unavailable", lambda entries, capture=None: ""))
+
+    def test_unavailable_target_skips_without_sending(self):
+        sent = []
+        r = self._run(lambda p, profile: sent.append(p),
+                      unavailable=lambda entries, capture=None: "busy with operator work")
+        self.assertEqual(r.status, "skipped")
+        self.assertIn("busy with operator work", r.note)
+        self.assertEqual(sent, [])  # the whole point: no packet reaches a busy thread
 
     def test_packet_is_addressed_to_the_front_door_with_a_file_reply(self):
         sent = []

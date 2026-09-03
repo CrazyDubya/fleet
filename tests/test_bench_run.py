@@ -115,22 +115,25 @@ class RunOneTests(unittest.TestCase):
                            execute=self._exec(by_thread={"spoke": active, "silent": idle}))
         self.assertEqual(row["interventions"]["keypress"], 1)
 
-    def test_missing_ref_is_an_error_row_and_skips_execution(self):
+    def test_missing_ref_is_a_skip_not_an_arm_failure(self):
+        # `self.seen == []` is the whole argument: the arm was never invoked, so scoring
+        # this against its pass rate measures our task file, not the model.
         row = self.run_one(task(refs=["maps/gone.md"]), "sonnet", self.root, self.runs, execute=self._exec(), events=[],
                            clock=iter([1.0, 3.0]).__next__)
-        self.assertEqual((row["status"], row["measured"], self.seen), ("error", False, []))
+        self.assertEqual((row["status"], row["measured"], self.seen), ("skipped", False, []))
         self.assertIn("missing ref: maps/gone.md", row["error"])
-        self.assertEqual((row["t1"], row["wall_s"]), (3.0, 2.0))  # an error row still says how long it took
+        self.assertEqual((row["t1"], row["wall_s"]), (3.0, 2.0))  # a skipped row still says how long it took
 
     def test_expect_is_substituted_into_check_before_execution(self):
         t = task(expect="printf 'ledger/handoffs/a.md'", check="test \"{expect}\" = ledger/handoffs/a.md")
         row = self.run_one(t, "sonnet", self.root, self.runs, execute=self._exec(), events=[], clock=iter([1.0, 2.0]).__next__)
         self.assertEqual((row["status"], row["check_rc"]), ("pass", 0))
 
-    def test_expect_failure_is_an_error_row(self):
+    def test_expect_failure_is_a_skip_not_an_arm_failure(self):
+        # setup failed before the arm ran; same reasoning as the missing-ref case
         row = self.run_one(task(expect="exit 3"), "sonnet", self.root, self.runs, execute=self._exec(), events=[],
                            clock=iter([1.0, 4.0]).__next__)
-        self.assertEqual((row["status"], self.seen), ("error", []))
+        self.assertEqual((row["status"], self.seen), ("skipped", []))
         self.assertIn("expect: exit 3", row["error"])
         self.assertEqual((row["t1"], row["wall_s"]), (4.0, 3.0))
 
@@ -299,8 +302,9 @@ def test_fleet_arm_skips_when_target_busy():
     (2026-09-01 and 09-02 3AM runs), both interrupting a pinball-lab experiment."""
     from fleet.bench import arms
 
-    class R:
-        def __init__(self, name, state): self.name, self.state = name, state
+    class R:  # idle_minutes is load-bearing: without it the guard consults the LIVE ledger
+        def __init__(self, name, state, idle_minutes=arms.DISPATCH_STALE_MIN):
+            self.name, self.state, self.idle_minutes = name, state, idle_minutes
 
     import fleet.status as status_mod
     orig = status_mod.rows
@@ -322,8 +326,9 @@ def test_fleet_arm_skips_when_target_is_wedged_not_busy():
     reports it IDLE - and a paste would concatenate onto that draft."""
     from fleet.bench import arms
 
-    class R:
-        def __init__(self, name, state): self.name, self.state = name, state
+    class R:  # idle_minutes is load-bearing: without it the guard consults the LIVE ledger
+        def __init__(self, name, state, idle_minutes=arms.DISPATCH_STALE_MIN):
+            self.name, self.state, self.idle_minutes = name, state, idle_minutes
 
     import fleet.status as status_mod
     orig = status_mod.rows
@@ -341,6 +346,47 @@ def test_fleet_arm_skips_when_target_is_wedged_not_busy():
         assert arms._target_unavailable({}, capture=lambda: "  \n") == ""
     finally:
         status_mod.rows = orig
+
+
+def test_dispatch_guard_releases_once_the_thread_goes_quiet():
+    """The guard must not latch. It compares "newest send" to "newest handoff", and
+    plenty of legitimate operator sends ask for an inline answer and write no handoff
+    at all - so on 2026-09-03 two probe packets at 09:11/09:13 left it stuck saying
+    "in flight" and disabled the fleet arm for the rest of the day. A guard that can
+    only ever say busy is an outage, not a guard."""
+    import time as _time
+    from fleet.bench import arms
+
+    now = _time.time()
+    events = [{"ev": "send", "thread": arms.FLEET_TARGET, "from": "operator", "t": now}]
+
+    class H:  # a handoff older than the send: the latched condition
+        def stat(self): return type("S", (), {"st_mtime": now - 3600})()
+
+    # mid-dispatch pause (permission dialog, between turns) -> still owned
+    assert arms._dispatch_in_flight(events=events, handoff=H(), idle_minutes=1)
+    # quiet for longer than a dispatch pause -> the send produced no handoff and never will
+    assert arms._dispatch_in_flight(events=events, handoff=H(), idle_minutes=arms.DISPATCH_STALE_MIN) == ""
+
+
+def test_dispatch_guard_holds_while_a_handoff_is_genuinely_outstanding():
+    import time as _time
+    from fleet.bench import arms
+
+    now = _time.time()
+    newer = [{"ev": "send", "thread": arms.FLEET_TARGET, "from": "operator", "t": now}]
+
+    class Old:
+        def stat(self): return type("S", (), {"st_mtime": now - 60})()
+
+    class New:  # handoff written AFTER the send: the dispatch completed
+        def stat(self): return type("S", (), {"st_mtime": now + 60})()
+
+    assert arms._dispatch_in_flight(events=newer, handoff=Old(), idle_minutes=0)
+    assert arms._dispatch_in_flight(events=newer, handoff=New(), idle_minutes=0) == ""
+    # the bench's own sends are not operator work and must never gate the bench
+    bench = [{"ev": "send", "thread": arms.FLEET_TARGET, "from": "bench", "t": now}]
+    assert arms._dispatch_in_flight(events=bench, handoff=Old(), idle_minutes=0) == ""
 
 
 def test_fleet_arm_records_skip_without_sending():

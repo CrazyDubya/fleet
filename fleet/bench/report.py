@@ -23,6 +23,26 @@ def _med(xs):
     return round(st.median(xs), 4) if xs else None
 
 
+NON_ATTEMPT = ("skipped",)
+
+
+def attempted(rows: list[dict]) -> list[dict]:
+    """Rows where the arm actually took a run at the task.
+
+    A pass rate is a claim about the arm, so its denominator may only hold runs
+    the arm attempted. Three things end a run before the arm ever sees the task:
+    the collision guard declining to send, the CLI refusing its own invocation,
+    and task setup failing (missing ref / expect). Counting any of them as a
+    failure measures our harness, not the arm - which is how 11 runs where
+    `claude -p` exited at startup on an inert Write() rule were reported as
+    sonnet failing 11 tasks, and how `fleet/sonnet 3.00` came to mean
+    "fleet beat a process that never ran".
+
+    Non-attempts stay in `n` and get their own column, exactly as a
+    `measured: false` row stays in `n` but out of the medians."""
+    return [r for r in rows if r.get("status") not in NON_ATTEMPT]
+
+
 def measured(rows: list[dict]) -> list[dict]:
     """Rows whose cost/token window is real. A row with `measured: false` reports $0 by
     accident, not by fact, so it must not drag a median down; it still counts in `n`.
@@ -31,10 +51,13 @@ def measured(rows: list[dict]) -> list[dict]:
 
 
 def _arm_stats(rows: list[dict]) -> dict:
-    passes = [r for r in rows if r["status"] == "pass"]
+    att = attempted(rows)
+    passes = [r for r in att if r["status"] == "pass"]
     m = measured(rows)
     return {"n": len(rows), "errors": sum(1 for r in rows if r["status"] == "error"),
-            "pass_rate": (len(passes) / len(rows)) if rows else None,
+            "attempts": len(att), "skipped": len(rows) - len(att),
+            # denominator is attempts, not rows: see attempted()
+            "pass_rate": (len(passes) / len(att)) if att else None,
             # the judge is the bench's own opus spend, reported beside `usd`, never inside it.
             # Keyed off a recorded judge_usd, not off `judge`: a judge whose score would not
             # parse still spent. Rows with no cost recorded (0.0 / absent - no judge ran) are
@@ -55,7 +78,7 @@ def _ratio(a, b):
 def _pass_meds(rows: list[dict]) -> dict:
     """Per-pass medians behind the headline ratios - local to the summary, never part of a
     per-arm stats dict a widget might render."""
-    passes = [r for r in rows if r["status"] == "pass"]
+    passes = [r for r in attempted(rows) if r["status"] == "pass"]
     priced = measured(passes)  # a $0 unmeasured pass is not a cost sample
     return {"wall": _med([r["wall_s"] for r in passes]), "usd": _med([r["usd"] for r in priced]),
             "weekly": _med([sum(r["pool"]["weekly"].values()) for r in priced])}
@@ -74,7 +97,11 @@ def summarize(rows: list[dict]) -> dict:
     weekly = {arm: pm[arm]["weekly"] for arm in ARMS}
     tm = {arm: pm[arm]["wall"] for arm in ARMS}
     summary["headline"] = {
-        "n": {arm: stats[arm]["n"] for arm in ARMS},
+        # the n printed beside a pass rate is that rate's denominator - attempts,
+        # not rows - or the reader divides by the wrong number.
+        "n": {arm: stats[arm]["attempts"] for arm in ARMS},
+        "runs": {arm: stats[arm]["n"] for arm in ARMS},
+        "skipped": {arm: stats[arm]["skipped"] for arm in ARMS},
         "accuracy": {**acc, "fleet_vs_sonnet": _ratio(acc["fleet"], acc["sonnet"]), "fleet_vs_fable": _ratio(acc["fleet"], acc["fable"])},
         "cost": {**cost, "weekly": weekly, "fleet_vs_sonnet": _ratio(cost["fleet"], cost["sonnet"]), "fleet_vs_fable": _ratio(cost["fleet"], cost["fable"])},
         "time": {**tm, "fleet_vs_sonnet": _ratio(tm["fleet"], tm["sonnet"]), "fleet_vs_fable": _ratio(tm["fleet"], tm["fable"])},
@@ -108,13 +135,13 @@ def render(summary: dict) -> str:
     if mixed:
         lines.append(f"warning: rows span {len(versions)} claude versions / {len(profiles)} profiles - the arms are not like for like")
     w = max([len("task")] + [len(t) for t in summary if t != "headline"])  # ids longer than 16 chars must not shove the columns
-    head = f"{'task':{w}} {'arm':7} {'n':>3} {'err':>3} {'pass':>5} {'wall':>7} {'$':>6} {'judge$':>7} {'weekly$':>8} {'fable$':>7} {'interv':>6} {'judge':>5}"
+    head = f"{'task':{w}} {'arm':7} {'n':>3} {'err':>3} {'skip':>4} {'pass':>5} {'wall':>7} {'$':>6} {'judge$':>7} {'weekly$':>8} {'fable$':>7} {'interv':>6} {'judge':>5}"
     lines.append(head + (f" {'profile':>8} {'claude':>14}" if mixed else ""))
     for task, arms in summary.items():
         if task == "headline":
             continue
         for arm, s in arms.items():
-            row = (f"{task:{w}} {arm:7} {s['n']:>3} {s.get('errors', 0):>3} {_f(s['pass_rate']):>5} {_f(s['wall_med'], '{:.0f}s'):>7} {_f(s['usd_med']):>6} "
+            row = (f"{task:{w}} {arm:7} {s['n']:>3} {s.get('errors', 0):>3} {s.get('skipped', 0):>4} {_f(s['pass_rate']):>5} {_f(s['wall_med'], '{:.0f}s'):>7} {_f(s['usd_med']):>6} "
                    f"{_f(s.get('judge_usd_med')):>7} {_f(s['weekly_med']):>8} {_f(s['fable_med']):>7} "
                    f"{_f(s['interventions_per_run'], '{:.1f}'):>6} {_f(s['judge_med'], '{:.1f}'):>5}")
             if mixed:
@@ -124,8 +151,14 @@ def render(summary: dict) -> str:
     if h:
         n = h["n"]
         lines.append("")
-        lines.append(f"accuracy (pass rate)  fable {_f(h['accuracy']['fable'])} n={n['fable']}  sonnet {_f(h['accuracy']['sonnet'])} n={n['sonnet']}  "
-                     f"fleet {_f(h['accuracy']['fleet'])} n={n['fleet']}  | fleet/sonnet {_f(h['accuracy']['fleet_vs_sonnet'])}  fleet/fable {_f(h['accuracy']['fleet_vs_fable'])}")
+        sk = h.get("skipped", {})
+
+        def _n(arm):  # n is attempts; say so when rows were dropped, or 2 of 13 reads as a typo
+            s_ = sk.get(arm) or 0
+            return f"n={n[arm]}" + (f"(+{s_} skip)" if s_ else "")
+
+        lines.append(f"accuracy (pass rate)  fable {_f(h['accuracy']['fable'])} {_n('fable')}  sonnet {_f(h['accuracy']['sonnet'])} {_n('sonnet')}  "
+                     f"fleet {_f(h['accuracy']['fleet'])} {_n('fleet')}  | fleet/sonnet {_f(h['accuracy']['fleet_vs_sonnet'])}  fleet/fable {_f(h['accuracy']['fleet_vs_fable'])}")
         lines.append(f"cost ($ per pass)     fable {_f(h['cost']['fable'])}  sonnet {_f(h['cost']['sonnet'])}  fleet {_f(h['cost']['fleet'])}  "
                      f"(weekly-pool $: sonnet {_f(h['cost']['weekly']['sonnet'])}  fleet {_f(h['cost']['weekly']['fleet'])})  | fleet/sonnet {_f(h['cost']['fleet_vs_sonnet'])}  fleet/fable {_f(h['cost']['fleet_vs_fable'])}")
         lines.append(f"time (s per pass)     fable {_f(h['time']['fable'], '{:.0f}')}  sonnet {_f(h['time']['sonnet'], '{:.0f}')}  fleet {_f(h['time']['fleet'], '{:.0f}')}  "
