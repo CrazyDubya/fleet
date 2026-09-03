@@ -455,3 +455,46 @@ class StalePromptsAreReaped(unittest.TestCase):
         p = self._write("slow", 305)
         self.assertEqual([r["id"] for r in prompts.pending("v2")], ["slow"])
         self.assertTrue(p.exists())
+
+
+class RelativePathsResolveFromTheThreadsCwd(unittest.TestCase):
+    """`root` is the repo boundary; `cwd` is where relative paths resolve from.
+    Conflating them escalated real work: sonnet2 runs in games/pinball-lab, so
+    `ls ../e4/` resolved to /Users/e4 and read as "outside repo" when the
+    directory is inside it. Caught live during LAB-17."""
+
+    LAB = "/Users/pup/fleet/games/pinball-lab"
+
+    def test_relative_escape_that_stays_in_the_repo_is_allowed(self):
+        d, why = prompts.decide_auto("ls ../e4/", _ROOT, self.LAB)
+        self.assertEqual(d, "allow-auto", why)
+
+    def test_relative_escape_that_leaves_the_repo_still_escalates(self):
+        d, _ = prompts.decide_auto("ls ../../../etc/passwd", _ROOT, self.LAB)
+        self.assertEqual(d, "escalate")
+
+    def test_cd_is_followed_so_a_later_relative_path_is_judged_correctly(self):
+        d, why = prompts.decide_auto("cd data && ls ../e4/", _ROOT, self.LAB)
+        self.assertEqual(d, "allow-auto", why)
+
+    def test_cd_outside_the_repo_makes_later_relatives_escape(self):
+        # The reason _token_bases follows `cd` rather than pinning one base:
+        # without it, ../etc/ would resolve under the thread's own directory
+        # and read as in-repo.
+        d, _ = prompts.decide_auto("cd /tmp && ls ../etc/", _ROOT, self.LAB)
+        self.assertEqual(d, "escalate")
+
+    def test_the_live_blocker_now_allows(self):
+        cmd = ("cd data/summaries && node -e 'const j = 1;' 2>&1\nls ../e4/")
+        d, why = prompts.decide_auto(cmd, _ROOT, self.LAB)
+        self.assertEqual(d, "allow-auto", why)
+
+    def test_absolute_paths_outside_the_repo_are_unaffected(self):
+        self.assertEqual(prompts.decide_auto("cat /etc/passwd", _ROOT, self.LAB)[0], "escalate")
+
+    def test_omitting_cwd_keeps_the_previous_behaviour(self):
+        # Every existing caller and test passes root only; that must not change.
+        self.assertEqual(prompts.decide_auto("ls ../e4/", _ROOT)[0], "escalate")
+
+    def test_deny_class_is_unaffected_by_cwd(self):
+        self.assertEqual(prompts.decide_auto("rm -rf /Users/pup", _ROOT, self.LAB)[0], "deny")

@@ -35,11 +35,21 @@ class SendLiveTests(unittest.TestCase):
         self.assertEqual(last["sha256"], hashlib.sha256(b"[fleet:test] ping").hexdigest())
 
     def test_nothing_is_written_to_the_production_ledger(self):
-        before = len(ledger.read_events())
+        # Counting total events raced the live fleet: every Bash call a working
+        # thread makes writes a `gate` hook event to this same ledger, so the
+        # count moved for reasons that have nothing to do with send(). Assert
+        # what the test actually means instead - that THIS send left no trace in
+        # the production ledger - which is race-free by construction.
+        def ours(events):
+            return [e for e in events
+                    if e.get("thread") == self.W or e.get("from") == "test"]
+
+        before = ours(ledger.read_events())
         tmux.new_window(self.W, Path("/tmp"), "cat")
         time.sleep(0.5)
         send.send(self.W, "ping", sender="test", events_path=self.events)
-        self.assertEqual(len(ledger.read_events()), before)
+        self.assertEqual(ours(ledger.read_events()), before,
+                         "send() with events_path= must not touch the default ledger")
 
     def test_send_to_missing_window_raises(self):
         with self.assertRaises(send.SendError):

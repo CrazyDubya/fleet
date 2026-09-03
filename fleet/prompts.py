@@ -184,14 +184,56 @@ def _clean_arg(tok: str) -> str:
     return tok.rstrip(")`};")
 
 
-def _path_ok(tok: str, root: Path) -> bool:
+def _token_bases(tokens: list[str], cwd: Path) -> list[str]:
+    """The directory each token's relative paths resolve against.
+
+    Starts at the thread's cwd and follows `cd` across shell operators, so
+    `cd data/summaries && ... ls ../e4/` judges `../e4/` from
+    <cwd>/data/summaries rather than from the repo root.
+
+    Following `cd` is what makes this safe rather than merely permissive: with
+    a fixed base, `cd /tmp && ls ../etc/` would resolve `../etc/` under the
+    thread's own directory and read as in-repo. Tracking the cd resolves it to
+    /etc and escalates.
+
+    Known limit: shlex drops newlines, so a `cd` that starts a command on a new
+    line (rather than after && or ;) is not seen as a verb and its directory
+    change is missed. Strictly better than resolving everything against the
+    repo root, which is what this replaces.
+    """
+    bases: list[str] = []
+    base = str(cwd)
+    verb: str | None = None
+    pending_cd: str | None = None
+    for tok in tokens:
+        bases.append(base)
+        if tok in SHELL_OPERATORS:
+            if pending_cd is not None:
+                base = _resolve(pending_cd, Path(base))
+                pending_cd = None
+            verb = None
+            continue
+        if verb is None:
+            verb = tok
+            continue
+        if verb == "cd" and pending_cd is None and not tok.startswith("-"):
+            pending_cd = tok
+    return bases
+
+
+def _path_ok(tok: str, root: Path, base: Path | str | None = None) -> bool:
     # strip shell decorations: redirections, option=paths, trailing punctuation
     tok = tok.lstrip("<>=").rstrip(";&|)")
     if "=" in tok and not tok.startswith("/"):
         tok = tok.split("=", 1)[1]
     if not _is_path_candidate(tok):
         return True  # not a path
-    p = _resolve(tok, root)
+    # Relative paths resolve against the thread's CWD; containment is judged
+    # against the repo ROOT. Those are different questions and conflating them
+    # was a live false positive: sonnet2 runs in games/pinball-lab, so `ls
+    # ../e4/` resolved to /Users/e4 and escalated a read of a directory that is
+    # in fact inside the repo.
+    p = _resolve(tok, Path(base) if base is not None else root)
     if p in DEV_OK:
         return True
     inside = (str(root), "/tmp", "/private/tmp")
@@ -361,7 +403,7 @@ def _delete_denied(command: str, root: Path) -> str | None:
     return None
 
 
-def _wrapped_verdict(command: str, root: Path, depth: int) -> tuple[str, str] | None:
+def _wrapped_verdict(command: str, root: Path, depth: int, cwd: Path | str | None = None) -> tuple[str, str] | None:
     """Judge every multi-word token, i.e. every quoted argument.
 
     Such a token is not a path, so _path_ok waves it through, and the DENY
@@ -416,7 +458,7 @@ def _wrapped_verdict(command: str, root: Path, depth: int) -> tuple[str, str] | 
         if not is_code and not WS_IN_TOKEN.search(tok):
             continue
         if is_code and depth < MAX_WRAP_DEPTH:
-            d, why = decide_auto(tok, root, _depth=depth + 1)
+            d, why = decide_auto(tok, root, cwd, _depth=depth + 1)
             if d != "allow-auto":
                 return d, f"wrapped code ({prev}): {why}"
         m = QUOTED_DENY_RE.search(tok)
@@ -425,7 +467,13 @@ def _wrapped_verdict(command: str, root: Path, depth: int) -> tuple[str, str] | 
     return None
 
 
-def decide_auto(command: str, root: Path, _depth: int = 0) -> tuple[str, str]:
+def decide_auto(command: str, root: Path, cwd: Path | str | None = None, _depth: int = 0) -> tuple[str, str]:
+    """`root` is the repo boundary; `cwd` is where relative paths resolve from.
+
+    They default to the same thing, which is how this behaved before - and why
+    a thread running in games/pinball-lab had `ls ../e4/` resolved to /Users/e4
+    and escalated as "outside repo" when it is inside it.
+    """
     delete_why = _delete_denied(command, root)
     if delete_why:
         return "deny", delete_why
@@ -435,7 +483,7 @@ def decide_auto(command: str, root: Path, _depth: int = 0) -> tuple[str, str]:
     for rx, why in ESCALATE:
         if rx.search(command):
             return "escalate", why
-    wrapped = _wrapped_verdict(command, root, _depth)
+    wrapped = _wrapped_verdict(command, root, _depth, cwd)
     if wrapped:
         return wrapped
     # One pass, not two. _loopback_url and _path_ok judge disjoint token
@@ -445,12 +493,13 @@ def decide_auto(command: str, root: Path, _depth: int = 0) -> tuple[str, str]:
     # both, and either way the verdict is escalate.
     tokens = _tokens(command)
     patterns = _pattern_operands(tokens)
+    bases = _token_bases(tokens, Path(cwd) if cwd else root)
     for i, tok in enumerate(tokens):
         if _loopback_url(tok) is False:
             return "escalate", f"non-loopback URL: {tok}"
         if i in patterns:
             continue  # a search pattern, not a path (see _pattern_operands)
-        if not _path_ok(tok, root):
+        if not _path_ok(tok, root, bases[i]):
             return "escalate", f"path outside repo: {tok}"
     return "allow-auto", "in-repo, no deny match"
 

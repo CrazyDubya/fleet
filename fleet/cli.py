@@ -155,7 +155,11 @@ def cmd_hook_event(args):
 def cmd_perm_decide(args):
     from . import prompts as prompts_mod
     from .paths import ROOT
-    d, why = prompts_mod.decide_auto(args.command, ROOT)
+    # args.cwd is the thread's actual directory. Passing it is what lets a
+    # relative path be judged from where the command really runs; without it
+    # everything resolved against ROOT and `ls ../e4/` from games/pinball-lab
+    # read as /Users/e4 and escalated a read that is inside the repo.
+    d, why = prompts_mod.decide_auto(args.command, ROOT, args.cwd)
     if d != "escalate":
         print(d); return 0
     path = prompts_mod.open_prompt(args.thread, "Bash", args.command, args.cwd, current_profile())
