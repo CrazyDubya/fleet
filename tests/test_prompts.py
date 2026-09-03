@@ -498,3 +498,37 @@ class RelativePathsResolveFromTheThreadsCwd(unittest.TestCase):
 
     def test_deny_class_is_unaffected_by_cwd(self):
         self.assertEqual(prompts.decide_auto("rm -rf /Users/pup", _ROOT, self.LAB)[0], "deny")
+
+
+class ProgramOperandsAreNotPaths(unittest.TestCase):
+    """An awk/sed/jq program often starts with '/', so PATH_TOKEN matched it and
+    the whole program was resolved as a path. Live: sonnet2 stopped mid-LAB-18 on
+    `awk '/^## Winner$/{...}' verdict.md`, reported as
+    "path outside repo: /^## Winner$/{f=1; next} f && NF {print; exit}"."""
+
+    LAB = "/Users/pup/fleet/games/pinball-lab"
+
+    def test_the_live_blocker_now_allows(self):
+        cmd = ("awk '/^## Winner$/{f=1; next} f && NF {print; exit}' "
+               "/Users/pup/fleet/bench/work/x/out/verdict.md | cat -A | head -3")
+        d, why = prompts.decide_auto(cmd, _ROOT, self.LAB)
+        self.assertEqual(d, "allow-auto", why)
+
+    def test_sed_and_jq_programs_too(self):
+        self.assertEqual(prompts.decide_auto("sed -n '5,10p' src/gate.js", _ROOT, self.LAB)[0], "allow-auto")
+        self.assertEqual(prompts.decide_auto("jq '.totals' data/x.json", _ROOT, self.LAB)[0], "allow-auto")
+
+    def test_the_file_operand_after_the_program_is_still_checked(self):
+        d, why = prompts.decide_auto("awk '{print}' /etc/shadow", _ROOT, self.LAB)
+        self.assertEqual(d, "escalate", why)
+        self.assertIn("/etc/shadow", why)
+
+    def test_program_from_a_file_gets_no_exemption(self):
+        # -f/--file read the PROGRAM from a file, so the operand is a real read.
+        for cmd in ("sed -f /etc/script.sed x", "awk --file /etc/prog.awk x"):
+            self.assertEqual(prompts.decide_auto(cmd, _ROOT, self.LAB)[0], "escalate", cmd)
+
+    def test_earlier_exemptions_and_denials_are_unaffected(self):
+        self.assertEqual(prompts.decide_auto("grep -v /data/", _ROOT, self.LAB)[0], "allow-auto")
+        self.assertEqual(prompts.decide_auto("cat /etc/passwd", _ROOT, self.LAB)[0], "escalate")
+        self.assertEqual(prompts.decide_auto("rm -rf /Users/pup", _ROOT, self.LAB)[0], "deny")

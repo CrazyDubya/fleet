@@ -50,16 +50,23 @@ DELETE_VERBS = frozenset({"rm", "rmdir", "unlink"})
 EXEC_PRIMARIES = frozenset({"-exec", "-execdir", "-ok", "-okdir"})
 XARGS_OPTS_WITH_ARG = frozenset({"-n", "-I", "-L", "-P", "-s", "-d", "-E", "-a", "-J", "-R", "-S"})
 
-# Commands whose FIRST operand is a search pattern, not a path. `grep -v /data/`
-# filters for the literal text "/data/" and opens nothing, but the path check
-# read it as a path outside the repo and escalated - and `... | grep -v /some/dir/`
-# is a constant idiom, so this interrupted the operator several times per
-# dispatch for entirely benign commands (observed live, sonnet2, LAB-16).
-PATTERN_FIRST_VERBS = frozenset({"grep", "egrep", "fgrep", "rg", "ag"})
-# ...unless the pattern comes from an option instead, in which case the first
-# operand IS a path and must still be checked. `-f`/`--file` reads the patterns
-# from a FILE, so exempting the operand there would wave through a real read.
-GREP_PATTERN_OPTS = frozenset({"-e", "--regexp", "-f", "--file"})
+# Commands whose FIRST operand is a PROGRAM or pattern, not a path. Both start
+# with "/" often enough to be mistaken for one:
+#   grep -v /data/                      -> filters for the literal text
+#   awk '/^## Winner$/{f=1} ...' file   -> an awk program, opens nothing
+# Each was a live escalation that stopped a thread mid-dispatch for a read-only
+# command (sonnet2, LAB-16 and LAB-18). This is the fourth token class tonight
+# mistaken for a path - after URLs and cwd-relative paths - and the general
+# shape is that _path_ok is applied to every token indiscriminately. Exempting
+# by verb is incremental, but it fails SAFE: an unrecognised verb gets no
+# exemption, so the cost of missing one is another false escalation, never a
+# missed read.
+PATTERN_FIRST_VERBS = frozenset({"grep", "egrep", "fgrep", "rg", "ag", "awk", "sed", "jq"})
+# ...unless the program comes from an option instead, in which case the first
+# operand IS a path and must still be checked. `-f`/`--file`/`--from-file` read
+# the program from a FILE, so exempting the operand there would wave through a
+# real read.
+GREP_PATTERN_OPTS = frozenset({"-e", "--regexp", "--expression", "-f", "--file", "--from-file"})
 
 
 def _pattern_operands(tokens: list[str]) -> set[int]:
