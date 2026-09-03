@@ -468,12 +468,35 @@ def open_prompt(thread: str, tool: str, command: str, cwd: str, profile: str) ->
     return path
 
 
-def pending(profile: str) -> list[dict]:
+# hooks/v2/perm.sh gives wait_decision 300 s, and wait_decision unlinks the
+# file in a `finally`. So a record still on disk older than that means its
+# waiter died abnormally: nothing is blocked on it, `fleet decide` cannot
+# release it (there is no listener), and it sits in the dashboard forever
+# claiming a thread needs an answer. Found live with a 47-hour-old orphan
+# alongside two fresh ones. Same failure and same remedy as hold.sh's STALE_S
+# for pending replies - "the waiter died without clearing it" is a known mode
+# in this system, not a hypothetical. Doubled to 600 s so a slow-but-live
+# waiter is never reaped out from under itself.
+STALE_PROMPT_S = 600
+
+
+def pending(profile: str, now: float | None = None) -> list[dict]:
+    """Undecided prompts awaiting an operator, reaping orphans as it goes.
+
+    Deliberately side-effecting: leaving orphans costs a queue that only grows
+    and a dashboard that lies about what is blocked, and every caller of this
+    function wants the true list. `status.resolve_pending` sets the precedent
+    for a read that repairs what it reads.
+    """
+    now = time.time() if now is None else now
     out = []
     for p in sorted(_dir(profile).glob("*.json")):
         try:
             rec = json.loads(p.read_text())
         except (FileNotFoundError, json.JSONDecodeError):
+            continue
+        if now - rec.get("t", 0) > STALE_PROMPT_S:
+            p.unlink(missing_ok=True)  # orphan, decided or not: no waiter remains
             continue
         if "decision" not in rec:
             out.append(rec)

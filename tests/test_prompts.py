@@ -405,3 +405,53 @@ class GrepPatternsAreNotPaths(unittest.TestCase):
 
     def test_destructive_commands_still_denied(self):
         self.assertEqual(prompts.decide_auto("rm -rf /Users/pup", _ROOT)[0], "deny")
+
+
+class StalePromptsAreReaped(unittest.TestCase):
+    """wait_decision unlinks the prompt file in a `finally`, so a record still on
+    disk past perm.sh's 300s wait means its waiter died: nothing is blocked on
+    it and `fleet decide` cannot release it, but it sat in the queue claiming a
+    thread needed an answer. Found live with a 47-hour-old orphan."""
+
+    def setUp(self):
+        import tempfile, pathlib
+        self._tmp = tempfile.TemporaryDirectory()
+        self._orig = prompts.profile_state
+        prompts.profile_state = lambda profile: pathlib.Path(self._tmp.name)
+
+    def tearDown(self):
+        prompts.profile_state = self._orig
+        self._tmp.cleanup()
+
+    def _write(self, pid, age_s, decision=None):
+        import json, time, pathlib
+        rec = {"id": pid, "thread": "t", "tool": "Bash", "command": "ls",
+               "cwd": ".", "t": time.time() - age_s}
+        if decision:
+            rec["decision"] = decision
+        p = pathlib.Path(self._tmp.name) / "prompts" / f"t-{pid}.json"
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(rec))
+        return p
+
+    def test_fresh_undecided_prompt_is_listed_and_kept(self):
+        p = self._write("fresh", 5)
+        self.assertEqual([r["id"] for r in prompts.pending("v2")], ["fresh"])
+        self.assertTrue(p.exists())
+
+    def test_orphan_past_the_window_is_reaped(self):
+        p = self._write("orphan", prompts.STALE_PROMPT_S + 60)
+        self.assertEqual(prompts.pending("v2"), [])
+        self.assertFalse(p.exists(), "stale prompt must not linger in the queue")
+
+    def test_decided_orphan_is_reaped_too(self):
+        # wait_decision normally unlinks these; one survived 47h in production.
+        p = self._write("decided", prompts.STALE_PROMPT_S + 60, decision="deny")
+        prompts.pending("v2")
+        self.assertFalse(p.exists())
+
+    def test_a_slow_but_live_waiter_is_not_reaped(self):
+        # perm.sh waits 300s; the window is doubled so it is never reaped early.
+        p = self._write("slow", 305)
+        self.assertEqual([r["id"] for r in prompts.pending("v2")], ["slow"])
+        self.assertTrue(p.exists())
