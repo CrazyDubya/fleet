@@ -4,7 +4,7 @@
              "Bash(git reset --hard*)", "Bash(git clean -f*)",
              "Bash(curl -X POST*)", "Bash(curl -X PUT*)", "Bash(curl --data*)",
              "Read(//Users/pup/.ssh/**)", "Read(//Users/pup/.aws/**)", "Read(**/.env)",
-             "Write(//Users/pup/fleet/fleet.toml)", "Edit(//Users/pup/fleet/fleet.toml)"]
+             "Edit(//Users/pup/fleet/fleet.toml)"]
   },
   "hooks": {
     "PreToolUse": [{"matcher": "SendMessage|Bash", "hooks": [{"type": "command", "command": "/Users/pup/fleet/hooks/v2/gate.sh", "timeout": 3}]}],

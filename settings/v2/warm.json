@@ -6,7 +6,6 @@
       "Bash(/Users/pup/fleet/bin/fleet miss *)",
       "Bash(/Users/pup/fleet/bin/fleet status *)",
       "Read(//Users/pup/fleet/**)",
-      "Write(//Users/pup/fleet/ledger/handoffs/**)",
       "Edit(//Users/pup/fleet/ledger/handoffs/**)"
     ],
     "deny": [
@@ -17,7 +16,6 @@
       "Read(//Users/pup/.ssh/**)",
       "Read(//Users/pup/.aws/**)",
       "Read(**/.env)",
-      "Write(//Users/pup/fleet/fleet.toml)",
       "Edit(//Users/pup/fleet/fleet.toml)"
     ]
   },
