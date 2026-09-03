@@ -176,6 +176,21 @@ class Handler(BaseHTTPRequestHandler):
         finally:
             BUS.unsubscribe(q)
 
+    # Exact-path routes, GET. A dict rather than an if/elif ladder: the URL
+    # vocabulary is then a readable list, and adding one is a line rather than
+    # a branch. Prefix routes stay a tuple below because they are ordered
+    # matching, not lookup - "/w/" must be tried before the static trees.
+    GET_ROUTES = {
+        "/": lambda s: s._static(STATIC, "index.html"),
+        "/api/widgets": lambda s: s._json(_list_widget_ids()),
+        "/api/events": lambda s: s._sse(),
+    }
+    GET_PREFIXES = (
+        ("/w/", lambda s, rest: s._widget_route()),
+        ("/static/", lambda s, rest: s._static(STATIC, rest)),
+        ("/widgets/", lambda s, rest: s._static(WIDGETS_DIR, rest)),
+    )
+
     def do_GET(self):
         path = urlsplit(self.path).path
         # Browsers fetch the manifest and icons without credentials; they are
@@ -184,27 +199,21 @@ class Handler(BaseHTTPRequestHandler):
             return self._static(STATIC, path[len("/static/"):])
         if not self._authed():
             return
-        if path.startswith("/w/"):
-            return self._widget_route()
-        if path == "/":
-            return self._static(STATIC, "index.html")
-        if path.startswith("/static/"):
-            return self._static(STATIC, path[len("/static/"):])
-        if path.startswith("/widgets/"):
-            return self._static(WIDGETS_DIR, path[len("/widgets/"):])
-        if path == "/api/widgets":
-            return self._json(_list_widget_ids())
-        if path == "/api/events":
-            return self._sse()
+        for prefix, handler in self.GET_PREFIXES:
+            if path.startswith(prefix):
+                return handler(self, path[len(prefix):])
+        route = self.GET_ROUTES.get(path)
+        if route:
+            return route(self)
         self._json({"error": "not found"}, 404)
 
     def do_POST(self):
         path = urlsplit(self.path).path
         if not self._authed():
             return
-        if path.startswith("/w/"):
-            return self._widget_route()
-        self._json({"error": "not found"}, 404)
+        if not path.startswith("/w/"):
+            return self._json({"error": "not found"}, 404)
+        self._widget_route()
 
 
 def _lan_ip() -> str:

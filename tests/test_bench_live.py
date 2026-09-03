@@ -1,3 +1,4 @@
+import os
 import subprocess
 import tempfile
 import unittest
@@ -35,6 +36,16 @@ class BenchLiveTests(unittest.TestCase):
         # environment fact, never a pass - the arm's own failures still fail.
         from fleet.bench import arms
         tmux.clear_input(arms.FLEET_TARGET)
+        # Opt-in only. Unlike every other test here, this one PASTES A REAL
+        # PACKET into the operator's live sonnet2 and bills it to the pool - so
+        # a routine `pytest tests/` used to interrupt whatever dispatch was in
+        # flight. Observed: it commandeered the thread between two lab
+        # dispatches and left an abandoned packet behind.
+        if not os.environ.get("FLEET_BENCH_LIVE"):
+            self.skipTest("set FLEET_BENCH_LIVE=1: this drives the live thread and costs pool")
+        # Even then, do not collide: clear a stale draft (tmux.paste refuses to
+        # paste over one, which would look like an arm failure rather than the
+        # pane state it is) and stand down if the operator is mid-turn.
         why = arms._target_unavailable(registry_mod.Registry().load())
         if why:
             self.skipTest(f"{arms.FLEET_TARGET} {why}")

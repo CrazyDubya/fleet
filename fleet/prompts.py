@@ -221,10 +221,72 @@ def _plain_args(tokens: list[str]) -> list[str]:
     return out
 
 
+def _rm_denied(verb: str, rest: list[str], root: Path) -> str | None:
+    # A non-recursive rm of one in-repo file is routine work
+    # (`rm -f state/gui-token`). RECURSION is what makes it destructive -
+    # `rm -r games/pinball` erases the frozen instrument just as thoroughly as
+    # the forced form does, and an unattended thread never sees the
+    # write-protect prompt that -f suppresses, so -f is not what distinguishes
+    # them. _rm_flags_and_args still reports -f; nothing consumes it.
+    has_recursive, _has_force, args = _rm_flags_and_args(rest)
+    if has_recursive and not _all_args_in_state(args, root):
+        return "recursive rm outside state/ and /tmp"
+    return None
+
+
+def _unlink_denied(verb: str, rest: list[str], root: Path) -> str | None:
+    if _all_args_in_state(_plain_args(rest), root):
+        return None
+    return f"{verb} outside state/ and /tmp"
+
+
+def _find_denied(verb: str, rest: list[str], root: Path) -> str | None:
+    deletes = "-delete" in rest or any(
+        t in EXEC_PRIMARIES and i + 1 < len(rest) and _clean_arg(rest[i + 1]) in DELETE_VERBS
+        for i, t in enumerate(rest)
+    )
+    if not deletes:
+        return None
+    # find's paths are its leading operands, before the first -primary. With
+    # none given it walks "." - the thread's own cwd, which is not necessarily
+    # under state/.
+    args: list[str] = []
+    for t in rest:
+        if t.startswith("-"):
+            break
+        args.append(t)
+    if _all_args_in_state(args or ["."], root):
+        return None
+    return "find -delete outside state/ and /tmp"
+
+
+def _xargs_denied(verb: str, rest: list[str], root: Path) -> str | None:
+    # Denied outright when the utility deletes: xargs' operands arrive on
+    # stdin, so there is no path argument to check against state/ - the
+    # command names nothing dangerous inline.
+    if _clean_arg(_xargs_utility(rest)) in DELETE_VERBS:
+        return "xargs delete (paths come from stdin; unverifiable)"
+    return None
+
+
+# The delete vocabulary, verb -> rule. A dict rather than an if/elif chain, so
+# the covered verbs read as a list instead of having to be recovered from
+# branches, and an unrecognised verb costs one hash lookup rather than walking
+# every arm. Adding a verb is a line here plus a function, and the arms can no
+# longer drift into different shapes.
+DELETE_RULES = {
+    "rm": _rm_denied,
+    "rmdir": _unlink_denied,
+    "unlink": _unlink_denied,
+    "find": _find_denied,
+    "xargs": _xargs_denied,
+}
+
+
 def _delete_denied(command: str, root: Path) -> str | None:
-    """Token-based check on the whole delete family: deny recursive+force rm,
-    rmdir, unlink, `find ... -delete`/`-exec rm`, and `xargs rm` unless every
-    path argument resolves under <root>/state.
+    """Token-based check on the whole delete family (see DELETE_RULES): deny
+    recursive rm, rmdir, unlink, `find ... -delete`/`-exec rm`, and `xargs rm`
+    unless every path argument resolves under <root>/state or /tmp.
 
     The raw command is split into shell segments on ;, &&, ||, |, &,
     newline, (, $(, `, and { before tokenizing, so chained invocations
@@ -241,49 +303,15 @@ def _delete_denied(command: str, root: Path) -> str | None:
     is denied rather than being truncated into an in-state path.
     """
     for segment in SEGMENT_RE.split(command):
-        segment = segment.strip()
-        if not segment:
-            continue
-        tokens = _tokens(segment)
+        tokens = _tokens(segment.strip())
         if not tokens:
             continue
-        verb, rest = tokens[0], tokens[1:]
-        if verb == "rm":
-            has_recursive, has_force, args = _rm_flags_and_args(rest)
-            # A non-recursive rm of one in-repo file is routine work
-            # (`rm -f state/gui-token`). RECURSION is what makes it destructive -
-            # `rm -r games/pinball` erases the frozen instrument just as
-            # thoroughly as `rm -rf` does, and an unattended thread never sees
-            # the write-protect prompt that -f suppresses, so -f is not the
-            # thing that distinguishes them.
-            if has_recursive and not _all_args_in_state(args, root):
-                return "recursive rm outside state/ and /tmp"
-            _ = has_force
-        elif verb in ("rmdir", "unlink"):
-            if not _all_args_in_state(_plain_args(rest), root):
-                return f"{verb} outside state/ and /tmp"
-        elif verb == "find":
-            deletes = "-delete" in rest or any(
-                t in EXEC_PRIMARIES and i + 1 < len(rest) and _clean_arg(rest[i + 1]) in DELETE_VERBS
-                for i, t in enumerate(rest)
-            )
-            if deletes:
-                # find's paths are its leading operands, before the first
-                # -primary. With none given it walks "." - the thread's own
-                # cwd, which is not necessarily under state/.
-                args = []
-                for t in rest:
-                    if t.startswith("-"):
-                        break
-                    args.append(t)
-                if not _all_args_in_state(args or ["."], root):
-                    return "find -delete outside state/ and /tmp"
-        elif verb == "xargs":
-            # Denied outright when the utility deletes: xargs' operands arrive
-            # on stdin, so there is no path argument to check against state/
-            # (`xargs rm -rf < list` names nothing dangerous inline).
-            if _clean_arg(_xargs_utility(rest)) in DELETE_VERBS:
-                return "xargs delete (paths come from stdin; unverifiable)"
+        rule = DELETE_RULES.get(tokens[0])
+        if not rule:
+            continue
+        why = rule(tokens[0], tokens[1:], root)
+        if why:
+            return why
     return None
 
 
@@ -364,11 +392,14 @@ def decide_auto(command: str, root: Path, _depth: int = 0) -> tuple[str, str]:
     wrapped = _wrapped_verdict(command, root, _depth)
     if wrapped:
         return wrapped
+    # One pass, not two. _loopback_url and _path_ok judge disjoint token
+    # classes - _is_path_candidate rejects URLs outright, and a path is never a
+    # URL - so merging cannot change which reason a given token produces. It
+    # only reports whichever offending token comes first when a command has
+    # both, and either way the verdict is escalate.
     for tok in _tokens(command):
-        lb = _loopback_url(tok)
-        if lb is False:
+        if _loopback_url(tok) is False:
             return "escalate", f"non-loopback URL: {tok}"
-    for tok in _tokens(command):
         if not _path_ok(tok, root):
             return "escalate", f"path outside repo: {tok}"
     return "allow-auto", "in-repo, no deny match"
