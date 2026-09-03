@@ -303,11 +303,14 @@ def test_fleet_arm_skips_when_target_busy():
     from fleet.bench import arms
 
     class R:  # idle_minutes is load-bearing: without it the guard consults the LIVE ledger
-        def __init__(self, name, state, idle_minutes=arms.DISPATCH_STALE_MIN):
-            self.name, self.state, self.idle_minutes = name, state, idle_minutes
+        def __init__(self, name, state):
+            self.name, self.state = name, state
 
     import fleet.status as status_mod
-    orig = status_mod.rows
+    orig, orig_flight = status_mod.rows, arms._dispatch_in_flight
+    # unstubbed this reads the LIVE ledger, so the assertions below would pass or
+    # fail on whatever the operator last sent sonnet2
+    arms._dispatch_in_flight = lambda **kw: ""
     try:
         status_mod.rows = lambda **kw: [R("sonnet2", "busy"), R("opus2", "idle")]
         assert "busy" in arms._target_unavailable({}, capture=lambda: PANE_IDLE)
@@ -318,7 +321,7 @@ def test_fleet_arm_skips_when_target_busy():
         status_mod.rows = boom
         assert arms._target_unavailable({}, capture=lambda: PANE_DRAFT) == ""
     finally:
-        status_mod.rows = orig
+        status_mod.rows, arms._dispatch_in_flight = orig, orig_flight
 
 
 def test_fleet_arm_skips_when_target_is_wedged_not_busy():
@@ -327,11 +330,14 @@ def test_fleet_arm_skips_when_target_is_wedged_not_busy():
     from fleet.bench import arms
 
     class R:  # idle_minutes is load-bearing: without it the guard consults the LIVE ledger
-        def __init__(self, name, state, idle_minutes=arms.DISPATCH_STALE_MIN):
-            self.name, self.state, self.idle_minutes = name, state, idle_minutes
+        def __init__(self, name, state):
+            self.name, self.state = name, state
 
     import fleet.status as status_mod
-    orig = status_mod.rows
+    orig, orig_flight = status_mod.rows, arms._dispatch_in_flight
+    # unstubbed this reads the LIVE ledger, so the assertions below would pass or
+    # fail on whatever the operator last sent sonnet2
+    arms._dispatch_in_flight = lambda **kw: ""
     try:
         status_mod.rows = lambda **kw: [R("sonnet2", "idle")]
         why = arms._target_unavailable({}, capture=lambda: PANE_DRAFT)
@@ -345,10 +351,10 @@ def test_fleet_arm_skips_when_target_is_wedged_not_busy():
         assert arms._target_unavailable({}, capture=blow) == ""
         assert arms._target_unavailable({}, capture=lambda: "  \n") == ""
     finally:
-        status_mod.rows = orig
+        status_mod.rows, arms._dispatch_in_flight = orig, orig_flight
 
 
-def test_dispatch_guard_releases_once_the_thread_goes_quiet():
+def test_dispatch_guard_ages_out_instead_of_latching():
     """The guard must not latch. It compares "newest send" to "newest handoff", and
     plenty of legitimate operator sends ask for an inline answer and write no handoff
     at all - so on 2026-09-03 two probe packets at 09:11/09:13 left it stuck saying
@@ -358,15 +364,32 @@ def test_dispatch_guard_releases_once_the_thread_goes_quiet():
     from fleet.bench import arms
 
     now = _time.time()
-    events = [{"ev": "send", "thread": arms.FLEET_TARGET, "from": "operator", "t": now}]
 
     class H:  # a handoff older than the send: the latched condition
-        def stat(self): return type("S", (), {"st_mtime": now - 3600})()
+        def stat(self): return type("S", (), {"st_mtime": now - 999999})()
 
-    # mid-dispatch pause (permission dialog, between turns) -> still owned
-    assert arms._dispatch_in_flight(events=events, handoff=H(), idle_minutes=1)
-    # quiet for longer than a dispatch pause -> the send produced no handoff and never will
-    assert arms._dispatch_in_flight(events=events, handoff=H(), idle_minutes=arms.DISPATCH_STALE_MIN) == ""
+    recent = [{"ev": "send", "thread": arms.FLEET_TARGET, "from": "operator", "t": now - 60}]
+    old = [{"ev": "send", "thread": arms.FLEET_TARGET, "from": "operator", "t": now - arms.DISPATCH_STALE_S - 1}]
+    assert arms._dispatch_in_flight(now=now, events=recent, handoff=H())
+    assert arms._dispatch_in_flight(now=now, events=old, handoff=H()) == ""
+
+
+def test_dispatch_guard_is_not_reset_by_the_benchs_own_turn():
+    """Idleness is the wrong bound: ANY turn resets it, including the bench packet
+    that is about to collide, so an idleness-bounded guard releases exactly when it
+    should hold. The bound is the age of the operator send instead."""
+    import time as _time
+    from fleet.bench import arms
+
+    now = _time.time()
+
+    class H:
+        def stat(self): return type("S", (), {"st_mtime": now - 999999})()
+
+    # operator sent 60 s ago; the bench has since made the thread active. Still owned.
+    ev = [{"ev": "send", "thread": arms.FLEET_TARGET, "from": "operator", "t": now - 60},
+          {"ev": "send", "thread": arms.FLEET_TARGET, "from": "bench", "t": now - 1}]
+    assert arms._dispatch_in_flight(now=now, events=ev, handoff=H())
 
 
 def test_dispatch_guard_holds_while_a_handoff_is_genuinely_outstanding():
@@ -382,11 +405,11 @@ def test_dispatch_guard_holds_while_a_handoff_is_genuinely_outstanding():
     class New:  # handoff written AFTER the send: the dispatch completed
         def stat(self): return type("S", (), {"st_mtime": now + 60})()
 
-    assert arms._dispatch_in_flight(events=newer, handoff=Old(), idle_minutes=0)
-    assert arms._dispatch_in_flight(events=newer, handoff=New(), idle_minutes=0) == ""
+    assert arms._dispatch_in_flight(now=now, events=newer, handoff=Old())
+    assert arms._dispatch_in_flight(now=now, events=newer, handoff=New()) == ""
     # the bench's own sends are not operator work and must never gate the bench
     bench = [{"ev": "send", "thread": arms.FLEET_TARGET, "from": "bench", "t": now}]
-    assert arms._dispatch_in_flight(events=bench, handoff=Old(), idle_minutes=0) == ""
+    assert arms._dispatch_in_flight(now=now, events=bench, handoff=Old()) == ""
 
 
 def test_fleet_arm_records_skip_without_sending():

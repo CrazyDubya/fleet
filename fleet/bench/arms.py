@@ -13,11 +13,12 @@ from fleet.paths import transcript_path
 ARMS = {"fable": "claude-fable-5", "sonnet": "claude-sonnet-5"}
 FLEET_TARGET = "sonnet2"
 POLL_S = 1  # done-detection poll: t1 is only as precise as this interval
-# A dispatch is "in flight" only while the thread is plausibly still working it. The
-# gaps this guard exists to cover - a permission dialog, the pause between turns - are
-# minutes; past this, an outstanding send with no handoff means the work ended without
-# one, not that it is still running.
-DISPATCH_STALE_MIN = 30
+# How long an operator send with no handoff is still presumed "in flight". Measured
+# from the SEND, not from thread idleness: idleness is reset by any turn at all,
+# including the bench's own packet, so an idleness bound releases the guard exactly
+# when the bench is about to collide and holds it the rest of the time. Generous
+# enough to cover a long lab dispatch; `state == busy` covers the thread mid-turn.
+DISPATCH_STALE_S = 5400
 
 
 @dataclass
@@ -81,10 +82,33 @@ def _handoff_done(run: str, t0: float, handoff_dir: Path) -> bool:
     return False
 
 
-def fleet_wait_done(run: str, t0: float, timeout_s: int, handoff_dir: Path, capture, sleep=time.sleep, clock=time.time) -> bool:
+def _artifact_done(target: Path | None, t0: float) -> bool:
+    """True once the task's own declared output exists with content.
+
+    A task states where its answer goes (`target`, e.g. bench/work/<run>/out) and
+    the packet tells the thread to write it there. Nothing checked that file. So a
+    thread that did exactly as asked - wrote the artifact, then replied in prose
+    without an `@re` header - was invisible to the detector: on 2026-09-03 sonnet2
+    answered lookup-newest-handoff in 4 SECONDS and the arm sat for another 176
+    before recording a timeout. Six of the arm's nine historical timeouts have this
+    shape (real output, no handoff).
+
+    Existence is the signal, NOT correctness: `check` still decides pass/fail
+    afterwards, so a thread that finishes with a WRONG answer is recorded as a
+    fail rather than vanishing into a timeout. Empty files do not count - the
+    directory and a zero-byte file often appear a beat before the content.
+    """
+    if target is None or not target.is_dir():
+        return False
+    return any(p.is_file() and p.stat().st_size > 0 and p.stat().st_mtime >= t0
+               for p in target.rglob("*"))
+
+
+def fleet_wait_done(run: str, t0: float, timeout_s: int, handoff_dir: Path, capture, sleep=time.sleep, clock=time.time,
+                    target: Path | None = None) -> bool:
     deadline = t0 + timeout_s
     while True:
-        if _handoff_done(run, t0, handoff_dir):
+        if _handoff_done(run, t0, handoff_dir) or _artifact_done(target, t0):
             return True
         pane = capture()
         if pane and f"@re{run}" in packet_mod.norm(pane) and extract_reply(pane, run) is not None:
@@ -94,7 +118,7 @@ def fleet_wait_done(run: str, t0: float, timeout_s: int, handoff_dir: Path, capt
         sleep(POLL_S)
 
 
-def _dispatch_in_flight(now=None, events=None, handoff=None, idle_minutes=None) -> str:
+def _dispatch_in_flight(now=None, events=None, handoff=None) -> str:
     """Non-empty when an operator dispatch is still awaiting its `@done` handoff.
 
     `state == idle` is NOT enough. A thread pauses between the steps of a long
@@ -107,18 +131,20 @@ def _dispatch_in_flight(now=None, events=None, handoff=None, idle_minutes=None) 
     "Owned" means: the newest `send` to this thread is newer than its newest
     handoff. Idle means "not speaking", not "not busy".
 
-    Bounded by thread idleness, because "newest send is newer than newest
-    handoff" NEVER clears on its own. Plenty of legitimate operator sends ask
+    Bounded by the AGE OF THE SEND, because "newest send is newer than newest
+    handoff" never clears on its own. Plenty of legitimate operator sends ask
     for an inline answer and write no handoff at all - two such probes on
     2026-09-03 at 09:11 and 09:13 latched this guard on and disabled the fleet
     arm for the rest of the day. A guard that can only ever say "busy" is not a
     guard, it is an outage.
 
+    An earlier version of this bound used thread idleness, which is worse than
+    no bound: any turn resets it, including the bench's own packet, so it
+    released the guard precisely when a collision was imminent.
+
     Fails open like every other probe here - an unreadable ledger reports
     available rather than disabling the arm.
     """
-    if idle_minutes is not None and idle_minutes >= DISPATCH_STALE_MIN:
-        return ""
     try:
         from fleet import ledger
         sends = [e for e in (events if events is not None else ledger.read_events(tail=4000))
@@ -127,6 +153,8 @@ def _dispatch_in_flight(now=None, events=None, handoff=None, idle_minutes=None) 
         if not sends:
             return ""
         last_send = sends[-1].get("t") or 0
+        if (now if now is not None else time.time()) - last_send >= DISPATCH_STALE_S:
+            return ""  # too old to still be running; it ended without a handoff
         h = handoff if handoff is not None else ledger.last_handoff(FLEET_TARGET)
         last_handoff_t = h.stat().st_mtime if h else 0
         if last_send > last_handoff_t:
@@ -151,18 +179,16 @@ def _target_unavailable(registry_entries: dict, capture=None) -> str:
     the fleet arm forever. A capture that SUCCEEDS and shows no input box is
     not an error - it is a blocked thread, and it is reported as such.
     """
-    idle_minutes = None
     try:
         from fleet import status as status_mod
         for r in status_mod.rows(entries=registry_entries):
             if getattr(r, "name", None) == FLEET_TARGET:
                 if getattr(r, "state", "") == "busy":
                     return "busy with operator work"
-                idle_minutes = getattr(r, "idle_minutes", None)
                 break
     except Exception:
         return ""
-    inflight = _dispatch_in_flight(idle_minutes=idle_minutes)
+    inflight = _dispatch_in_flight()
     if inflight:
         return inflight
     try:
@@ -183,7 +209,7 @@ def _target_unavailable(registry_entries: dict, capture=None) -> str:
 
 def run_fleet(packet_text: str, refs: list[str], done: str, run: str, root: Path, timeout_s: int, lane: str,
               profile: str, registry_entries: dict, send=send_mod.send_packet, capture=None, sleep=time.sleep, clock=time.time,
-              unavailable=None) -> ArmResult:
+              unavailable=None, target: Path | None = None) -> ArmResult:
     from fleet.registry import transcript_for
     by_thread = {name: transcript_for(e, registry_entries) for name, e in registry_entries.items()}
     p = packet_mod.Packet(to=FLEET_TARGET, sender="bench", lane=lane, effort=packet_mod.LANES[lane].effort, reply="file",
@@ -208,5 +234,5 @@ def run_fleet(packet_text: str, refs: list[str], done: str, run: str, root: Path
     except send_mod.SendError as exc:
         return ArmResult("error", by_thread, None, str(exc))
     cap = capture or (lambda: tmux.capture(FLEET_TARGET, lines=200, join=True))
-    ok = fleet_wait_done(run, t0, timeout_s, root / "ledger" / "handoffs" / FLEET_TARGET, cap, sleep, clock)
+    ok = fleet_wait_done(run, t0, timeout_s, root / "ledger" / "handoffs" / FLEET_TARGET, cap, sleep, clock, target)
     return ArmResult("done" if ok else "timeout", by_thread, None, "" if ok else "no @re reply within timeout_s")

@@ -143,8 +143,12 @@ def _default_execute(root: Path):
     from fleet.registry import Registry
     def execute(resolved: tasks_mod.TaskSpec, run: str, arm: str) -> arms.ArmResult:
         if arm == "fleet":
+            # the task's own declared output dir, so done-detection can see the
+            # artifact the packet asked for rather than only an @re header
+            tgt = Path(resolved.target)
             return arms.run_fleet(resolved.packet, resolved.refs, resolved.done, run, root, resolved.timeout_s, resolved.lane,
-                                  current_profile(), Registry().load())
+                                  current_profile(), Registry().load(),
+                                  target=tgt if tgt.is_absolute() else root / tgt)
         return arms.run_single_turn(arms.ARMS[arm], resolved.packet, run, root, resolved.timeout_s, root / "bench" / "work" / run)
     return execute
 

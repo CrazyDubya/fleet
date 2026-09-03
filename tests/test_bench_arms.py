@@ -105,6 +105,37 @@ class FleetWaitTests(unittest.TestCase):
                                   clock=iter([1.0, 2.0]).__next__)
         self.assertTrue(ok)
 
+    def test_artifact_written_to_the_tasks_target_counts_as_done(self):
+        """sonnet2 answered lookup-newest-handoff in 4 s by writing the file the packet
+        asked for, then replying in prose with no @re header. The arm waited another
+        176 s and recorded a timeout. The task states where its answer goes; nothing
+        looked there."""
+        with tempfile.TemporaryDirectory() as d:
+            tgt = Path(d) / "out"; tgt.mkdir()
+            self.assertFalse(arms._artifact_done(tgt, 0.0))          # empty dir
+            (tgt / "reply.txt").write_text("")
+            self.assertFalse(arms._artifact_done(tgt, 0.0))          # zero-byte: not yet
+            (tgt / "reply.txt").write_text("ledger/handoffs/x.md")
+            self.assertTrue(arms._artifact_done(tgt, 0.0))
+            self.assertFalse(arms._artifact_done(None, 0.0))         # arm with no target
+            self.assertFalse(arms._artifact_done(Path(d) / "nope", 0.0))
+
+    def test_artifact_predating_the_run_does_not_count(self):
+        import os
+        with tempfile.TemporaryDirectory() as d:
+            tgt = Path(d) / "out"; tgt.mkdir()
+            f = tgt / "reply.txt"; f.write_text("stale"); os.utime(f, (1, 1))
+            self.assertFalse(arms._artifact_done(tgt, 100.0))
+
+    def test_wait_returns_on_artifact_without_any_reply_header(self):
+        with tempfile.TemporaryDirectory() as d:
+            tgt = Path(d) / "out"; tgt.mkdir(); (tgt / "reply.txt").write_text("answer")
+            ok = arms.fleet_wait_done("run77", 0.0, 5, Path(d) / "handoffs",
+                                      capture=lambda: "no header here at all",
+                                      sleep=lambda s: None, clock=iter([1.0, 2.0]).__next__,
+                                      target=tgt)
+        self.assertTrue(ok)
+
     def test_old_handoff_is_ignored(self):
         with tempfile.TemporaryDirectory() as d:
             hd = Path(d); f = hd / "old.md"; f.write_text("@re run77"); import os; os.utime(f, (1, 1))
