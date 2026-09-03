@@ -3,7 +3,7 @@ import json
 import statistics as st
 from pathlib import Path
 
-ARMS = ("fable", "sonnet", "fleet")
+ARMS = ("fable", "sonnet", "fleet", "haiku-swarm", "sonnet-swarm")
 NOT_A_TASK = ("headline", "cache")  # reserved top-level keys in a summary
 
 
@@ -155,6 +155,19 @@ def _spanned(summary: dict) -> tuple[list[str], list[str]]:
     return sorted(profiles), sorted(versions)
 
 
+def stats_of(summary: dict, arm: str) -> dict | None:
+    """Flat per-arm headline numbers, or None if the arm never ran."""
+    h = summary.get("headline") or {}
+    n = (h.get("n") or {}).get(arm) or 0
+    runs = (h.get("runs") or {}).get(arm) or 0
+    if not runs:
+        return None
+    return {"n": n, "skip": (h.get("skipped") or {}).get(arm) or 0,
+            "pass": (h.get("accuracy") or {}).get(arm),
+            "time": (h.get("time") or {}).get(arm),
+            "usd": (h.get("cost") or {}).get(arm)}
+
+
 def render(summary: dict) -> str:
     profiles, versions = _spanned(summary)
     mixed = len(profiles) > 1 or len(versions) > 1
@@ -184,12 +197,26 @@ def render(summary: dict) -> str:
             s_ = sk.get(arm) or 0
             return f"n={n[arm]}" + (f"(+{s_} skip)" if s_ else "")
 
-        lines.append(f"accuracy (pass rate)  fable {_f(h['accuracy']['fable'])} {_n('fable')}  sonnet {_f(h['accuracy']['sonnet'])} {_n('sonnet')}  "
-                     f"fleet {_f(h['accuracy']['fleet'])} {_n('fleet')}  | fleet/sonnet {_f(h['accuracy']['fleet_vs_sonnet'])}  fleet/fable {_f(h['accuracy']['fleet_vs_fable'])}")
-        lines.append(f"time (s per pass)     fable {_f(h['time']['fable'], '{:.0f}')}  sonnet {_f(h['time']['sonnet'], '{:.0f}')}  fleet {_f(h['time']['fleet'], '{:.0f}')}  "
-                     f"| fleet/sonnet {_f(h['time']['fleet_vs_sonnet'])}  fleet/fable {_f(h['time']['fleet_vs_fable'])}")
-        lines.append(f"cost ($ per pass)     fable {_f(h['cost']['fable'])}  sonnet {_f(h['cost']['sonnet'])}  fleet {_f(h['cost']['fleet'])}  "
-                     f"(weekly-pool $: sonnet {_f(h['cost']['weekly']['sonnet'])}  fleet {_f(h['cost']['weekly']['fleet'])})  | fleet/sonnet {_f(h['cost']['fleet_vs_sonnet'])}  fleet/fable {_f(h['cost']['fleet_vs_fable'])}")
+        # One row per arm that actually ran. The three-arm hardcoded summary could
+        # not show a swarm at all, and time-to-completion is the metric the bench
+        # exists for, so it leads.
+        lines.append("")
+        lines.append(f"{'arm':13} {'n':>4} {'skip':>5} {'pass':>6} {'s/pass':>8} {'$/pass':>8}")
+        for arm in ARMS:
+            if not stats_of(summary, arm):
+                continue
+            st = stats_of(summary, arm)
+            lines.append(f"{arm:13} {st['n']:>4} {st['skip']:>5} {_f(st['pass']):>6} "
+                         f"{_f(st['time'], '{:.0f}'):>8} {_f(st['usd']):>8}")
+        base = "sonnet"
+        lines.append("")
+        for arm in ARMS:
+            st = stats_of(summary, arm)
+            bs = stats_of(summary, base)
+            if arm == base or not st or not bs:
+                continue
+            lines.append(f"  {arm} vs {base}:  time {_f(_ratio(st['time'], bs['time']))}x  "
+                         f"accuracy {_f(_ratio(st['pass'], bs['pass']))}x  cost {_f(_ratio(st['usd'], bs['usd']))}x")
     c = summary.get("cache") or {}
     if c:
         lines.append("")

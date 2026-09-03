@@ -149,6 +149,9 @@ def _default_execute(root: Path):
             return arms.run_fleet(resolved.packet, resolved.refs, resolved.done, run, root, resolved.timeout_s, resolved.lane,
                                   current_profile(), Registry().load(),
                                   target=tgt if tgt.is_absolute() else root / tgt)
+        if arm in arms.SWARM_ARMS:
+            return arms.run_swarm(arms.SWARM_ARMS[arm], resolved.packet, run, root, resolved.timeout_s,
+                                  root / "bench" / "work" / run, target=resolved.target)
         return arms.run_single_turn(arms.ARMS[arm], resolved.packet, run, root, resolved.timeout_s, root / "bench" / "work" / run)
     return execute
 
@@ -217,7 +220,7 @@ def run_one(task: tasks_mod.TaskSpec, arm: str, root: Path, runs_path: Path = RU
         usd = measure.usd_by_model(res.transcripts, t0, t1)
         row["usd"] = round(sum(usd.values()), 6); row["pool"] = pool_rounded(measure.pool_split(usd))
         row["measured"] = True  # only now is status backed by a real cost/token window
-        if res.status == "done" and arm in arms.ARMS and not row["tokens"]:
+        if res.status == "done" and arm in (arms.ARMS | arms.SWARM_ARMS) and not row["tokens"]:
             # A single-turn arm always writes a transcript; none in the window means the key
             # we looked under is wrong, so `usd`/`tokens` are zero by accident, not by fact.
             _add_error(row, "no transcript turns in window (transcript key mismatch?)")

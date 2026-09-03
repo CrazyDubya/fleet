@@ -29,9 +29,12 @@ class ReportTests(unittest.TestCase):
         h = report.summarize([r for r in ROWS if r["arm"] != "fable"])["headline"]
         self.assertIsNone(h["cost"]["fleet_vs_fable"])
 
-    def test_render_mentions_n(self):
+    def test_render_has_a_row_per_arm_that_ran(self):
         text = report.render(report.summarize(ROWS))
-        self.assertIn("n=2", text); self.assertIn("fleet", text); self.assertIn("accuracy", text.lower())
+        self.assertIn("s/pass", text)           # time leads: the metric the bench is for
+        for arm in ("fable", "sonnet", "fleet"):
+            self.assertIn(arm, text)
+        self.assertIn("accuracy", text.lower())  # in the vs-baseline ratio line
 
     def test_judge_cost_is_reported_separately_from_usd(self):
         s = report.summarize(ROWS)
@@ -65,7 +68,8 @@ class ReportTests(unittest.TestCase):
         skips = [{**ROWS[0], "run": f"s{i}", "arm": "sonnet", "status": "skipped"} for i in range(11)]
         h = report.summarize(ROWS + skips)["headline"]
         self.assertEqual((h["n"]["sonnet"], h["runs"]["sonnet"], h["skipped"]["sonnet"]), (2, 13, 11))
-        self.assertIn("n=2(+11 skip)", report.render(report.summarize(ROWS + skips)))
+        st = report.stats_of(report.summarize(ROWS + skips), "sonnet")
+        self.assertEqual((st["n"], st["skip"]), (2, 11))  # n is attempts, skips shown beside it
 
     def test_a_skipped_run_is_not_counted_as_an_error(self):
         skip = {**ROWS[0], "run": "s0", "arm": "sonnet", "status": "skipped"}
@@ -104,7 +108,7 @@ class ReportTests(unittest.TestCase):
         text = report.render(s)
         self.assertIn("cache by model", text)
         # the reserved key must not appear as a row in the per-task table above it
-        self.assertNotIn("cache", text.split("accuracy (pass rate)")[0])
+        self.assertNotIn("cache", text.split("\narm ")[0])
 
     def test_no_token_data_renders_no_cache_block(self):
         self.assertEqual(report.summarize(ROWS)["cache"], {})

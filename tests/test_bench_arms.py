@@ -59,6 +59,95 @@ class SingleTurnTests(unittest.TestCase):
         self.assertEqual(r.status, "timeout")
 
 
+class SwarmTests(unittest.TestCase):
+    """N workers race the same task; the first artifact wins and the rest are killed."""
+
+    class FakeProc:
+        def __init__(self, out_dir=None, content="answer", rc=0, running=False):
+            self.out_dir, self.content, self.rc = out_dir, content, rc
+            self.running = running or out_dir is not None
+            self.terminated = False
+            self.returncode = None if self.running else rc
+
+        def poll(self):
+            # a producing worker writes its artifact and stays running, exactly
+            # like a real one that has not been reaped yet
+            if self.out_dir is not None:
+                self.out_dir.mkdir(parents=True, exist_ok=True)
+                (self.out_dir / "reply.txt").write_text(self.content)
+            return None if self.running else self.rc
+
+        def terminate(self):
+            self.terminated = True
+
+    def _run(self, factory, n=3, timeout_s=5, target=None):
+        d = Path(self.tmp.name)
+        tgt = target or str(d / "canonical")
+        made = []
+
+        def popen(argv, cwd=None, **kw):
+            i = len(made)
+            pr = factory(i, Path(cwd))
+            made.append(pr)
+            return pr
+
+        res = arms.run_swarm("claude-haiku-4-5", f"write to {tgt} please", "run1", Path("/r"),
+                             timeout_s, d / "work", target=tgt, n=n, popen=popen,
+                             sleep=lambda s: None, clock=iter([float(i) for i in range(200)]).__next__)
+        return res, made, Path(tgt)
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_each_worker_gets_its_own_target_or_they_race_on_one_file(self):
+        seen = []
+
+        def popen(argv, cwd=None, **kw):
+            seen.append(argv[-1])
+            return self.FakeProc(rc=1)
+
+        arms.run_swarm("m", "write to OUT please", "run1", Path("/r"), 1,
+                       Path(self.tmp.name) / "work", target="OUT", n=3, popen=popen,
+                       sleep=lambda s: None, clock=iter([0.0, 9.0]).__next__)
+        self.assertEqual(len(seen), 3)
+        self.assertEqual(len(set(seen)), 3, "workers must not share a target path")
+        for i, pkt in enumerate(seen):
+            self.assertIn(f"w{i}", pkt)
+
+    def test_first_artifact_wins_and_is_copied_to_the_canonical_target(self):
+        res, made, tgt = self._run(lambda i, cwd: self.FakeProc(cwd / "out" if i == 1 else None, "the answer"))
+        self.assertEqual(res.status, "done")
+        self.assertIn("w1", res.note)
+        self.assertEqual((tgt / "reply.txt").read_text(), "the answer")
+
+    def test_losers_still_running_are_terminated(self):
+        # losers that had already exited need no terminate(); the ones still
+        # burning tokens on a question already answered are the point
+        res, made, _ = self._run(
+            lambda i, cwd: self.FakeProc(cwd / "out") if i == 0 else self.FakeProc(running=True))
+        self.assertEqual(res.status, "done")
+        # every still-running worker is reaped, the winner included: once the
+        # artifact exists, more tokens buy nothing
+        self.assertTrue(all(p.terminated for p in made))
+
+    def test_every_worker_transcript_is_measured_not_just_the_winner(self):
+        # a swarm's cost is what ALL workers spent; that is the trade being priced
+        res, _, _ = self._run(lambda i, cwd: self.FakeProc(cwd / "out" if i == 2 else None), n=4)
+        self.assertEqual(sorted(res.transcripts_by_thread),
+                         [f"bench-work-run1-w{i}" for i in range(4)])
+
+    def test_all_workers_failing_to_start_is_skipped_not_a_failure(self):
+        res, _, _ = self._run(lambda i, cwd: self.FakeProc(rc=1))
+        self.assertEqual(res.status, "skipped")
+
+    def test_workers_that_ran_and_produced_nothing_is_a_timeout(self):
+        res, _, _ = self._run(lambda i, cwd: self.FakeProc(rc=0))
+        self.assertEqual(res.status, "timeout")
+
+
 class FleetWaitTests(unittest.TestCase):
     def test_done_by_handoff_file(self):
         with tempfile.TemporaryDirectory() as d:

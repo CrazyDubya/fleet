@@ -11,6 +11,12 @@ from fleet.ask import extract_reply
 from fleet.paths import transcript_path
 
 ARMS = {"fable": "claude-fable-5", "sonnet": "claude-sonnet-5"}
+# Swarm arms: N single-turn workers on the SAME task, racing. First worker to
+# produce a non-empty artifact wins and its output becomes the run's; the rest
+# are killed. Tokens are billed for ALL of them, which is the whole question -
+# a swarm buys wall-clock with tokens, and the bench exists to price that trade.
+SWARM_ARMS = {"haiku-swarm": "claude-haiku-4-5", "sonnet-swarm": "claude-sonnet-5"}
+SWARM_N = 4
 FLEET_TARGET = "sonnet2"
 POLL_S = 1  # done-detection poll: t1 is only as precise as this interval
 # How long an operator send with no handoff is still presumed "in flight". Measured
@@ -71,6 +77,79 @@ def run_single_turn(model: str, packet: str, run: str, root: Path, timeout_s: in
         return ArmResult("error" if started else "skipped", by_thread, out,
                          f"claude -p exit {r.returncode}: {(r.stderr or '')[-300:]}")
     return ArmResult("done", by_thread, out, "")
+
+
+def _first_artifact(dirs: dict[int, Path], t0: float) -> int | None:
+    """Index of the first worker to write a non-empty file, or None.
+
+    Same rule as the fleet arm's _artifact_done, and for the same reason: the
+    task says where its answer goes, so that is what "finished" means. Empty
+    files do not count - the directory and a zero-byte file appear a beat
+    before the content.
+    """
+    for i, d in dirs.items():
+        if not d.is_dir():
+            continue
+        for p in d.rglob("*"):
+            try:
+                if p.is_file() and p.stat().st_size > 0 and p.stat().st_mtime >= t0:
+                    return i
+            except OSError:
+                continue
+    return None
+
+
+def run_swarm(model: str, packet: str, run: str, root: Path, timeout_s: int, workdir: Path,
+              target: str, n: int = SWARM_N, popen=subprocess.Popen, sleep=time.sleep,
+              clock=time.time) -> ArmResult:
+    """N workers race the same task in isolated worktrees; first artifact wins.
+
+    Each worker gets its OWN target directory, substituted into its copy of the
+    packet - without that they all write the same path and the measurement is a
+    race between partial writes rather than between workers.
+    """
+    workdir.mkdir(parents=True, exist_ok=True)
+    procs, dirs, by_thread = {}, {}, {}
+    for i in range(n):
+        wd = workdir / f"w{i}"
+        out = wd / "out"
+        wd.mkdir(parents=True, exist_ok=True)
+        dirs[i] = out
+        sid = str(uuid.uuid4())
+        by_thread[f"bench-work-{run}-w{i}"] = transcript_path(wd, sid)
+        argv = single_turn_argv(model, sid, packet.replace(target, str(out)), root)
+        procs[i] = popen(argv, cwd=str(wd), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    t0 = clock()
+    winner = None
+    try:
+        while True:
+            winner = _first_artifact(dirs, t0)
+            if winner is not None:
+                break
+            if all(p.poll() is not None for p in procs.values()):
+                break  # every worker exited without producing anything
+            if clock() - t0 >= timeout_s:
+                break
+            sleep(POLL_S)
+    finally:
+        for p in procs.values():
+            if p.poll() is None:
+                p.terminate()
+    if winner is None:
+        exits = sorted({p.returncode for p in procs.values() if p.returncode is not None})
+        # every worker refusing to start is the arm being unavailable, not the
+        # model failing - the same distinction run_single_turn draws.
+        status = "skipped" if exits and all(e != 0 for e in exits) else "timeout"
+        return ArmResult(status, by_thread, None, f"no worker produced an artifact (exits={exits})")
+    # the winner's output becomes the run's, where the task's `check` looks for it
+    dest = Path(target)
+    dest.mkdir(parents=True, exist_ok=True)
+    for src in dirs[winner].rglob("*"):
+        if src.is_file():
+            rel = src.relative_to(dirs[winner])
+            (dest / rel).parent.mkdir(parents=True, exist_ok=True)
+            (dest / rel).write_bytes(src.read_bytes())
+    return ArmResult("done", by_thread, None, f"worker w{winner} of {n} produced first")
 
 
 def _handoff_done(run: str, t0: float, handoff_dir: Path) -> bool:
