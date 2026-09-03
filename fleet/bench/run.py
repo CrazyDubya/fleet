@@ -177,7 +177,7 @@ def run_one(task: tasks_mod.TaskSpec, arm: str, root: Path, runs_path: Path = RU
     judge_fn = judge_fn or (lambda rubric, done, artifacts, r, rt: judge(rubric, done, artifacts, r, rt))
     row = {"run": run, "task": task.id, "arm": arm, "t0": None, "t1": None, "wall_s": None, "status": "error", "check_rc": None,
            "judge": None, "judge_path": None, "judge_usd": 0.0, "judge_model": None, "interventions": {}, "tokens": {},
-           "usd": 0.0, "pool": measure.pool_split({}), "measured": False, "commit": _commit(root),
+           "usd": 0.0, "pool": measure.pool_split({}), "measured": False, "commit": _commit(root), "note": "",
            "profile": current_profile(),
            "claude_version": claude_version if claude_version is not None else detect_claude_version(), "error": None}
     t0 = clock(); row["t0"] = t0
@@ -208,6 +208,12 @@ def run_one(task: tasks_mod.TaskSpec, arm: str, root: Path, runs_path: Path = RU
         res = execute(resolved, run, arm)
         t1 = clock(); row["t1"] = t1; row["wall_s"] = t1 - t0
         row["status"] = res.status
+        # The arm's own account of what happened, kept for EVERY status. It used
+        # to be recorded only on failure, which threw away the one thing the
+        # swarm arm most needs to report: "a worker passed the check" and "none
+        # passed, so I adopted one anyway" are both `done`, and they are not the
+        # same result.
+        row["note"] = res.note
         if res.status == "timeout" and arm == "fleet":
             _fleet_miss(root, run, row)
         if res.status == "done":

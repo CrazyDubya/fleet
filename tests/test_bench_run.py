@@ -482,3 +482,20 @@ def test_cli_accepts_every_declared_arm():
         a = parser.parse_args(["bench", "run", "lookup-newest-handoff", "--arms", arm])
         assert a.arms == arm
     assert "haiku-swarm" in known and "sonnet-swarm" in known
+
+
+def test_the_arms_note_is_kept_even_on_success():
+    """`done` covers two different swarm outcomes - a worker passed the check, or
+    none did and one was adopted anyway. Recording the note only on failure threw
+    that distinction away."""
+    from fleet.bench import arms, run as brun
+    import tempfile, pathlib as _p
+    with tempfile.TemporaryDirectory() as d:
+        root = _p.Path(d)
+        (root / "bench").mkdir()
+        res = arms.ArmResult("done", {}, None, "no worker of 4 passed; adopted w0's output")
+        row = brun.run_one(task(check="true"), "sonnet", root, root / "runs.jsonl",
+                           execute=lambda *a, **k: res, events=[],
+                           clock=iter([1.0, 2.0]).__next__)
+    assert row["status"] == "pass"
+    assert "no worker of 4 passed" in row["note"]
