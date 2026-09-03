@@ -541,8 +541,21 @@ function withE1Coupling(cfgs, inputPrior, shotlineSamplesPath) {
 }
 
 // P1 launch lane: laneWidth x deflectorAngleDeg x gateThresholdFrac x plungerSpeed = 4x4x3x6 = 288.
+//
+// LAB-15: `laneWidth: 0.028` fouled buildP1's own injection-clearance assertion on every one
+// of its 72 cfgs (arenas/e3_paths.js's `assertInjectionClear`, added by LAB-14) — the plunge
+// injection point sits centred in the lane, so its clearance to each wall is exactly
+// `laneWidth/2`, and the assertion requires that to exceed `BALL_RADIUS + FOUL_MARGIN` =
+// 0.0135 + 0.001 = 0.0145m. Analytic threshold: laneWidth > 2*0.0145 = 0.029m (strict — a
+// clearance exactly equal to the margin still throws). `0.028` misses by 1mm.
+// `0.029` itself is not used, even though it happens to pass here (2*(0.0135+0.001) rounds to
+// 0.028999999999999998 in IEEE754, so `0.029` slips through) — that's a float-rounding fluke,
+// not a deliberate margin, and a different runtime/engine's rounding could flip it. `0.0291`
+// is the grid's new tightest value: 0.1mm of deliberate margin above the analytic threshold
+// (clearance 0.01455m vs the 0.0145m minimum), still the tight, scientifically-interesting end
+// of the sweep, but robust to rounding rather than resting exactly on it.
 export const E3_P1_GRID = {
-  laneWidth: [0.028, 0.034, 0.040, 0.045],
+  laneWidth: [0.0291, 0.034, 0.040, 0.045],
   deflectorAngleDeg: [15, 28, 41, 55],
   gateThresholdFrac: [0.35, 0.6, 0.85], // fraction of the lane's own height, not an absolute y
   plungerSpeed: [1.0, 1.8, 2.6, 3.4, 4.2, 5.0],
@@ -563,13 +576,60 @@ export function buildE3P2Cfgs(inputPrior = 'e1', shotlineSamplesPath = E3_SHOTLI
 }
 
 // P3 return lanes: guideAngleDeg x laneWidth x postX = 5x4x5 = 100.
+//
+// LAB-15: `assertPostClearsGuide` (arenas/e3_paths.js, added by LAB-14) fouled on 28/100 cfgs —
+// a REAL overlap between the post circle and its own guide segment, not a margin technicality.
+// Derivation (relative to a guide's own top end, side=1; the side=-1 guide is the mirror image
+// so the same scalar relation holds): the post sits at (postX, -0.02) off the guide's top-end
+// origin, and the guide runs from that origin in unit direction
+// (-sin(guideAngleDeg), -cos(guideAngleDeg)). Because the post's closest approach always lands
+// on the guide's own interior (never past either endpoint, for every postX/angle this grid
+// uses — the projection stays inside [0, P3_GUIDE_LEN=0.30] throughout), the perpendicular
+// distance from the post centre to the (infinite) guide line collapses to a clean closed form:
+//
+//     distance(postX, guideAngleDeg) = | postX * cos(guideAngleDeg) + 0.02 * sin(guideAngleDeg) |
+//
+// (derivation: distance^2 = |post|^2 - (post . dir)^2 = postX^2 + 0.02^2 - t*^2 where
+// t* = post . dir; expanding and using sin^2+cos^2=1 collapses it to
+// (postX*cos + 0.02*sin)^2 exactly — verified numerically against every cell of the old and
+// new grids). The assertion requires `distance - P3_POST_RADIUS(0.008) > FOUL_MARGIN(0.001)`,
+// i.e. `distance > 0.009`. Solving for postX at the boundary:
+//
+//     postX_min(guideAngleDeg) = (0.009 - 0.02*sin(guideAngleDeg)) / cos(guideAngleDeg)
+//
+// This is angle-dependent, and NOT a fixed offset: at 20deg it's +0.0023 (only positive postX
+// clears the guide at all — the shallow angle brings the guide's own line too close to the
+// post's nominal offset from either side); by 60deg it's -0.0166 (the whole -0.010..+0.010
+// sweep clears with room to spare). Forcing one rectangular postX list across all five angles
+// cannot be valid everywhere without either fouling the shallow angles or discarding the
+// negative-postX arm everywhere (including angles where it's genuinely fine) — so P3's grid is
+// built per-angle below instead of via `expandGrid`. Where an angle's existing valid postX
+// values already clear (with real margin, confirmed against the rebuilt corpus — see the
+// LAB-15 handoff) they are kept verbatim so their cfgId (and banked trials) survive; only the
+// invalid low end of each angle's sweep is replaced, and the sweep is extended upward by the
+// same amount removed from the bottom (same 0.005 spacing, same 5-point resolution, same total
+// 0.020 span) so no angle loses coverage breadth relative to the original design.
+const E3_P3_POSTX_BY_ANGLE = {
+  20: [0.005, 0.010, 0.015, 0.020, 0.025], // postX_min=+0.0023: no valid negative postX at all
+  30: [0, 0.005, 0.010, 0.015, 0.020], // postX_min=-0.0012: only postX=0 and above clear
+  40: [-0.005, 0, 0.005, 0.010, 0.015], // postX_min=-0.0050: -0.005 already clears (barely)
+  50: [-0.005, 0, 0.005, 0.010, 0.015], // postX_min=-0.0098: -0.005 already clears comfortably
+  60: [-0.010, -0.005, 0, 0.005, 0.010], // postX_min=-0.0166: original range clears everywhere
+};
 export const E3_P3_GRID = {
   guideAngleDeg: [20, 30, 40, 50, 60],
   laneWidth: [0.026, 0.031, 0.037, 0.042],
-  postX: [-0.010, -0.005, 0, 0.005, 0.010],
 };
 export function buildE3P3Cfgs(inputPrior = 'e1', shotlineSamplesPath = E3_SHOTLINE_SAMPLES_PATH) {
-  return withCfgIds(withE1Coupling(expandGrid(E3_P3_GRID).map((g) => ({ exp: 'e3', family: 'P3', ...g })), inputPrior, shotlineSamplesPath), 'buildE3P3Cfgs');
+  const cfgs = [];
+  for (const guideAngleDeg of E3_P3_GRID.guideAngleDeg) {
+    for (const laneWidth of E3_P3_GRID.laneWidth) {
+      for (const postX of E3_P3_POSTX_BY_ANGLE[guideAngleDeg]) {
+        cfgs.push({ exp: 'e3', family: 'P3', guideAngleDeg, laneWidth, postX });
+      }
+    }
+  }
+  return withCfgIds(withE1Coupling(cfgs, inputPrior, shotlineSamplesPath), 'buildE3P3Cfgs');
 }
 
 // P4 ramp mouth: mouthWidth x approachAngleDeg x rampMinSpeed = 4x5x5 = 100.
