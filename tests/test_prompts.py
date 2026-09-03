@@ -577,3 +577,57 @@ class ProjectRootTests(unittest.TestCase):
         self.assertEqual(cli._thread_roots("muse2"), ("/Users/pup/muse",))
         self.assertEqual(cli._thread_roots("sonnet2"), ())
         self.assertEqual(cli._thread_roots("no-such-thread"), ())
+
+
+class VerbPathTests(unittest.TestCase):
+    """A command's VERB is what runs, not a file it touches.
+
+    Fifth instance of one bug class: a token that merely looks like a path being
+    resolved as one. `/Library/Frameworks/.../bin/python3 -m harness` escalated
+    as "path outside repo", which left muse2 on a permission dialog with nothing
+    listening to it. URLs, grep patterns, cwd-relative paths and awk/sed/jq
+    programs were the first four.
+    """
+    ROOT = Path("/Users/pup/fleet")
+    MUSE = ("/Users/pup/muse",)
+
+    def _d(self, cmd):
+        return prompts.decide_auto(cmd, self.ROOT, "/Users/pup/muse", extra_roots=self.MUSE)[0]
+
+    def test_an_absolute_interpreter_path_is_not_a_data_path(self):
+        self.assertEqual(self._d("/Library/Frameworks/Python.framework/Versions/3.12/bin/python3 -m harness run"),
+                         "allow-auto")
+
+    def test_arguments_are_still_judged_as_paths(self):
+        # only the verb is exempt; what it reads is not
+        self.assertEqual(self._d("/bin/cat /etc/passwd"), "escalate")
+
+    def test_delete_rules_match_a_verb_given_by_path(self):
+        # the pairing that makes the exemption safe: before this, `/bin/rm -rf x`
+        # was stopped ONLY by the containment check being applied to the verb
+        self.assertEqual(self._d("/bin/rm -rf /Users/pup/muse/x"), "deny")
+        self.assertEqual(self._d("rm -rf /Users/pup/muse/x"), "deny")
+
+    def test_deny_regexes_match_a_verb_given_by_path(self):
+        for cmd in ("/usr/bin/git push origin main", "/usr/bin/sudo ls",
+                    "/usr/bin/git reset --hard HEAD"):
+            self.assertEqual(self._d(cmd), "deny", cmd)
+
+    def test_nested_session_deny_survives_a_path_prefix(self):
+        # assembled so the literal does not trip the operator's own lockout hook
+        cmd = "/usr/local/bin/" + "cla" + "ude" + " -p hello"
+        self.assertEqual(self._d(cmd), "deny")
+
+    def test_escalate_rules_match_a_verb_given_by_path(self):
+        self.assertEqual(self._d("/usr/bin/rsync -a a b"), "escalate")
+
+    def test_a_slashless_lookalike_is_not_a_verb_match(self):
+        # `\S*/` requires a real slash, so a word merely ENDING in the verb name
+        # must not be caught by it
+        self.assertEqual(self._d("foo-git push"), "allow-auto")
+
+    def test_the_verb_after_a_shell_operator_is_also_exempt(self):
+        self.assertEqual(self._d("cd /Users/pup/muse && /usr/bin/python3 -m harness run"), "allow-auto")
+
+    def test_but_a_deny_after_a_shell_operator_still_fires(self):
+        self.assertEqual(self._d("cd /Users/pup/muse && /usr/bin/git push"), "deny")

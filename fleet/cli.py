@@ -267,8 +267,13 @@ def cmd_ask(args):
 def cmd_bench(args):
     if args.bench_cmd == "run":
         from fleet.bench import run as brun
+        from fleet.bench import arms as arms_mod
         arms = args.arms.split(",")
-        bad = [a for a in arms if a not in ("fable", "sonnet", "fleet")]
+        # derived, never a fourth hardcoded list: declaring haiku-swarm in
+        # arms.SWARM_ARMS and wiring it into the runner and the report still left
+        # this whitelist rejecting it as an unknown arm.
+        known = set(arms_mod.ARMS) | set(arms_mod.SWARM_ARMS) | {"fleet"}
+        bad = [a for a in arms if a not in known]
         if bad:
             print(f"error: unknown arm(s): {', '.join(bad)}", file=sys.stderr); return 1
         ids = None

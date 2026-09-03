@@ -470,3 +470,15 @@ def test_dispatch_probe_fails_open():
         def stat(self): raise OSError("unreadable")
     assert arms._dispatch_in_flight(events=[{"ev": "send", "thread": arms.FLEET_TARGET,
                                              "from": "operator", "t": 1}], handoff=Boom()) == ""
+
+
+def test_cli_accepts_every_declared_arm():
+    """Adding an arm must not require finding a hardcoded whitelist."""
+    from fleet.bench import arms as arms_mod
+    from fleet import cli
+    known = set(arms_mod.ARMS) | set(arms_mod.SWARM_ARMS) | {"fleet"}
+    parser = cli._build_parser()
+    for arm in known:
+        a = parser.parse_args(["bench", "run", "lookup-newest-handoff", "--arms", arm])
+        assert a.arms == arm
+    assert "haiku-swarm" in known and "sonnet-swarm" in known

@@ -14,15 +14,21 @@ from pathlib import Path
 from . import packet as packet_mod
 from .paths import profile_state
 
+# A verb may be written as a bare name or as a path (`git push` vs
+# `/usr/bin/git push`). Every verb-anchored rule below allows the optional
+# directory prefix: without it `/usr/bin/git push` matched nothing, and once
+# _verb_positions stopped judging the verb as a path there was no second guard
+# left to catch it. `\S*/` requires a real slash, so `foo-git` cannot match.
+_V = r"(^|[\s;&|(])(?:\S*/)?"
 DENY = [
-    (re.compile(r"(?:^|[;&|(]\s*|\btimeout\s+\d+\s+|\bnohup\s+)claude\s[^|;&\n]*(-p\b|--print\b|--model\b|--session-id\b)"),
+    (re.compile(r"(?:^|[;&|(]\s*|\btimeout\s+\d+\s+|\bnohup\s+)(?:\S*/)?claude\s[^|;&\n]*(-p\b|--print\b|--model\b|--session-id\b)"),
      "nested claude sessions from fleet threads bypass the registry and pool accounting; route via fleet send"),
 
-    (re.compile(r"(^|[\s;&|])git\s+push\b"), "git push"),
-    (re.compile(r"(^|[\s;&|])git\s+reset\s+--hard\b"), "git reset --hard"),
-    (re.compile(r"(^|[\s;&|])git\s+clean\s+-[a-zA-Z]*f"), "git clean -f"),
-    (re.compile(r"(^|[\s;&|])(sudo|ssh|scp)\b"), "privileged or remote"),
-    (re.compile(r"(^|[\s;&|])curl\b[^|;&]*\s-(X\s*(POST|PUT|DELETE|PATCH)|d|F|T|-data|-upload-file)\b"), "curl write/egress"),
+    (re.compile(_V + r"git\s+push\b"), "git push"),
+    (re.compile(_V + r"git\s+reset\s+--hard\b"), "git reset --hard"),
+    (re.compile(_V + r"git\s+clean\s+-[a-zA-Z]*f"), "git clean -f"),
+    (re.compile(_V + r"(sudo|ssh|scp)\b"), "privileged or remote"),
+    (re.compile(_V + r"curl\b[^|;&]*\s-(X\s*(POST|PUT|DELETE|PATCH)|d|F|T|-data|-upload-file)\b"), "curl write/egress"),
 ]
 # Not in spec §3's deny list, but not routine either: an operator can look at
 # these and say yes. `chmod`/`rsync` used to be hard denials, which left a
@@ -31,8 +37,8 @@ DENY = [
 # command boundary as a whole - unanchored, the `+x` branch matched the word
 # anywhere in a command line (e.g. inside an unrelated quoted string).
 ESCALATE = [
-    (re.compile(r"(^|[\s;&|])rsync\b"), "rsync"),
-    (re.compile(r"(^|[\s;&|])chmod\s+(?:[0-7]*7[0-7]*\b|.*\+x)"), "chmod"),
+    (re.compile(_V + r"rsync\b"), "rsync"),
+    (re.compile(_V + r"chmod\s+(?:[0-7]*7[0-7]*\b|.*\+x)"), "chmod"),
 ]
 PATH_TOKEN = re.compile(r"^(~|/|\./|\.\./)")
 DEV_OK = ("/dev/null", "/dev/stdin", "/dev/stdout", "/dev/stderr")
@@ -67,6 +73,33 @@ PATTERN_FIRST_VERBS = frozenset({"grep", "egrep", "fgrep", "rg", "ag", "awk", "s
 # the program from a FILE, so exempting the operand there would wave through a
 # real read.
 GREP_PATTERN_OPTS = frozenset({"-e", "--regexp", "--expression", "-f", "--file", "--from-file"})
+
+
+def _verb_positions(tokens: list[str]) -> set[int]:
+    """Indices of tokens that are the command being RUN, not a file it touches.
+
+    An interpreter given by absolute path - `/Library/Frameworks/.../bin/python3
+    -m harness` - is how the command executes, not data it reads, but _path_ok
+    saw a path outside the repo and escalated. That blocked muse2 on a permission
+    dialog with nothing listening, and it is the fifth instance of one bug class:
+    a token that merely LOOKS like a path being resolved as one (URLs, grep
+    patterns, cwd-relative paths, awk/sed/jq programs were the first four).
+
+    Exempting the verb is only safe because _delete_denied now matches on the
+    BASENAME: before that pairing, `/bin/rm -rf x` was caught solely by this
+    containment check, and exempting verbs alone would have turned it into
+    allow-auto. Segment-scoped, like _pattern_operands.
+    """
+    out: set[int] = set()
+    want = True
+    for i, tok in enumerate(tokens):
+        if tok in SHELL_OPERATORS:
+            want = True
+            continue
+        if want:
+            out.add(i)
+            want = False
+    return out
 
 
 def _pattern_operands(tokens: list[str]) -> set[int]:
@@ -407,10 +440,14 @@ def _delete_denied(command: str, root: Path) -> str | None:
         tokens = _tokens(segment.strip())
         if not tokens:
             continue
-        rule = DELETE_RULES.get(tokens[0])
+        # basename, so `/bin/rm -rf x` matches the same rule as `rm -rf x`.
+        # Previously only _path_ok's containment check stopped that form, which
+        # made the delete rules dependent on an unrelated guard.
+        verb = os.path.basename(tokens[0])
+        rule = DELETE_RULES.get(verb)
         if not rule:
             continue
-        why = rule(tokens[0], tokens[1:], root)
+        why = rule(verb, tokens[1:], root)
         if why:
             return why
     return None
@@ -515,12 +552,15 @@ def decide_auto(command: str, root: Path, cwd: Path | str | None = None, _depth:
     # both, and either way the verdict is escalate.
     tokens = _tokens(command)
     patterns = _pattern_operands(tokens)
+    verbs = _verb_positions(tokens)
     bases = _token_bases(tokens, Path(cwd) if cwd else root)
     for i, tok in enumerate(tokens):
         if _loopback_url(tok) is False:
             return "escalate", f"non-loopback URL: {tok}"
         if i in patterns:
             continue  # a search pattern, not a path (see _pattern_operands)
+        if i in verbs:
+            continue  # the executable being run, not a file (see _verb_positions)
         if not _path_ok(tok, root, bases[i], extra_roots):
             return "escalate", f"path outside repo: {tok}"
     return "allow-auto", "in-repo, no deny match"
