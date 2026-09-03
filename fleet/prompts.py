@@ -228,7 +228,7 @@ def _token_bases(tokens: list[str], cwd: Path) -> list[str]:
     return bases
 
 
-def _path_ok(tok: str, root: Path, base: Path | str | None = None) -> bool:
+def _path_ok(tok: str, root: Path, base: Path | str | None = None, extra_roots: tuple[str, ...] = ()) -> bool:
     # strip shell decorations: redirections, option=paths, trailing punctuation
     tok = tok.lstrip("<>=").rstrip(";&|)")
     if "=" in tok and not tok.startswith("/"):
@@ -243,8 +243,14 @@ def _path_ok(tok: str, root: Path, base: Path | str | None = None) -> bool:
     p = _resolve(tok, Path(base) if base is not None else root)
     if p in DEV_OK:
         return True
-    inside = (str(root), "/tmp", "/private/tmp")
-    return any(p == base or p.startswith(base + "/") for base in inside)
+    # `extra_roots` are the directories THIS thread legitimately works in
+    # besides the fleet repo - a [[project]] thread's own dir. Without them a
+    # thread steering an outside repo escalates on literally every command it
+    # runs there, which is not a guard, it is a thread that cannot work.
+    # Containment only: delete rules below stay anchored on the fleet root, so
+    # widening reads never widens `rm`.
+    inside = (str(root), "/tmp", "/private/tmp", *extra_roots)
+    return any(p == b or p.startswith(b + "/") for b in inside)
 
 
 def _rm_flags_and_args(tokens: list[str]) -> tuple[bool, bool, list[str]]:
@@ -410,7 +416,8 @@ def _delete_denied(command: str, root: Path) -> str | None:
     return None
 
 
-def _wrapped_verdict(command: str, root: Path, depth: int, cwd: Path | str | None = None) -> tuple[str, str] | None:
+def _wrapped_verdict(command: str, root: Path, depth: int, cwd: Path | str | None = None,
+                     extra_roots: tuple[str, ...] = ()) -> tuple[str, str] | None:
     """Judge every multi-word token, i.e. every quoted argument.
 
     Such a token is not a path, so _path_ok waves it through, and the DENY
@@ -465,7 +472,7 @@ def _wrapped_verdict(command: str, root: Path, depth: int, cwd: Path | str | Non
         if not is_code and not WS_IN_TOKEN.search(tok):
             continue
         if is_code and depth < MAX_WRAP_DEPTH:
-            d, why = decide_auto(tok, root, cwd, _depth=depth + 1)
+            d, why = decide_auto(tok, root, cwd, _depth=depth + 1, extra_roots=extra_roots)
             if d != "allow-auto":
                 return d, f"wrapped code ({prev}): {why}"
         m = QUOTED_DENY_RE.search(tok)
@@ -474,12 +481,20 @@ def _wrapped_verdict(command: str, root: Path, depth: int, cwd: Path | str | Non
     return None
 
 
-def decide_auto(command: str, root: Path, cwd: Path | str | None = None, _depth: int = 0) -> tuple[str, str]:
+def decide_auto(command: str, root: Path, cwd: Path | str | None = None, _depth: int = 0,
+                extra_roots: tuple[str, ...] = ()) -> tuple[str, str]:
     """`root` is the repo boundary; `cwd` is where relative paths resolve from.
 
     They default to the same thing, which is how this behaved before - and why
     a thread running in games/pinball-lab had `ls ../e4/` resolved to /Users/e4
     and escalated as "outside repo" when it is inside it.
+
+    `extra_roots` widens CONTAINMENT ONLY, for a thread whose declared `dir` is
+    another repo: muse2 runs in /Users/pup/muse, so without it every single
+    command it ran there escalated ("path outside repo: harness-morning/...")
+    and the thread sat on a permission dialog until the prompt went stale.
+    Delete rules are deliberately not widened - `rm` inside a watched project
+    still escalates.
     """
     delete_why = _delete_denied(command, root)
     if delete_why:
@@ -490,7 +505,7 @@ def decide_auto(command: str, root: Path, cwd: Path | str | None = None, _depth:
     for rx, why in ESCALATE:
         if rx.search(command):
             return "escalate", why
-    wrapped = _wrapped_verdict(command, root, _depth, cwd)
+    wrapped = _wrapped_verdict(command, root, _depth, cwd, extra_roots)
     if wrapped:
         return wrapped
     # One pass, not two. _loopback_url and _path_ok judge disjoint token
@@ -506,7 +521,7 @@ def decide_auto(command: str, root: Path, cwd: Path | str | None = None, _depth:
             return "escalate", f"non-loopback URL: {tok}"
         if i in patterns:
             continue  # a search pattern, not a path (see _pattern_operands)
-        if not _path_ok(tok, root, bases[i]):
+        if not _path_ok(tok, root, bases[i], extra_roots):
             return "escalate", f"path outside repo: {tok}"
     return "allow-auto", "in-repo, no deny match"
 

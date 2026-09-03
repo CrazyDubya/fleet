@@ -4,6 +4,7 @@ import os
 import re
 import sys
 from datetime import datetime
+from pathlib import Path
 
 from . import ledger, launcher, telemetry, tmux
 from . import packet as packet_mod
@@ -202,6 +203,21 @@ def cmd_hook_event(args):
     return 0
 
 
+def _thread_roots(thread: str) -> tuple[str, ...]:
+    """Directories this thread legitimately works in besides the fleet repo.
+
+    A [[project]] thread declares `dir`; that dir IS its workspace, so paths
+    under it are in-repo for that thread and nobody else. Resolved from the
+    spec, not from the caller's cwd, so a thread cannot widen its own boundary
+    by cd-ing somewhere.
+    """
+    try:
+        t = spec_mod.active_threads(current_profile()).get(thread)
+    except (OSError, KeyError):  # unreadable/unknown profile: no extra roots
+        return ()
+    return (str(Path(t.dir).resolve()),) if t and t.dir else ()
+
+
 def cmd_perm_decide(args):
     from . import prompts as prompts_mod
     from .paths import ROOT
@@ -209,7 +225,8 @@ def cmd_perm_decide(args):
     # relative path be judged from where the command really runs; without it
     # everything resolved against ROOT and `ls ../e4/` from games/pinball-lab
     # read as /Users/e4 and escalated a read that is inside the repo.
-    d, why = prompts_mod.decide_auto(args.command, ROOT, args.cwd)
+    d, why = prompts_mod.decide_auto(args.command, ROOT, args.cwd,
+                                     extra_roots=_thread_roots(args.thread))
     if d != "escalate":
         print(d); return 0
     path = prompts_mod.open_prompt(args.thread, "Bash", args.command, args.cwd, current_profile())

@@ -532,3 +532,48 @@ class ProgramOperandsAreNotPaths(unittest.TestCase):
         self.assertEqual(prompts.decide_auto("grep -v /data/", _ROOT, self.LAB)[0], "allow-auto")
         self.assertEqual(prompts.decide_auto("cat /etc/passwd", _ROOT, self.LAB)[0], "escalate")
         self.assertEqual(prompts.decide_auto("rm -rf /Users/pup", _ROOT, self.LAB)[0], "deny")
+
+
+class ProjectRootTests(unittest.TestCase):
+    """A [[project]] thread works in a repo that is not this one.
+
+    Without extra_roots, muse2 (cwd /Users/pup/muse) escalated on EVERY command
+    it ran - "path outside repo: harness-morning/..." - and sat on a permission
+    dialog until the prompt went stale. Observed live on its first dispatch.
+    """
+    ROOT = Path("/Users/pup/fleet")
+    MUSE = "/Users/pup/muse"
+
+    def test_project_paths_escalate_without_the_extra_root(self):
+        d, why = prompts.decide_auto("head -8 harness-morning/x.md", self.ROOT, self.MUSE)
+        self.assertEqual(d, "escalate")
+        self.assertIn("outside repo", why)
+
+    def test_project_paths_are_in_repo_with_it(self):
+        for cmd in ("head -8 harness-morning/x.md", "ls harness-morning/",
+                    f"cat {self.MUSE}/pipeline/status.md"):
+            d, _ = prompts.decide_auto(cmd, self.ROOT, self.MUSE, extra_roots=(self.MUSE,))
+            self.assertEqual(d, "allow-auto", cmd)
+
+    def test_extra_roots_widen_reads_but_never_deletes(self):
+        # the safety line: a watched project is readable, not disposable
+        d, why = prompts.decide_auto("rm -rf harness-morning/results", self.ROOT, self.MUSE,
+                                     extra_roots=(self.MUSE,))
+        self.assertEqual(d, "deny")
+        self.assertIn("rm", why)
+
+    def test_an_extra_root_does_not_open_the_whole_filesystem(self):
+        d, _ = prompts.decide_auto("cat /etc/passwd", self.ROOT, self.MUSE, extra_roots=(self.MUSE,))
+        self.assertEqual(d, "escalate")
+
+    def test_extra_roots_reach_inside_a_wrapped_command(self):
+        d, _ = prompts.decide_auto('bash -c "ls harness-morning/"', self.ROOT, self.MUSE,
+                                   extra_roots=(self.MUSE,))
+        self.assertEqual(d, "allow-auto")
+
+    def test_roots_come_from_the_spec_not_the_callers_cwd(self):
+        # a thread must not be able to widen its own boundary by cd-ing
+        from fleet import cli
+        self.assertEqual(cli._thread_roots("muse2"), ("/Users/pup/muse",))
+        self.assertEqual(cli._thread_roots("sonnet2"), ())
+        self.assertEqual(cli._thread_roots("no-such-thread"), ())
