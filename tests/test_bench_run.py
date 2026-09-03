@@ -258,6 +258,41 @@ if __name__ == "__main__":
     unittest.main()
 
 
+# Verbatim `tmux capture-pane -e -p` output from the running v2 profile,
+# 2026-09-03, SGR codes included. Real TUI frames, not hand-drawn: telling a
+# draft from a suggestion is the guard's whole job and it lives in these codes.
+PANE_IDLE = (
+    "\x1b[38;5;244m\u2500\u2500 haiku-fs2 \u2500\n"
+    "\x1b[39m\u276f \n"
+    "\u2500\u2500\u2500\n"
+)
+# A real unsent draft: undimmed. Produced live by pasting without Enter.
+PANE_DRAFT = (
+    "\x1b[38;5;244m\u2500\u2500 haiku-fs2 \u2500\n"
+    "\x1b[39m\u276f REAL DRAFT HERE\n"
+    "\u2500\u2500\u2500\n"
+)
+# Claude Code's dim SUGGESTED next prompt. Renders identically to a draft once
+# the escape codes are stripped, which is why the plain capture was misleading:
+# it is not in any buffer, no keystroke clears it, and sending is perfectly safe.
+PANE_SUGGESTION = (
+    "\x1b[38;5;244m\u2500\u2500 sonnet2 \u2500\n"
+    "\x1b[39m\u276f \x1b[2mcheck for more bench packets\x1b[0m\n"
+    "\u2500\u2500\u2500\n"
+)
+
+
+def test_input_box_distinguishes_draft_from_suggestion():
+    from fleet import tmux
+
+    assert tmux.parse_input_box(PANE_IDLE) == ""
+    assert tmux.parse_input_box(PANE_DRAFT) == "REAL DRAFT HERE"
+    # The regression that cost opus2 a respawn: a dim suggestion is NOT a draft.
+    assert tmux.parse_input_box(PANE_SUGGESTION) == ""
+    # No input box at all (permission dialog, non-TUI pane) is a third state.
+    assert tmux.parse_input_box("$ ls\nfoo bar\n$ ") is None
+
+
 def test_fleet_arm_skips_when_target_busy():
     """The fleet arm drives the LIVE thread. If the operator has work in flight,
     the arm must skip rather than commandeer it - observed twice in production
@@ -271,13 +306,39 @@ def test_fleet_arm_skips_when_target_busy():
     orig = status_mod.rows
     try:
         status_mod.rows = lambda **kw: [R("sonnet2", "busy"), R("opus2", "idle")]
-        assert arms._target_busy({}) is True
+        assert "busy" in arms._target_unavailable({}, capture=lambda: PANE_IDLE)
         status_mod.rows = lambda **kw: [R("sonnet2", "idle")]
-        assert arms._target_busy({}) is False
-        # a broken probe must degrade to "not busy", never silently disable the arm
+        assert arms._target_unavailable({}, capture=lambda: PANE_IDLE) == ""
+        # a broken probe must degrade to "available", never silently disable the arm
         def boom(**kw): raise RuntimeError("registry unreadable")
         status_mod.rows = boom
-        assert arms._target_busy({}) is False
+        assert arms._target_unavailable({}, capture=lambda: PANE_DRAFT) == ""
+    finally:
+        status_mod.rows = orig
+
+
+def test_fleet_arm_skips_when_target_is_wedged_not_busy():
+    """A thread holding a real unsent draft has no open turn, so the transcript
+    reports it IDLE - and a paste would concatenate onto that draft."""
+    from fleet.bench import arms
+
+    class R:
+        def __init__(self, name, state): self.name, self.state = name, state
+
+    import fleet.status as status_mod
+    orig = status_mod.rows
+    try:
+        status_mod.rows = lambda **kw: [R("sonnet2", "idle")]
+        why = arms._target_unavailable({}, capture=lambda: PANE_DRAFT)
+        assert "wedged" in why and "REAL DRAFT HERE" in why, why
+        # a dim suggestion must NOT skip the arm - the thread is healthy
+        assert arms._target_unavailable({}, capture=lambda: PANE_SUGGESTION) == ""
+        # a dialog on screen leaves no input box; pasting then goes into the dialog
+        assert "no input box" in arms._target_unavailable({}, capture=lambda: "$ ls\n$ ")
+        # a capture that fails or comes back empty degrades to available
+        def blow(): raise RuntimeError("no such window")
+        assert arms._target_unavailable({}, capture=blow) == ""
+        assert arms._target_unavailable({}, capture=lambda: "  \n") == ""
     finally:
         status_mod.rows = orig
 
@@ -285,12 +346,12 @@ def test_fleet_arm_skips_when_target_busy():
 def test_fleet_arm_records_skip_without_sending():
     from fleet.bench import arms
     sent = []
-    orig = arms._target_busy
+    orig = arms._target_unavailable
     try:
-        arms._target_busy = lambda entries: True
+        arms._target_unavailable = lambda entries, capture=None: "wedged: unsubmitted text in the prompt"
         res = arms.run_fleet("body", [], "done", "run1", __import__("pathlib").Path("."), 5,
                              "build", "v2", {}, send=lambda p, prof: sent.append(p))
         assert res.status == "skipped"
         assert sent == [], "a skipped arm must not send a packet to the live thread"
     finally:
-        arms._target_busy = orig
+        arms._target_unavailable = orig

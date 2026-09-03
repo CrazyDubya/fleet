@@ -18,7 +18,10 @@ def send(thread: str, text: str, sender: str = "operator", events_path: Path | N
     if not tmux.window_exists(thread):
         raise SendError(f"{thread} is not running (no tmux window); `fleet wake {thread}` first")
     body = f"[fleet:{sender}] {text}"
-    tmux.paste(thread, body)
+    try:
+        tmux.paste(thread, body)
+    except tmux.DirtyInputBox as exc:
+        raise SendError(str(exc)) from exc
     n = len(body.encode())
     # The `[fleet:<sender>]` prefix is not authenticated - anything that can
     # paste into the pane can claim any sender (briefs/_protocol.md rule 2).
@@ -49,7 +52,10 @@ def send_packet(p: packet_mod.Packet, profile: str, events_path: Path | None = N
     # send_keys/sleep remain injectable so a test can prove nothing is typed
     # into the pane before the paste.
     text = packet_mod.format_packet(p)
-    paste(p.to, text)
+    try:
+        paste(p.to, text)
+    except tmux.DirtyInputBox as exc:
+        raise SendError(str(exc)) from exc
     if p.reply == "inline":
         _add_pending(p.sender, p.id, p.to, profile_state(profile))
     ledger.event("send", path=events_path, thread=p.to, id=p.id, lane=p.lane, effort=p.effort,

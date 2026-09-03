@@ -27,6 +27,17 @@ class BenchLiveTests(unittest.TestCase):
         registry_mod.DEFAULT_PATH = self._registry_path
 
     def test_lookup_task_on_fleet_arm(self):
+        # This arm drives the operator's LIVE sonnet2. Clear any leftover draft
+        # first (tmux.paste refuses to paste over one, which would otherwise
+        # register as an arm failure rather than the pane state it really is),
+        # then skip if the operator is genuinely mid-turn: the test cannot
+        # measure the arm while someone else owns the thread. A skip here is an
+        # environment fact, never a pass - the arm's own failures still fail.
+        from fleet.bench import arms
+        tmux.clear_input(arms.FLEET_TARGET)
+        why = arms._target_unavailable(registry_mod.Registry().load())
+        if why:
+            self.skipTest(f"{arms.FLEET_TARGET} {why}")
         t = tasks.load_task(ROOT / "bench/tasks/lookup-newest-handoff.toml")
         with tempfile.TemporaryDirectory() as d:
             row = brun.run_one(t, "fleet", ROOT, Path(d) / "runs.jsonl")

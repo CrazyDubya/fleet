@@ -82,18 +82,44 @@ def fleet_wait_done(run: str, t0: float, timeout_s: int, handoff_dir: Path, capt
         sleep(POLL_S)
 
 
-def _target_busy(registry_entries: dict) -> bool:
-    """True when FLEET_TARGET is mid-turn. Best-effort: on any error, report NOT
-    busy so a broken probe degrades to today's behaviour rather than silently
-    disabling the fleet arm forever."""
+def _target_unavailable(registry_entries: dict, capture=None) -> str:
+    """Why FLEET_TARGET must not be sent a packet right now, or "" if it may.
+
+    Transcript state alone is not enough. A thread WEDGED with unsubmitted text
+    has no open turn, so `status` reports it idle - that is how the 2026-09-02
+    03:19 bench run sent into a thread stuck for 13.8 h, burned $0.31 and
+    recorded a 900 s timeout as if the fleet had failed the task. Both
+    conditions mean the same thing to the bench (the thread cannot answer), so
+    both are checked here.
+
+    Best-effort in one direction only: on any error, report AVAILABLE, so a
+    broken probe degrades to the old behaviour rather than silently disabling
+    the fleet arm forever. A capture that SUCCEEDS and shows no input box is
+    not an error - it is a blocked thread, and it is reported as such.
+    """
     try:
         from fleet import status as status_mod
         for r in status_mod.rows(entries=registry_entries):
             if getattr(r, "name", None) == FLEET_TARGET:
-                return getattr(r, "state", "") == "busy"
+                if getattr(r, "state", "") == "busy":
+                    return "busy with operator work"
+                break
     except Exception:
-        return False
-    return False
+        return ""
+    try:
+        # escapes=True is load-bearing: the box renders a real draft and Claude
+        # Code's dim SUGGESTED next prompt identically without SGR codes.
+        pane = (capture or (lambda: tmux.capture(FLEET_TARGET, lines=40, escapes=True)))()
+    except Exception:
+        return ""
+    if not pane.strip():
+        return ""
+    draft = tmux.parse_input_box(pane)
+    if draft is None:
+        return "no input box on screen (permission dialog or non-TUI state)"
+    if draft:
+        return f"wedged: unsubmitted text in the prompt ({draft[:60]!r})"
+    return ""
 
 
 def run_fleet(packet_text: str, refs: list[str], done: str, run: str, root: Path, timeout_s: int, lane: str,
@@ -105,11 +131,14 @@ def run_fleet(packet_text: str, refs: list[str], done: str, run: str, root: Path
     # The fleet arm drives the LIVE thread, so a bench run that fires while the
     # operator has real work in flight commandeers it mid-task. Observed twice
     # (2026-09-01 and 09-02 3AM runs), both times interrupting a pinball-lab
-    # experiment. Skip rather than collide: a skipped arm is honest missing data,
-    # a collided one corrupts both the bench measurement and the live work.
-    if _target_busy(registry_entries):
+    # experiment; a third time (09-02 03:19) the thread was wedged rather than
+    # busy and the arm sent anyway. Skip rather than collide: a skipped arm is
+    # honest missing data, a collided one corrupts both the bench measurement
+    # and the live work.
+    unavailable = _target_unavailable(registry_entries)
+    if unavailable:
         return ArmResult("skipped", by_thread, None,
-                         f"{FLEET_TARGET} busy with operator work; arm skipped to avoid collision")
+                         f"{FLEET_TARGET} {unavailable}; arm skipped to avoid collision")
     t0 = clock()
     try:
         send(p, profile)

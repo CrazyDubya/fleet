@@ -1,17 +1,47 @@
+import contextlib
+import os
 import subprocess
 import time
 import unittest
 from pathlib import Path
 
-from fleet import launcher, tmux, paths
+from fleet import launcher, paths, registry as registry_mod, tmux
+from fleet.paths import profile_state
 from fleet.registry import Registry
 from fleet.spec import load_specs
 
 
+@contextlib.contextmanager
+def v1_profile():
+    """Pin the v1 profile for the duration of the block.
+
+    These tests spawn the v1 threads (`haiku-fs`, `opus`) into the v1 tmux
+    session. fleet.toml's `default_profile` is v2, where those names do not
+    exist, so unpinned they fail with `no thread named 'opus' in fleet.toml
+    (profile v2)` - not a real defect, just a module that predates profiles.
+    Same pin-and-restore shape as test_bench_live/test_v2_live, which pin the
+    other direction.
+    """
+    env, sess, path = os.environ.get("FLEET_PROFILE"), tmux.SESSION, registry_mod.DEFAULT_PATH
+    os.environ["FLEET_PROFILE"] = "v1"
+    tmux.use_session("fleet")
+    registry_mod.DEFAULT_PATH = profile_state("v1") / "registry.json"
+    try:
+        yield
+    finally:
+        if env is None:
+            os.environ.pop("FLEET_PROFILE", None)
+        else:
+            os.environ["FLEET_PROFILE"] = env
+        tmux.use_session(sess)
+        registry_mod.DEFAULT_PATH = path
+
+
 def _live(name: str) -> bool:
     """True when the operator has this thread genuinely running."""
-    e = Registry().load().get(name)
-    return bool(e and e.status == "running" and tmux.window_exists(name))
+    with v1_profile():
+        e = Registry().load().get(name)
+        return bool(e and e.status == "running" and tmux.window_exists(name))
 
 
 # Decided at IMPORT time, on the class. A skipTest() raised inside a test body
@@ -30,8 +60,16 @@ class _SpawningTestCase(unittest.TestCase):
 
     def setUp(self):
         self._touched = False
+        self._pin = v1_profile()
+        self._pin.__enter__()
 
     def tearDown(self):
+        try:
+            self._teardown_windows()
+        finally:
+            self._pin.__exit__(None, None, None)
+
+    def _teardown_windows(self):
         if not getattr(self, "_touched", False):
             return
         for w in self.THREADS:
