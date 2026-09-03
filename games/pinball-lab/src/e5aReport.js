@@ -13,6 +13,7 @@ import { createGunzip } from 'node:zlib';
 import readline from 'node:readline';
 import path from 'node:path';
 import { mean } from './metrics.js';
+import { validExclStalled } from './gate.js';
 
 async function* streamShards(dir, meta) {
   for (const shard of meta.shards) {
@@ -59,6 +60,7 @@ async function main() {
   // the needle" without the timing grid diluting the n per bin.
   const byAssembly = new Map();
   for await (const r of streamShards(runDir, meta)) {
+    if (!validExclStalled(r.f)) continue;
     const cfg = cfgById.get(r.c);
     if (!cfg || cfg.arm !== 'E5a') continue;
     const key = assemblyKey(cfg);

@@ -15,3 +15,15 @@ export function flagGateResult({ trials, flagged, gateFraction = FLAG_GATE_FRACT
   const fraction = trials > 0 ? flagged / trials : 0;
   return { fraction, ok: fraction <= gateFraction };
 }
+
+export const STALLED_BIT = 8;
+
+/** Is a trial's flag word `f` valid once STALLED is treated as E4's measurement rather than
+ * an artifact (§7's amendment)? Mirrors `stageAWorker.js`'s `flaggedExclStalled` accounting
+ * (`record.f !== 0 && !(record.f & 8)` counts as flagged) exactly: a trial is invalid only if
+ * some OTHER bit is set — STALLED alone, or STALLED alongside nothing else being checked here,
+ * does not disqualify it. Used by e4Report.js/e5aReport.js (P1-1) the same way P0-2 used plain
+ * `r.f === 0` in lab2Report.js, which has no STALLED exception. */
+export function validExclStalled(f) {
+  return f === 0 || (f & STALLED_BIT) !== 0;
+}

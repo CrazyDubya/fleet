@@ -10,6 +10,7 @@ import { createGunzip } from 'node:zlib';
 import readline from 'node:readline';
 import path from 'node:path';
 import { mean, percentile } from './metrics.js';
+import { validExclStalled } from './gate.js';
 
 async function* streamShards(dir, meta) {
   for (const shard of meta.shards) {
@@ -54,6 +55,7 @@ async function main() {
   // §9's slice verdict — the header line every downstream number is conditioned on.
   const sliceArms = { w1: null, c0: null, c0b: null };
   for await (const r of streamShards(args.slice, slice.meta)) {
+    if (!validExclStalled(r.f)) continue;
     const cfg = slice.cfgById.get(r.c);
     const arm = cfg.arm === 'W1-slice' ? 'w1' : cfg.arm === 'C0' ? 'c0' : cfg.arm === 'C0b' ? 'c0b' : null;
     if (!arm) continue;
@@ -69,6 +71,7 @@ async function main() {
   const pkVals = [];
   const a1ByCfg = new Map(); // cfgId -> {trials, ct, cr, cp, cv}
   for await (const r of streamShards(args.a1, a1.meta)) {
+    if (!validExclStalled(r.f)) continue;
     const cfg = a1.cfgById.get(r.c);
     if (cfg.arm !== 'A1') continue;
     let row = a1ByCfg.get(r.c);
@@ -89,6 +92,7 @@ async function main() {
   const a2ByCfg = new Map();
   const a2Controls = { C0: null, C0b: null, C1: null };
   for await (const r of streamShards(args.a2, a2.meta)) {
+    if (!validExclStalled(r.f)) continue;
     const cfg = a2.cfgById.get(r.c);
     if (cfg.arm && ['C0', 'C0b', 'C1'].includes(cfg.arm)) {
       const key = cfg.arm;
@@ -124,6 +128,7 @@ async function main() {
   const bByCfg = new Map();
   const bControls = { C0: null, C0b: null, C1: null };
   for await (const r of streamShards(args.b, b.meta)) {
+    if (!validExclStalled(r.f)) continue;
     const cfg = b.cfgById.get(r.c);
     if (cfg.arm && ['C0', 'C0b', 'C1'].includes(cfg.arm)) {
       const key = cfg.arm;
@@ -159,6 +164,7 @@ async function main() {
   const cByAssembly = new Map(); // baseAssemblyId -> {rxaVals, relCounts, trials}
   const cControls = { C0: null, C0b: null, C1: null };
   for await (const r of streamShards(args.c, c.meta)) {
+    if (!validExclStalled(r.f)) continue;
     const cfg = c.cfgById.get(r.c);
     if (cfg.arm && ['C0', 'C0b', 'C1'].includes(cfg.arm)) {
       const key = cfg.arm;
