@@ -4,6 +4,7 @@ import statistics as st
 from pathlib import Path
 
 ARMS = ("fable", "sonnet", "fleet")
+NOT_A_TASK = ("headline", "cache")  # reserved top-level keys in a summary
 
 
 def load(path: Path, since: float | None = None) -> list[dict]:
@@ -71,6 +72,31 @@ def _arm_stats(rows: list[dict]) -> dict:
             "judge_med": _med([r["judge"] for r in passes])}
 
 
+def cache_by_model(rows: list[dict]) -> dict:
+    """Per (arm, model) prompt-token split, over MEASURED rows only.
+
+    `tokens_by_model` has recorded cache_read/cache_write per model since the
+    first run; nothing ever reported it. Hit rate is the share of prompt tokens
+    served from cache - input + cache_read + cache_write is the whole prompt, so
+    the three shares sum to 1 and a high write% with a low hit% is cache being
+    paid for and not reused."""
+    out: dict[tuple[str, str], dict] = {}
+    for r in attempted(measured(rows)):  # a run the arm never took has no cache behaviour
+        for m, t in (r.get("tokens") or {}).items():
+            a = out.setdefault((r["arm"], m), {"runs": 0, "input": 0, "cache_read": 0, "cache_write": 0, "output": 0})
+            a["runs"] += 1
+            for k in ("input", "cache_read", "cache_write", "output"):
+                a[k] += t.get(k, 0)
+    for a in out.values():
+        prompt = a["input"] + a["cache_read"] + a["cache_write"]
+        a["prompt"] = prompt
+        a["hit"] = (a["cache_read"] / prompt) if prompt else None
+        a["write_share"] = (a["cache_write"] / prompt) if prompt else None
+        a["miss_share"] = (a["input"] / prompt) if prompt else None
+    # a model with no prompt tokens says nothing and only pads the table
+    return {f"{arm}\t{model}": v for (arm, model), v in sorted(out.items()) if v["prompt"]}
+
+
 def _ratio(a, b):
     return round(a / b, 4) if a is not None and b else None
 
@@ -96,6 +122,7 @@ def summarize(rows: list[dict]) -> dict:
     cost = {arm: pm[arm]["usd"] for arm in ARMS}
     weekly = {arm: pm[arm]["weekly"] for arm in ARMS}
     tm = {arm: pm[arm]["wall"] for arm in ARMS}
+    summary["cache"] = cache_by_model(rows)
     summary["headline"] = {
         # the n printed beside a pass rate is that rate's denominator - attempts,
         # not rows - or the reader divides by the wrong number.
@@ -121,7 +148,7 @@ def _spanned(summary: dict) -> tuple[list[str], list[str]]:
     with labelled ones is exactly the case the warning exists for."""
     profiles: set[str] = set(); versions: set[str] = set()
     for task, arms in summary.items():
-        if task == "headline":
+        if task in NOT_A_TASK:
             continue
         for s in arms.values():
             profiles |= set(s.get("profiles") or []); versions |= set(s.get("claude_versions") or [])
@@ -134,11 +161,11 @@ def render(summary: dict) -> str:
     lines = []
     if mixed:
         lines.append(f"warning: rows span {len(versions)} claude versions / {len(profiles)} profiles - the arms are not like for like")
-    w = max([len("task")] + [len(t) for t in summary if t != "headline"])  # ids longer than 16 chars must not shove the columns
+    w = max([len("task")] + [len(t) for t in summary if t not in NOT_A_TASK])  # ids longer than 16 chars must not shove the columns
     head = f"{'task':{w}} {'arm':7} {'n':>3} {'err':>3} {'skip':>4} {'pass':>5} {'wall':>7} {'$':>6} {'judge$':>7} {'weekly$':>8} {'fable$':>7} {'interv':>6} {'judge':>5}"
     lines.append(head + (f" {'profile':>8} {'claude':>14}" if mixed else ""))
     for task, arms in summary.items():
-        if task == "headline":
+        if task in NOT_A_TASK:
             continue
         for arm, s in arms.items():
             row = (f"{task:{w}} {arm:7} {s['n']:>3} {s.get('errors', 0):>3} {s.get('skipped', 0):>4} {_f(s['pass_rate']):>5} {_f(s['wall_med'], '{:.0f}s'):>7} {_f(s['usd_med']):>6} "
@@ -159,8 +186,19 @@ def render(summary: dict) -> str:
 
         lines.append(f"accuracy (pass rate)  fable {_f(h['accuracy']['fable'])} {_n('fable')}  sonnet {_f(h['accuracy']['sonnet'])} {_n('sonnet')}  "
                      f"fleet {_f(h['accuracy']['fleet'])} {_n('fleet')}  | fleet/sonnet {_f(h['accuracy']['fleet_vs_sonnet'])}  fleet/fable {_f(h['accuracy']['fleet_vs_fable'])}")
-        lines.append(f"cost ($ per pass)     fable {_f(h['cost']['fable'])}  sonnet {_f(h['cost']['sonnet'])}  fleet {_f(h['cost']['fleet'])}  "
-                     f"(weekly-pool $: sonnet {_f(h['cost']['weekly']['sonnet'])}  fleet {_f(h['cost']['weekly']['fleet'])})  | fleet/sonnet {_f(h['cost']['fleet_vs_sonnet'])}  fleet/fable {_f(h['cost']['fleet_vs_fable'])}")
         lines.append(f"time (s per pass)     fable {_f(h['time']['fable'], '{:.0f}')}  sonnet {_f(h['time']['sonnet'], '{:.0f}')}  fleet {_f(h['time']['fleet'], '{:.0f}')}  "
                      f"| fleet/sonnet {_f(h['time']['fleet_vs_sonnet'])}  fleet/fable {_f(h['time']['fleet_vs_fable'])}")
+        lines.append(f"cost ($ per pass)     fable {_f(h['cost']['fable'])}  sonnet {_f(h['cost']['sonnet'])}  fleet {_f(h['cost']['fleet'])}  "
+                     f"(weekly-pool $: sonnet {_f(h['cost']['weekly']['sonnet'])}  fleet {_f(h['cost']['weekly']['fleet'])})  | fleet/sonnet {_f(h['cost']['fleet_vs_sonnet'])}  fleet/fable {_f(h['cost']['fleet_vs_fable'])}")
+    c = summary.get("cache") or {}
+    if c:
+        lines.append("")
+        lines.append("cache by model (share of prompt tokens; hit+write+miss = 1)")
+        mw = max(len(k.split("\t")[1]) for k in c)
+        lines.append(f"{'arm':7} {'model':{mw}} {'runs':>4} {'prompt':>10} {'hit%':>6} {'write%':>7} {'miss%':>6} {'out':>8}")
+        for k, v in c.items():
+            arm, model = k.split("\t")
+            lines.append(f"{arm:7} {model:{mw}} {v['runs']:>4} {v['prompt']:>10,} "
+                         f"{_f(v['hit'] and v['hit'] * 100, '{:.1f}'):>6} {_f(v['write_share'] and v['write_share'] * 100, '{:.1f}'):>7} "
+                         f"{_f(v['miss_share'] and v['miss_share'] * 100, '{:.1f}'):>6} {v['output']:>8,}")
     return "\n".join(lines)

@@ -73,6 +73,43 @@ class ReportTests(unittest.TestCase):
         self.assertEqual((a["errors"], a["skipped"]), (0, 1))
         self.assertIn("skip", report.render(report.summarize(ROWS + [skip])))
 
+    def test_cache_hit_write_and_miss_shares_sum_to_one(self):
+        # cache_read/cache_write have been recorded per model since the first run and
+        # were never reported; the bench's question is time and cache behaviour, not $.
+        row = {**ROWS[0], "run": "c1", "arm": "sonnet", "status": "pass", "measured": True,
+               "tokens": {"m1": {"input": 100, "cache_read": 700, "cache_write": 200, "output": 50}}}
+        c = report.cache_by_model([row])["sonnet\tm1"]
+        self.assertEqual((c["prompt"], c["runs"], c["output"]), (1000, 1, 50))
+        self.assertAlmostEqual(c["hit"], 0.7); self.assertAlmostEqual(c["write_share"], 0.2)
+        self.assertAlmostEqual(c["hit"] + c["write_share"] + c["miss_share"], 1.0)
+
+    def test_cache_sums_across_runs_and_splits_by_model(self):
+        mk = lambda i, m, cr: {**ROWS[0], "run": f"c{i}", "arm": "fleet", "status": "pass", "measured": True,
+                               "tokens": {m: {"input": 0, "cache_read": cr, "cache_write": 100, "output": 1}}}
+        c = report.cache_by_model([mk(1, "haiku", 900), mk(2, "haiku", 900), mk(3, "sonnet", 400)])
+        self.assertEqual(c["fleet\thaiku"]["runs"], 2)
+        self.assertEqual(c["fleet\thaiku"]["prompt"], 2000)
+        self.assertAlmostEqual(c["fleet\tsonnet"]["hit"], 0.8)
+
+    def test_cache_ignores_non_attempts_and_empty_models(self):
+        skip = {**ROWS[0], "run": "s1", "arm": "sonnet", "status": "skipped", "measured": True,
+                "tokens": {"<synthetic>": {"input": 0, "cache_read": 0, "cache_write": 0, "output": 0}}}
+        self.assertEqual(report.cache_by_model([skip]), {})
+
+    def test_cache_key_is_not_walked_as_a_task(self):
+        toks = {"claude-sonnet-5": {"input": 10, "cache_read": 800, "cache_write": 190, "output": 5}}
+        rows = [{**r, "tokens": toks} for r in ROWS]
+        s = report.summarize(rows)
+        self.assertIn("cache", s)
+        text = report.render(s)
+        self.assertIn("cache by model", text)
+        # the reserved key must not appear as a row in the per-task table above it
+        self.assertNotIn("cache", text.split("accuracy (pass rate)")[0])
+
+    def test_no_token_data_renders_no_cache_block(self):
+        self.assertEqual(report.summarize(ROWS)["cache"], {})
+        self.assertNotIn("cache by model", report.render(report.summarize(ROWS)))
+
     def test_unmeasured_rows_count_in_n_but_not_in_the_medians(self):
         ghost = {**ROWS[0], "run": "r7", "status": "error", "measured": False, "wall_s": 1.0, "usd": 99.0,
                  "judge": None, "judge_usd": 99.0, "pool": {"fable": 99.0, "other": 0.0, "weekly": {"haiku": 0, "opus": 0, "sonnet": 0}},
