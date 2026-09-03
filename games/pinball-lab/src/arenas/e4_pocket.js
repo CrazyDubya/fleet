@@ -242,6 +242,7 @@ export function buildE4World(cfg) {
   const right = buildSideAssembly(cfgWithLen, -1);
   const wallShapes = buildWalls();
   const guideShapes = [...left.shapes, ...right.shapes];
+  const allShapes = [...wallShapes, ...guideShapes];
 
   const omegaProfile = cfg.omegaProfile ? OMEGA_PROFILES[cfg.omegaProfile] : undefined;
   if (cfg.omegaProfile && !omegaProfile) throw new Error(`unknown omegaProfile '${cfg.omegaProfile}'`);
@@ -261,10 +262,13 @@ export function buildE4World(cfg) {
     rightFlipper.omegaProfile = omegaProfile;
   }
 
-  // §2.5 assertion 1, both flippers against every new shape (walls are always clear by
-  // construction — they're E1's unmodified arena).
-  assertNoFoul(guideShapes, { pivot: LEFT_PIVOT, restAngleDeg: cfg.restAngleDeg, activeAngleDeg: cfg.activeAngleDeg, length: flipperLength, radius: cfg.radius });
-  assertNoFoul(guideShapes, { pivot: RIGHT_PIVOT, restAngleDeg: 180 - cfg.restAngleDeg, activeAngleDeg: 180 - cfg.activeAngleDeg, length: flipperLength, radius: cfg.radius });
+  // §2.5 assertion 1, both flippers against every shape — walls included (LAB-14): "always
+  // clear by construction" (this file's prior comment here) was an assumption about E1's
+  // unmodified geometry, not a check of it; e1_flippers.js now asserts the same thing on its
+  // own walls independently, but this call is what actually verifies it for an E4 cfg, since
+  // E4 never calls buildE1World itself.
+  assertNoFoul(allShapes, { pivot: LEFT_PIVOT, restAngleDeg: cfg.restAngleDeg, activeAngleDeg: cfg.activeAngleDeg, length: flipperLength, radius: cfg.radius });
+  assertNoFoul(allShapes, { pivot: RIGHT_PIVOT, restAngleDeg: 180 - cfg.restAngleDeg, activeAngleDeg: 180 - cfg.activeAngleDeg, length: flipperLength, radius: cfg.radius });
 
   // §2.5 assertion 2: the injection point(s) this cfg can actually produce.
   const injectionPoints = [];
@@ -280,7 +284,7 @@ export function buildE4World(cfg) {
       injectionPoints.push({ point: { x, y: SHOT_LINE_Y }, ownTag: null });
     }
   }
-  assertInjectionClear(guideShapes, injectionPoints);
+  assertInjectionClear(allShapes, injectionPoints);
 
   setLayerPrimitives(world, 'playfield', [
     ...wallShapes.map((shape) => ({ shape })),

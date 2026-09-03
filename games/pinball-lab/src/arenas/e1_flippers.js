@@ -21,6 +21,50 @@ export const SHOT_LINE_Y = 0.6;
 export const LEFT_PIVOT = { x: -0.078, y: 0.105 };
 export const RIGHT_PIVOT = { x: 0.078, y: 0.105 };
 
+const DEG = Math.PI / 180;
+// e4_pocket.js's §2.5 assertion 1 standard (its own comment: "1mm safety margin"), reused here
+// verbatim rather than re-derived — LAB-14 closes this file's own gap (no build-time geometry
+// check existed at all) to the same standard e4_pocket.js already holds its OWN new shapes to.
+const FOUL_MARGIN = 0.001;
+
+function pointToSegmentDistance(p, a, b) {
+  const abx = b.x - a.x, aby = b.y - a.y;
+  const len2 = abx * abx + aby * aby;
+  let t = len2 > 1e-12 ? ((p.x - a.x) * abx + (p.y - a.y) * aby) / len2 : 0;
+  t = Math.max(0, Math.min(1, t));
+  const cx = a.x + t * abx, cy = a.y + t * aby;
+  return Math.hypot(p.x - cx, p.y - cy);
+}
+
+/** Verbatim port of e4_pocket.js's `assertNoFoul` (not imported — e4_pocket.js imports FROM
+ * this file, so the dependency can't run the other way; e4_pocket.js's own header already
+ * documents this same duplicate-rather-than-import pattern for `buildWalls`). Segments only
+ * here (E1 has no circles), so the shape-clearance step is `pointToSegmentDistance` directly
+ * rather than e4_pocket.js's kind-dispatching `pointToShapeClearance`. */
+function assertNoFoul(shapes, { pivot, restAngleDeg, activeAngleDeg, length, radius }) {
+  const lo = Math.min(restAngleDeg, activeAngleDeg);
+  const hi = Math.max(restAngleDeg, activeAngleDeg);
+  const steps = Math.max(1, Math.ceil(hi - lo));
+  for (let i = 0; i <= steps; i++) {
+    const angleDeg = lo + ((hi - lo) * i) / steps;
+    const angle = angleDeg * DEG;
+    const dir = { x: Math.cos(angle), y: Math.sin(angle) };
+    for (let s = 0; s <= 20; s++) {
+      const u = s / 20;
+      const p = { x: pivot.x + dir.x * length * u, y: pivot.y + dir.y * length * u };
+      for (const shape of shapes) {
+        const clearance = pointToSegmentDistance(p, shape.a, shape.b) - (shape.padding || 0);
+        if (clearance <= radius + FOUL_MARGIN) {
+          throw new Error(
+            `buildE1World: shape '${shape.tag}' fouls the flipper sweep at angle ${angleDeg.toFixed(1)}° ` +
+            `(clearance ${clearance.toFixed(4)}m <= ${(radius + FOUL_MARGIN).toFixed(4)}m)`
+          );
+        }
+      }
+    }
+  }
+}
+
 // Generous margin past the walls/shot-line — a ball out here is tunneling, not playing
 // (§2.7's ESCAPED flag; also, per the design doc §11, the largest anti-tunneling test the
 // solver will ever get).
@@ -88,7 +132,8 @@ function buildWalls() {
  */
 export function buildE1World(cfg) {
   const world = createWorld();
-  setLayerPrimitives(world, 'playfield', buildWalls().map((shape) => ({ shape })));
+  const wallShapes = buildWalls();
+  setLayerPrimitives(world, 'playfield', wallShapes.map((shape) => ({ shape })));
 
   const omegaProfile = cfg.omegaProfile ? OMEGA_PROFILES[cfg.omegaProfile] : undefined;
   if (cfg.omegaProfile && !omegaProfile) throw new Error(`unknown omegaProfile '${cfg.omegaProfile}'`);
@@ -107,6 +152,11 @@ export function buildE1World(cfg) {
     left.omegaProfile = omegaProfile;
     right.omegaProfile = omegaProfile;
   }
+  // §2.5 assertion 1, applied to E1's own walls — the "always clear by construction" assumption
+  // e4_pocket.js's header names when it skips this same check on these same shapes (LAB-14).
+  assertNoFoul(wallShapes, { pivot: LEFT_PIVOT, restAngleDeg: cfg.restAngleDeg, activeAngleDeg: cfg.activeAngleDeg, length: FLIPPER.lower.length, radius: cfg.radius });
+  assertNoFoul(wallShapes, { pivot: RIGHT_PIVOT, restAngleDeg: 180 - cfg.restAngleDeg, activeAngleDeg: 180 - cfg.activeAngleDeg, length: FLIPPER.lower.length, radius: cfg.radius });
+
   addFlipper(world, left);
   addFlipper(world, right);
 

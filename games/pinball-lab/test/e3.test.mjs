@@ -10,10 +10,23 @@ import {
   buildE3P1Cfgs, buildE3P2Cfgs, buildE3P3Cfgs, buildE3P4Cfgs, buildE3P5Cfgs, buildE3AllCfgs,
   E3_P1_GRID, E3_P2_GRID, E3_P3_GRID, E3_P4_GRID, E3_P5_GRID, cfgId,
 } from '../src/sweep.js';
-import { classifyFeed, HALF_WIDTH } from '../src/arenas/e3_paths.js';
+import { classifyFeed, HALF_WIDTH, buildE3World } from '../src/arenas/e3_paths.js';
 import { loadShotlineSamples } from '../src/e1Coupling.js';
 
 const SHOTLINE_PATH = 'data/summaries/e1-lab2-20260901T073830Z-shotline.json';
+
+// LAB-14: buildE3World's new §2.5-style build-time assertions (added this dispatch) genuinely
+// throw on a real, already-run subset of the P1 and P3 grids — 72/288 P1 cfgs (every
+// laneWidth=0.028 combination: the plunge start point sits within the 1mm safety margin of the
+// lane-inner wall) and 28/100 P3 cfgs (specific guideAngleDeg/laneWidth/postX combinations where
+// the post circle actually overlaps its own guide segment, by up to 6.7mm). See the LAB-14
+// handoff for the full analysis and banked-trial-count cross-check. Filtering here documents
+// that finding structurally (an asserted, exact excluded count) rather than either hiding it
+// behind a broad try/catch or leaving every determinism/sanity test permanently red for a fault
+// this dispatch's job was to DETECT, not to redesign the P1/P3 grids to avoid.
+function buildableOnly(cfgs) {
+  return cfgs.filter((cfg) => { try { buildE3World(cfg); return true; } catch { return false; } });
+}
 
 test('grid sizes match the §5.1 budget this run was built against (288/300/100/100/600 = 1388)', () => {
   assert.equal(buildE3P1Cfgs().length, 4 * 4 * 3 * 6);
@@ -45,7 +58,8 @@ test('P2-P4 carry the §5.3 E1 coupling by default; P5 explicitly does not (docu
 
 test('determinism: the same (cfgId, seed) reproduces a bit-identical record, one cfg per family', () => {
   const samples = [
-    buildE3P1Cfgs()[0], buildE3P2Cfgs()[0], buildE3P3Cfgs()[0], buildE3P4Cfgs()[0], buildE3P5Cfgs()[0],
+    buildableOnly(buildE3P1Cfgs())[0], buildE3P2Cfgs()[0], buildableOnly(buildE3P3Cfgs())[0],
+    buildE3P4Cfgs()[0], buildE3P5Cfgs()[0],
   ];
   for (const cfg of samples) {
     const a = runTrial(cfg, 3);
@@ -96,9 +110,13 @@ function sanityPass(t, cfgs, trialsPerCfg = 6) {
   assert.ok(escaped / total < 0.02, `${escaped}/${total} escaped — arena containment regression`);
 }
 
-test('sanity: P1 grid (plunge/lane) — no throws, no escapes, every trial terminates', (t) => sanityPass(t, buildE3P1Cfgs()));
+test('LAB-14: exactly the known-fouled P1/P3 cfgs are excluded by the new build-time assertions', () => {
+  assert.equal(buildE3P1Cfgs().length - buildableOnly(buildE3P1Cfgs()).length, 72);
+  assert.equal(buildE3P3Cfgs().length - buildableOnly(buildE3P3Cfgs()).length, 28);
+});
+test('sanity: P1 grid (plunge/lane) — no throws, no escapes, every trial terminates (excl. 72 known-fouled laneWidth=0.028 cfgs, LAB-14)', (t) => sanityPass(t, buildableOnly(buildE3P1Cfgs())));
 test('sanity: P2 grid (orbit) — no throws, no escapes, every trial terminates', (t) => sanityPass(t, buildE3P2Cfgs()));
-test('sanity: P3 grid (return lanes) — no throws, no escapes, every trial terminates', (t) => sanityPass(t, buildE3P3Cfgs()));
+test('sanity: P3 grid (return lanes) — no throws, no escapes, every trial terminates (excl. 28 known-fouled post/guide cfgs, LAB-14)', (t) => sanityPass(t, buildableOnly(buildE3P3Cfgs())));
 test('sanity: P4 grid (ramp mouth) — no throws, no escapes, every trial terminates', (t) => sanityPass(t, buildE3P4Cfgs()));
 test('sanity: P5 grid (habitrail drop) — no throws, no escapes, every trial terminates', (t) => sanityPass(t, buildE3P5Cfgs()));
 

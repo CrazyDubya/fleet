@@ -103,6 +103,57 @@ export const LAUNCH_BAND = { y: FLIPPER_ZONE_Y, xMin: -0.10, xMax: 0.10 };
 export const FALLBACK_SPEED = { min: 0.3, max: 4.5 };
 export const FALLBACK_ANGLE = { minDeg: 0, maxDeg: 180 };
 
+// e4_pocket.js's §2.5 assertion-2 standard (its own "1mm safety margin"), reused here per
+// LAB-14 — P1/P3/P5 are the three families whose injection point or added geometry is a
+// build-time parameter of THIS file (P2/P4 take a shot from the shared, cfg-independent
+// LAUNCH_BAND — nothing here to assert per-cfg for them; see buildE3World's dispatch below).
+const FOUL_MARGIN = 0.001;
+
+function pointToSegmentDistance(p, a, b) {
+  const abx = b.x - a.x, aby = b.y - a.y;
+  const len2 = abx * abx + aby * aby;
+  let t = len2 > 1e-12 ? ((p.x - a.x) * abx + (p.y - a.y) * aby) / len2 : 0;
+  t = Math.max(0, Math.min(1, t));
+  const cx = a.x + t * abx, cy = a.y + t * aby;
+  return Math.hypot(p.x - cx, p.y - cy);
+}
+
+/** Clearance from a point to a shape's own surface — segments have zero extra radius,
+ * circles (P3's post) subtract their own radius. Arcs (P2's orbit) are not handled: no P2 cfg
+ * defines a per-cfg injection point in this file (see FOUL_MARGIN's comment above), so nothing
+ * here ever calls this against an Arc. */
+function pointToShapeClearance(p, shape) {
+  if (shape.kind === 'circle') return Math.hypot(p.x - shape.centre.x, p.y - shape.centre.y) - shape.radius;
+  return pointToSegmentDistance(p, shape.a, shape.b);
+}
+
+/** Port of e4_pocket.js's `assertInjectionClear` (not imported — arenas don't import from each
+ * other except e4_pocket.js's own documented borrow from e1_flippers.js). `ownTag`: the shape a
+ * point is defined ON (excluded from its own check, same reason e4_pocket.js excludes it). */
+function assertInjectionClear(shapes, points, label) {
+  for (const { point: p, ownTag } of points) {
+    for (const shape of shapes) {
+      if (shape.tag === ownTag) continue;
+      const clearance = pointToShapeClearance(p, shape) - (shape.padding || 0);
+      if (clearance <= BALL_RADIUS + FOUL_MARGIN) {
+        throw new Error(`${label}: injection point (${p.x.toFixed(4)},${p.y.toFixed(4)}) overlaps shape '${shape.tag}' (clearance ${clearance.toFixed(4)}m <= ${(BALL_RADIUS + FOUL_MARGIN).toFixed(4)}m)`);
+      }
+    }
+  }
+}
+
+/** P3's postX sweep (§5.1) builds a Circle post near the guide's own top end with nothing
+ * checking it (LAB-14's headline instruction) — assert the post doesn't overlap the guide
+ * segment it splits traffic against. This is a static overlap check (no sweep: the post is a
+ * fixed obstacle, not something a flipper sweeps through), so it reuses `pointToShapeClearance`
+ * directly rather than e4_pocket.js's `assertNoFoul` sweep helper. */
+function assertPostClearsGuide(post, guideA, guideB, label) {
+  const clearance = pointToSegmentDistance(post.centre, guideA, guideB) - post.radius;
+  if (clearance <= FOUL_MARGIN) {
+    throw new Error(`${label}: post at (${post.centre.x.toFixed(4)},${post.centre.y.toFixed(4)}) overlaps its own guide (clearance ${clearance.toFixed(4)}m <= ${FOUL_MARGIN.toFixed(4)}m)`);
+  }
+}
+
 function rotate(v, deg) {
   const r = deg * DEG;
   const c = Math.cos(r), s = Math.sin(r);
@@ -163,6 +214,12 @@ function buildP1(cfg) {
     rightBoundary,
   ];
 
+  const injectionPoint = { x: (laneInnerX + laneOuterX) / 2, y: LANE_BOTTOM_Y + 0.015 };
+  // §2.5 assertion-2 standard (LAB-14): the plunge start point must clear the lane walls it
+  // sits centred between (`lane-gate` sits far above it, at gateY >= 0.286, so no exclusion is
+  // needed the way e4_pocket.js excludes a point's own endpoint shape).
+  assertInjectionClear(shapes, [{ point: injectionPoint, ownTag: null }], 'buildP1');
+
   const world = createWorld();
   setLayerPrimitives(world, 'playfield', shapes.map((shape) => ({ shape })));
   const ball = addBall(world, { id: 'b0', pos: { x: 0, y: 0.5 }, vel: { x: 0, y: 0 }, radius: BALL_RADIUS, active: true });
@@ -171,7 +228,7 @@ function buildP1(cfg) {
     world, ball,
     bounds: { ...ARENA_BOUNDS, xMax: laneOuterX + 0.6 },
     injection: {
-      mode: 'plunge', x: (laneInnerX + laneOuterX) / 2, y: LANE_BOTTOM_Y + 0.015,
+      mode: 'plunge', x: injectionPoint.x, y: injectionPoint.y,
       laneOuterX, laneTopY: LANE_TOP_Y, deflectorAngleDeg: cfg.deflectorAngleDeg,
     },
   };
@@ -256,6 +313,9 @@ function buildP3(cfg) {
     shapes.push(Segment(guideTop, guideBottom, E_WALL, `guide-${side === 1 ? 'L' : 'R'}`));
     const post = { x: guideTop.x + side * cfg.postX, y: guideTop.y - 0.02 };
     shapes.push(Circle(post, P3_POST_RADIUS, 0.5, `post-${side === 1 ? 'L' : 'R'}`));
+    // LAB-14 headline check: postX sweeps the post off the guide's top end by up to ±0.010m —
+    // assert it never lands ON the guide it's meant to split traffic against.
+    assertPostClearsGuide({ centre: post, radius: P3_POST_RADIUS }, guideTop, guideBottom, `buildP3 (side=${side})`);
   }
 
   const world = createWorld();
@@ -318,9 +378,14 @@ function buildP4(cfg) {
 // coupling here anyway would silently overwrite the very parameters this family exists to
 // sweep, so it's called out explicitly rather than applied inconsistently.
 // ---
-function buildP5() {
+function buildP5(cfg) {
+  const shapes = buildSharedWalls();
+  // §2.5 assertion-2 standard (LAB-14): dropX/dropY IS the injection point for this family
+  // (file header: "these ARE the injection state") — assert it clears the shared shell.
+  assertInjectionClear(shapes, [{ point: { x: cfg.dropX, y: cfg.dropY }, ownTag: null }], 'buildP5');
+
   const world = createWorld();
-  setLayerPrimitives(world, 'playfield', buildSharedWalls().map((shape) => ({ shape })));
+  setLayerPrimitives(world, 'playfield', shapes.map((shape) => ({ shape })));
   const ball = addBall(world, { id: 'b0', pos: { x: 0, y: 0.5 }, vel: { x: 0, y: 0 }, radius: BALL_RADIUS, active: true });
   return { world, ball, bounds: ARENA_BOUNDS, injection: { mode: 'directDrop' } };
 }
