@@ -416,7 +416,8 @@ async function runE3Stage(args) {
   const rankingGuard = {};
   for (const family of Object.keys(familyMetrics)) {
     rankingGuard[family] = rankingValidityResult(
-      perCfgRanked.filter((r) => r.family === family).map((r) => r.inBandFraction)
+      perCfgRanked.filter((r) => r.family === family).map((r) => r.inBandFraction),
+      { topN: 10 }
     );
   }
   const rankingGuardFailures = Object.entries(rankingGuard).filter(([, r]) => !r.ok).map(([f, r]) => ({ family: f, ...r }));
@@ -598,8 +599,8 @@ async function main() {
   // same mistake as E3 P1's top-10, but with a worse consequence — it silently narrows which
   // geometries ever get looked at again. So this one blocks, matching §2.7's own precedent for a
   // gate that invalidates a downstream artifact rather than just a display table.
-  const fanWidthGuard = rankingValidityResult(geometries.filter((g) => g.fanWidthXa !== null).map((g) => g.fanWidthXa));
-  const cradleGuard = rankingValidityResult(geometries.map((g) => g.cradleProxy));
+  const fanWidthGuard = rankingValidityResult(geometries.filter((g) => g.fanWidthXa !== null).map((g) => g.fanWidthXa), { topN: TOP_N });
+  const cradleGuard = rankingValidityResult(geometries.map((g) => g.cradleProxy), { topN: TOP_N });
   if (!fanWidthGuard.ok || !cradleGuard.ok) {
     console.error(JSON.stringify({
       ok: false,

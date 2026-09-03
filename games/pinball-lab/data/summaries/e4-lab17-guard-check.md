@@ -1,6 +1,6 @@
-# E4 — LAB-6 the pocket (`20260901T-lab6`)
+# E4 — LAB-6 the pocket (`lab17-guard-check`)
 
-- **generated**: 2026-09-03T05:56:46.966Z
+- **generated**: 2026-09-03T05:54:19.785Z
 - **grand total trials (A+B+C)**: 1000000
 
 ## §9 slice verdict — H6
@@ -19,7 +19,7 @@ C0 reproduces LAB-2's near-zero cradle rate. C0b, at E4's longer 4.0s settle win
 
 ## §8 item 1 — the pocket map (gapX x activeAngle, Stage B)
 
-Full long-format CSV: `e4-20260901T-lab6-pocketmap.csv`. 9 cells.
+Full long-format CSV: `e4-lab17-guard-check-pocketmap.csv`. 9 cells.
 
 | gapX (m) | active° | trials | cp% |
 |---|---|---|---|

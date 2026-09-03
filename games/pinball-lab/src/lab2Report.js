@@ -214,11 +214,13 @@ async function main() {
     .filter((g) => g.timingSensitivityDegPerMs <= SENSITIVITY_CEILING)
     .sort((a, b) => b.fanWidthXaDeg - a.fanWidthXaDeg);
 
-  // LAB-16 ranking gate, on the full pre-ceiling-filter population (`withBoth`) — `best` is a
-  // real single-geometry recommendation, not a display table, so it gets the same blocking
-  // treatment as E1's cradle/fan-width selection: refuse to name a "best" geometry rather than
-  // silently pick array position 0 of an unordered tie.
-  const fanWidthRankingGuard = rankingValidityResult(withBoth.map((g) => g.fanWidthXaDeg));
+  // LAB-16/17 ranking gate — `best` is a real single-geometry recommendation (`topN: 1`), not a
+  // display table, so it gets the same blocking treatment as E1's cradle/fan-width selection:
+  // refuse to name a "best" geometry rather than silently pick array position 0 of an unordered
+  // tie. Checked on `rankedUnderCeiling`, the actual population `best` is cut from (LAB-17: the
+  // boundary-ambiguity test needs the real cut population — checking the pre-ceiling-filter
+  // `withBoth` instead would answer a different question than the one `best` actually asks).
+  const fanWidthRankingGuard = rankingValidityResult(rankedUnderCeiling.map((g) => g.fanWidthXaDeg), { topN: 1 });
   const best = fanWidthRankingGuard.ok ? (rankedUnderCeiling[0] ?? null) : null;
 
   // --- Binned transfer function, flattened ---
@@ -349,6 +351,7 @@ function toMarkdown(summary, best) {
       `**${fmt(best.voViGradientPerHs, 3)} per unit hs** (positive means tip contact returns more energy than base ` +
       `contact, i.e. the ball rewards a good hit rather than saturating everywhere).`
     );
+    lines.push('');
   } else if (!summary.fanWidthRankingGuard.ok) {
     lines.push('## Recommendation');
     lines.push('');

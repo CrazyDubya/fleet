@@ -1,8 +1,8 @@
 {
   "exp": "e1",
   "stage": "B",
-  "runId": "20260901T073830Z",
-  "generatedAt": "2026-09-03T05:57:54.789Z",
+  "runId": "lab16-guard-check2",
+  "generatedAt": "2026-09-03T05:24:56.997Z",
   "stageBRunDir": "data/e1/stageB-main-20260901T073830Z",
   "cradleRunDir": "data/e1/stageB-cradle-20260901T073830Z",
   "stageBMeta": {
@@ -2639,7 +2639,6 @@
     "n": 24,
     "distinctCount": 24,
     "maxTieFraction": 0.041666666666666664,
-    "boundaryAmbiguity": 1,
     "reason": null
   },
   "transferFunction": {

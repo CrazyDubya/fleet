@@ -1,7 +1,7 @@
 {
   "exp": "e4",
-  "runId": "20260901T-lab6",
-  "generatedAt": "2026-09-03T05:56:46.966Z",
+  "runId": "lab16-guard-check",
+  "generatedAt": "2026-09-03T05:24:38.618Z",
   "h6": {
     "survived": true,
     "sliceW1Cp": 0.5975609756097561,
@@ -1100,7 +1100,6 @@
       "n": 350,
       "distinctCount": 296,
       "maxTieFraction": 0.11428571428571428,
-      "boundaryAmbiguity": 1,
       "reason": null
     },
     "a2": {
@@ -1108,24 +1107,21 @@
       "n": 198,
       "distinctCount": 139,
       "maxTieFraction": 0.20202020202020202,
-      "boundaryAmbiguity": 1,
       "reason": null
     },
     "b": {
-      "ok": false,
+      "ok": true,
       "n": 540,
       "distinctCount": 314,
       "maxTieFraction": 0.18703703703703703,
-      "boundaryAmbiguity": 5.05,
-      "reason": "top-20 cut lands inside a 101-way tie for 20 remaining slot(s) (5.05x, ceiling 2x) — most of the selection would be insertion order, not a ranking"
+      "reason": null
     },
     "releaseDispersion": {
       "ok": false,
       "n": 6,
       "distinctCount": 3,
       "maxTieFraction": 0.6666666666666666,
-      "boundaryAmbiguity": null,
-      "reason": "only 3 distinct value(s) across 6 rows (floor 5) — cannot support an ordering; 66.7% of rows tied at one value (ceiling 50%) — presenting this as an order would be misleading"
+      "reason": "only 3 distinct value(s) across 6 rows (floor 5) — cannot support an ordering; 66.7% of rows tied at one value (ceiling 50%) — \"top N\" would be insertion order, not a ranking"
     }
   }
 }

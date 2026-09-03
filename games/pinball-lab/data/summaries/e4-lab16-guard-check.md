@@ -1,6 +1,6 @@
-# E4 — LAB-6 the pocket (`20260901T-lab6`)
+# E4 — LAB-6 the pocket (`lab16-guard-check`)
 
-- **generated**: 2026-09-03T05:56:46.966Z
+- **generated**: 2026-09-03T05:24:38.618Z
 - **grand total trials (A+B+C)**: 1000000
 
 ## §9 slice verdict — H6
@@ -19,7 +19,7 @@ C0 reproduces LAB-2's near-zero cradle rate. C0b, at E4's longer 4.0s settle win
 
 ## §8 item 1 — the pocket map (gapX x activeAngle, Stage B)
 
-Full long-format CSV: `e4-20260901T-lab6-pocketmap.csv`. 9 cells.
+Full long-format CSV: `e4-lab16-guard-check-pocketmap.csv`. 9 cells.
 
 | gapX (m) | active° | trials | cp% |
 |---|---|---|---|
@@ -55,8 +55,6 @@ Full long-format CSV: `e4-20260901T-lab6-pocketmap.csv`. 9 cells.
 
 ## Stage B — flipper geometry / delivery / policy ranking (top rows)
 
-> ⚠ **RANKING INVALID (LAB-16 gate)**: `cp` cannot rank the full 540-cfg Stage B population — top-20 cut lands inside a 101-way tie for 20 remaining slot(s) (5.05x, ceiling 2x) — most of the selection would be insertion order, not a ranking. Rows below are shown for reference only.
-
 | rest° | active° | e_flip | inj | pol | cp% | trials |
 |---|---|---|---|---|---|---|
 | -50 | 26 | 0.45 | drop | heldActive | 100.0 | 737 |
@@ -77,7 +75,7 @@ Full long-format CSV: `e4-20260901T-lab6-pocketmap.csv`. 9 cells.
 
 ## §8 item 4 — release dispersion (Stage C)
 
-> ⚠ **RANKING INVALID (LAB-16 gate)**: `shotRate` cannot rank these 6 assemblies — only 3 distinct value(s) across 6 rows (floor 5) — cannot support an ordering; 66.7% of rows tied at one value (ceiling 50%) — presenting this as an order would be misleading. Consistent with the near-zero, near-uniform shot rate already noted below (§5.4 finding) — this table is ordered by shotRate for readability only, not as a performance ranking.
+> ⚠ **RANKING INVALID (LAB-16 gate)**: `shotRate` cannot rank these 6 assemblies — only 3 distinct value(s) across 6 rows (floor 5) — cannot support an ordering; 66.7% of rows tied at one value (ceiling 50%) — "top N" would be insertion order, not a ranking. Consistent with the near-zero, near-uniform shot rate already noted below (§5.4 finding) — this table is ordered by shotRate for readability only, not as a performance ranking.
 
 | assembly | trials | shot% | dispersion (P95-P5, °) | rel mix |
 |---|---|---|---|---|

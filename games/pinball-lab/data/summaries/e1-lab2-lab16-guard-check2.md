@@ -1,6 +1,6 @@
-# E1 — LAB-2 flipper transfer function (`20260901T073830Z`)
+# E1 — LAB-2 flipper transfer function (`lab16-guard-check2`)
 
-- **instrument commit**: `ad5b558efccb20204266c4ee91429546f0d01b79`  ·  **generated**: 2026-09-03T05:57:54.789Z
+- **instrument commit**: `ad5b558efccb20204266c4ee91429546f0d01b79`  ·  **generated**: 2026-09-03T05:24:56.997Z
 - **Stage B trials**: 540000  ·  **flagged**: 15.63%  (IMPACTS_EXHAUSTED 4.63%, ESCAPED 0.000%, TIMEOUT 11.64%, STALLED 0.05%, NAN 0.000%)
 - **flipper contact rate**: 50.3%  ·  **geometries characterised**: 24
 
@@ -69,7 +69,6 @@
 **Machine #2 default flipper**: rest angle **-32°**, active angle **26°** (sweep arc 58°), sweep **8 ms**, ω-profile **sCurve**, collision radius **0.012 m**, restitution **0.45**.
 
 Justification: of the 24 geometries under the 1.5°/ms sensitivity ceiling, this one has the widest measured shot fan (P95−P5 of shot-line angle over the full timing sweep) at **93.1°**, with a median timing sensitivity of **0.369°/ms** (at or under the 1.5°/ms ceiling — a 10ms reaction-time error moves the shot by roughly 3.7°, still aimable), a cradle rate of **0.0%** (fraction of held-active trials settling within 1.5s — the "feels heavy" number), and a vo/vi-vs-hs gradient of **0.402 per unit hs** (positive means tip contact returns more energy than base contact, i.e. the ball rewards a good hit rather than saturating everywhere).
-
 ## Transfer function
 
 Binned `(hs x phase x vi x ai) -> (vo, ao)` table (10 x 4 x 6 x 8 bins), 442 populated bins out of a possible 1920 — full table in the JSON summary; the 20 best-populated bins:

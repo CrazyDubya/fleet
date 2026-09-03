@@ -1,8 +1,8 @@
 {
   "exp": "e3",
-  "out": "data/e3/lab6-20260903T053234Z",
+  "out": "data/e3/lab17-verify-20260903T060000Z",
   "instrumentCommitSha": "0bc4b55bc413861d199780e5fcc946c6183493aa",
-  "generatedAt": "2026-09-03T05:56:24.047Z",
+  "generatedAt": "2026-09-03T05:55:41.965Z",
   "cfgCount": 203,
   "trialCount": 192850,
   "flaggedFraction": 0.4204407570650765,
@@ -29,7 +29,7 @@
       "cfgs": 203
     }
   },
-  "secs": 17.844644457999998,
+  "secs": 17.252073167,
   "rankingGuardFailures": [
     {
       "family": "P1",

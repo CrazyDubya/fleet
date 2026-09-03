@@ -90,7 +90,7 @@ async function main() {
   // LAB-16 ranking gate, on the FULL population before any top-N slice (see stageA.js's E1
   // comment for why pre-slice matters — a post-slice top-20 always looks tie-heavy at the
   // ceiling regardless of whether the metric has real resolution).
-  const a1RankingGuard = rankingValidityResult(a1Ranked.map((r) => r.cp));
+  const a1RankingGuard = rankingValidityResult(a1Ranked.map((r) => r.cp), { topN: 1 });
 
   // --- A2: the ranked assembly table (§8 item 2), controls' cp for the E1 decomposition. ---
   const a2ByCfg = new Map();
@@ -124,7 +124,7 @@ async function main() {
     fastCradleRate: row.stVals.length ? row.stVals.filter((s) => s < 1.0).length / row.trials : 0,
     medianBn: row.bnVals.length ? percentile(row.bnVals, 50) : null,
   })).sort((x, y) => y.cp - x.cp);
-  const a2RankingGuard = rankingValidityResult(a2Ranked.map((r) => r.cp));
+  const a2RankingGuard = rankingValidityResult(a2Ranked.map((r) => r.cp), { topN: 20 });
 
   // --- Stage B: the (gapX x activeAngle) pocket-map heatmap, cv-vs-restAngle (§1.3/H7),
   // release-independent ranking by cp. ---
@@ -164,7 +164,7 @@ async function main() {
   const heatmap = [...heatmapCells.values()].map((h) => ({ ...h, cpRate: h.cp / h.trials }));
   const cvTable = [...cvByRest.entries()].map(([restAngleDeg, v]) => ({ restAngleDeg: Number(restAngleDeg), trials: v.trials, cvRate: v.cv / v.trials })).sort((x, y) => x.restAngleDeg - y.restAngleDeg);
   const bRanked = [...bByCfg.values()].map((row) => ({ cfg: row.cfg, cpRate: row.cp / row.trials, trials: row.trials })).sort((x, y) => y.cpRate - x.cpRate);
-  const bRankingGuard = rankingValidityResult(bRanked.map((r) => r.cpRate));
+  const bRankingGuard = rankingValidityResult(bRanked.map((r) => r.cpRate), { topN: 20 });
 
   // --- Stage C: release dispersion (§5.4) per assembly, rel mix, controls. ---
   const cByAssembly = new Map(); // baseAssemblyId -> {rxaVals, relCounts, trials}
