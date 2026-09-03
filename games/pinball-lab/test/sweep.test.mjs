@@ -8,6 +8,7 @@ import {
   buildGeometryGrid, buildStageAPolicies, buildE1StageACfgs,
   buildStageBPolicies, buildE1StageBCfgs, buildE1CradleCfgs,
   buildE5aAssemblies, buildE5aCfgs, E4_STAGEC_UPMS, E4_STAGEC_RELEASE_DELAY_MS,
+  assertUniqueCfgIds, withCfgIds,
 } from '../src/sweep.js';
 
 test('§3.3 geometry grid is exactly 6x3x6x4x3x3 = 3,888 cfgs, all cfgIds unique', () => {
@@ -76,4 +77,30 @@ test('E5a cfgs: assemblies x upMs x releaseDelayMs, holdThenRelease + release:tr
   assert.ok(cfgs.length <= assemblyCount * E4_STAGEC_UPMS.length * E4_STAGEC_RELEASE_DELAY_MS.length);
   assert.ok(cfgs.every((c) => c.pol === 'holdThenRelease' && c.release === true && c.arm === 'E5a'));
   assert.equal(new Set(cfgs.map((c) => c.cfgId)).size, cfgs.length);
+});
+
+// P1-3 interim fix: assertUniqueCfgIds is the guard every grid builder now runs through
+// (directly, or via withCfgIds). Test the guard itself with a genuine collision — two cfgs
+// that hash identically because they ARE identical, not a mocked hash function — plus that
+// withCfgIds (the choke point 17 of ~20 builders route through) actually calls it.
+test('assertUniqueCfgIds throws, naming the label and the colliding id, on a genuine duplicate', () => {
+  const dupe = { exp: 'e1', pol: 'never', restAngleDeg: -50 };
+  const cfgs = withCfgIds([{ ...dupe }, { exp: 'e1', pol: 'fixedDelay', d: 0 }], 'unrelated-label');
+  const withRealDupe = [...cfgs, { ...cfgs[0] }]; // cfgId already attached: a true repeat, not a rehash
+  assert.throws(
+    () => assertUniqueCfgIds(withRealDupe, 'testBuilder'),
+    (err) => err.message.includes('testBuilder') && err.message.includes(cfgs[0].cfgId),
+    'expected the guard to name both the calling builder and the colliding cfgId',
+  );
+});
+
+test('withCfgIds itself throws when two distinct-looking inputs hash to the same cfg', () => {
+  // Two cfg objects that are genuinely the same parameter set (key order differs, cfgId's
+  // sort-keys-deep hash makes them collide for real) — not a mock, an actual duplicate.
+  const a = { exp: 'e1', pol: 'never', d: 5 };
+  const b = { d: 5, pol: 'never', exp: 'e1' };
+  assert.throws(
+    () => withCfgIds([a, b], 'buildFakeDuplicateCfgs'),
+    (err) => err.message.startsWith('buildFakeDuplicateCfgs: duplicate cfgId'),
+  );
 });

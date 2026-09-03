@@ -38,16 +38,23 @@ function summariseColumn(records, key) {
 }
 
 function summariseCfg(cfgMeta, records) {
+  // flagged fraction/breakdown are reported over ALL records (that's the point of §2.7's
+  // gate); every other column below describes what an unflagged trial actually did, per
+  // P0-2's `r.f === 0` precedent (lab2Report.js) — no STALLED exception here: unlike E4,
+  // this file's own §2.7 warning block already treats STALLED as one of the artifact causes
+  // for E1 (see CAUSE_NOTES below), so `validExclStalled` (E4's "STALLED is a measurement,
+  // not an artifact" exception, gate.js) would be the wrong mask to reuse for this exp.
   const flags = records.map((r) => r.f);
   const { count: flaggedCount, fraction: flaggedFrac } = flaggedFraction(flags);
   const flagBreakdown = {};
   for (const [name, bit] of Object.entries(FLAGS)) flagBreakdown[name] = bitFraction(flags, bit);
 
+  const validRecords = records.filter((r) => r.f === 0);
   const columns = {};
-  for (const key of NUMERIC_COLUMNS) columns[key] = summariseColumn(records, key);
+  for (const key of NUMERIC_COLUMNS) columns[key] = summariseColumn(validRecords, key);
 
   const terms = Object.fromEntries(tally(records.map((r) => r.term)));
-  const xaValues = records.map((r) => r.xa).filter((v) => v !== null && v !== undefined);
+  const xaValues = validRecords.map((r) => r.xa).filter((v) => v !== null && v !== undefined);
 
   return {
     cfgId: cfgMeta.cfgId,

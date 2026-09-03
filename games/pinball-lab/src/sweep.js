@@ -42,9 +42,27 @@ export function expandGrid(paramLists) {
   return cfgs;
 }
 
+/** Throws if `cfgs` (each already carrying a `cfgId`) has a repeated id. Interim fix for the
+ * code review's P1-3 (32-bit cfgId, 13.3% birthday collision probability at the largest
+ * committed grid's size): converts a silent merge of two geometries' records under one id into
+ * a loud failure at build time, cheaply, without widening cfgId (that needs a versioned
+ * `cfgIdV2` migration, deferred — see review §2, P1-3). */
+export function assertUniqueCfgIds(cfgs, label) {
+  const seen = new Map();
+  for (let i = 0; i < cfgs.length; i++) {
+    const id = cfgs[i].cfgId;
+    if (seen.has(id)) {
+      throw new Error(`${label}: duplicate cfgId ${id} (collision between cfg #${seen.get(id)} and #${i} of ${cfgs.length})`);
+    }
+    seen.set(id, i);
+  }
+}
+
 /** Attach a stable cfgId to every cfg in a list produced by expandGrid (or hand-built). */
-export function withCfgIds(cfgs) {
-  return cfgs.map((cfg) => ({ cfgId: cfgId(cfg), ...cfg }));
+export function withCfgIds(cfgs, label = 'withCfgIds') {
+  const withIds = cfgs.map((cfg) => ({ cfgId: cfgId(cfg), ...cfg }));
+  assertUniqueCfgIds(withIds, label);
+  return withIds;
 }
 
 // --- E1 pilot cfg set (program handoff's LAB-1 scope: prove the harness and the policy
@@ -80,7 +98,7 @@ const PILOT_POLICIES = [
 ];
 
 export function buildE1PilotCfgs() {
-  return withCfgIds(PILOT_POLICIES.map((p) => ({ ...PILOT_GEOMETRY, ...p })));
+  return withCfgIds(PILOT_POLICIES.map((p) => ({ ...PILOT_GEOMETRY, ...p })), 'buildE1PilotCfgs');
 }
 
 // --- LAB-2: the §3.3 Stage A/B geometry x policy sweep. ---
@@ -120,7 +138,7 @@ export function buildE1StageACfgs() {
   const policies = buildStageAPolicies();
   const cfgs = [];
   for (const g of geoms) for (const p of policies) cfgs.push({ ...g, ...p });
-  return withCfgIds(cfgs);
+  return withCfgIds(cfgs, 'buildE1StageACfgs');
 }
 
 // §3.2's full mandated policy set: never(1) + fixedDelay d in {0,10,...,200} (21) +
@@ -144,12 +162,12 @@ export function buildE1StageBCfgs(geometries) {
   const policies = buildStageBPolicies();
   const cfgs = [];
   for (const g of geometries) for (const p of policies) cfgs.push({ exp: 'e1', ...g, ...p });
-  return withCfgIds(cfgs);
+  return withCfgIds(cfgs, 'buildE1StageBCfgs');
 }
 
 /** §3.5 cradle family cfgs: one per selected geometry, `pol: 'heldActive'`, `cradle: true`. */
 export function buildE1CradleCfgs(geometries) {
-  return withCfgIds(geometries.map((g) => ({ exp: 'e1', ...g, pol: 'heldActive', cradle: true })));
+  return withCfgIds(geometries.map((g) => ({ exp: 'e1', ...g, pol: 'heldActive', cradle: true })), 'buildE1CradleCfgs');
 }
 
 // --- LAB-3: the §4 EXPERIMENT 2 (bumpers) cfg sets. ---
@@ -174,7 +192,7 @@ export function buildE2SeriesACfgs() {
       });
     }
   }
-  return withCfgIds(cfgs);
+  return withCfgIds(cfgs, 'buildE2SeriesACfgs');
 }
 
 /** §4.2 Series B (opus2 extension): field grows with N to hold area fraction fixed at 0.15,
@@ -189,7 +207,7 @@ export function buildE2SeriesBCfgs() {
       cfgs.push({ exp: 'e2', series: 'B', N, radius, fieldWidth, fieldHeight, areaFraction, layoutVariant });
     }
   }
-  return withCfgIds(cfgs);
+  return withCfgIds(cfgs, 'buildE2SeriesBCfgs');
 }
 
 // §4.4's divergence chaos measure: "re-run 5% of trials with the inbound angle perturbed by
@@ -205,7 +223,7 @@ export function buildE2DivergenceCfgs(seriesACfgs) {
   return withCfgIds(seriesACfgs.map((c) => {
     const { cfgId: baseCfgId, ...rest } = c;
     return { ...rest, baseCfgId, perturbAngleRad: E2_PERTURB_ANGLE_RAD };
-  }));
+  }), 'buildE2DivergenceCfgs');
 }
 
 // --- LAB-6: EXPERIMENT 4 (the pocket) cfg sets, per opus2's design handoff
@@ -247,7 +265,7 @@ export function buildE4Controls(geom = E4_LAB2_WINNER) {
     e4Base({ ...geom, arm: 'C0', timeoutS: 2.0 }),
     e4Base({ ...geom, arm: 'C0b' }),
     e4Base({ ...geom, arm: 'C1', shelf: true }),
-  ]);
+  ], 'buildE4Controls');
 }
 
 /** §9's first slice: one W1 assembly at the design's own worked example (gapX 0.026, tilt 0,
@@ -257,7 +275,7 @@ export function buildE4Controls(geom = E4_LAB2_WINNER) {
 export function buildE4SliceCfgs() {
   const guide = withPocketSolve({ gapX: 0.026, tiltDeg: 0, endDy: 0, guideE: 0.45 }, E4_LAB2_WINNER);
   const w1 = e4Base({ guide, arm: 'W1-slice' });
-  return [...withCfgIds([w1]), ...buildE4Controls()];
+  return [...withCfgIds([w1], 'buildE4SliceCfgs'), ...buildE4Controls()];
 }
 
 // §2.1 W1 grid (120 guides) x §6.1's radius crossing (3) = 360 combinations. Not every
@@ -290,6 +308,7 @@ export function buildE4StageA1Cfgs() {
       }
     }
   }
+  assertUniqueCfgIds(cfgs, 'buildE4StageA1Cfgs');
   return { cfgs, excluded, total: E4_RADII.length * guides.length };
 }
 
@@ -346,7 +365,7 @@ export function buildE4StageA2Cfgs(topPockets) {
       }
     }
   }
-  return filterBuildable(withCfgIds(cfgs));
+  return filterBuildable(withCfgIds(cfgs, 'buildE4StageA2Cfgs'));
 }
 
 // §6.2 Stage B: top 10 assemblies (A2 result) x flipper geometry x delivery x policy. upMs and
@@ -389,7 +408,7 @@ export function buildE4StageBCfgs(topAssemblies) {
       }
     }
   }
-  return filterBuildable(withCfgIds(cfgs));
+  return filterBuildable(withCfgIds(cfgs, 'buildE4StageBCfgs'));
 }
 
 // §6.3 Stage C: top 6 assemblies x 3 best flipper geometries (from B) x upMs x releaseDelayMs,
@@ -413,7 +432,7 @@ export function buildE4StageCCfgs(topAssembliesWithGeoms) {
       }
     }
   }
-  return filterBuildable(withCfgIds(cfgs));
+  return filterBuildable(withCfgIds(cfgs, 'buildE4StageCCfgs'));
 }
 
 // --- LAB-10: EXPERIMENT 5a — the release diagnostic (opus2 roadmap §3, E5a). LAB-6's Stage C
@@ -504,7 +523,7 @@ export function buildE5aCfgs() {
       }
     }
   }
-  const { cfgs: kept, excluded, total } = filterBuildable(withCfgIds(cfgs));
+  const { cfgs: kept, excluded, total } = filterBuildable(withCfgIds(cfgs, 'buildE5aCfgs'));
   return { cfgs: kept, excluded, total, assemblyCount: assemblies.length };
 }
 
@@ -529,7 +548,7 @@ export const E3_P1_GRID = {
   plungerSpeed: [1.0, 1.8, 2.6, 3.4, 4.2, 5.0],
 };
 export function buildE3P1Cfgs() {
-  return withCfgIds(expandGrid(E3_P1_GRID).map((g) => ({ exp: 'e3', family: 'P1', ...g })));
+  return withCfgIds(expandGrid(E3_P1_GRID).map((g) => ({ exp: 'e3', family: 'P1', ...g })), 'buildE3P1Cfgs');
 }
 
 // P2 orbit: radius x entryAngleDeg x exitTangentDeg x wallRestitution = 4x5x5x3 = 300.
@@ -540,7 +559,7 @@ export const E3_P2_GRID = {
   wallRestitution: [0.45, 0.65, 0.85],
 };
 export function buildE3P2Cfgs(inputPrior = 'e1', shotlineSamplesPath = E3_SHOTLINE_SAMPLES_PATH) {
-  return withCfgIds(withE1Coupling(expandGrid(E3_P2_GRID).map((g) => ({ exp: 'e3', family: 'P2', ...g })), inputPrior, shotlineSamplesPath));
+  return withCfgIds(withE1Coupling(expandGrid(E3_P2_GRID).map((g) => ({ exp: 'e3', family: 'P2', ...g })), inputPrior, shotlineSamplesPath), 'buildE3P2Cfgs');
 }
 
 // P3 return lanes: guideAngleDeg x laneWidth x postX = 5x4x5 = 100.
@@ -550,7 +569,7 @@ export const E3_P3_GRID = {
   postX: [-0.010, -0.005, 0, 0.005, 0.010],
 };
 export function buildE3P3Cfgs(inputPrior = 'e1', shotlineSamplesPath = E3_SHOTLINE_SAMPLES_PATH) {
-  return withCfgIds(withE1Coupling(expandGrid(E3_P3_GRID).map((g) => ({ exp: 'e3', family: 'P3', ...g })), inputPrior, shotlineSamplesPath));
+  return withCfgIds(withE1Coupling(expandGrid(E3_P3_GRID).map((g) => ({ exp: 'e3', family: 'P3', ...g })), inputPrior, shotlineSamplesPath), 'buildE3P3Cfgs');
 }
 
 // P4 ramp mouth: mouthWidth x approachAngleDeg x rampMinSpeed = 4x5x5 = 100.
@@ -560,7 +579,7 @@ export const E3_P4_GRID = {
   rampMinSpeed: [0.3, 0.525, 0.75, 0.975, 1.2],
 };
 export function buildE3P4Cfgs(inputPrior = 'e1', shotlineSamplesPath = E3_SHOTLINE_SAMPLES_PATH) {
-  return withCfgIds(withE1Coupling(expandGrid(E3_P4_GRID).map((g) => ({ exp: 'e3', family: 'P4', ...g })), inputPrior, shotlineSamplesPath));
+  return withCfgIds(withE1Coupling(expandGrid(E3_P4_GRID).map((g) => ({ exp: 'e3', family: 'P4', ...g })), inputPrior, shotlineSamplesPath), 'buildE3P4Cfgs');
 }
 
 // P5 habitrail drop: dropX x dropY x dropSpeed x dropDirectionDeg = 5x4x5x6 = 600. No E1
@@ -572,16 +591,21 @@ export const E3_P5_GRID = {
   dropDirectionDeg: [200, 230, 260, 290, 320, 350],
 };
 export function buildE3P5Cfgs() {
-  return withCfgIds(expandGrid(E3_P5_GRID).map((g) => ({ exp: 'e3', family: 'P5', ...g })));
+  return withCfgIds(expandGrid(E3_P5_GRID).map((g) => ({ exp: 'e3', family: 'P5', ...g })), 'buildE3P5Cfgs');
 }
 
 /** All five families' cfgs concatenated, tagged with which family each block belongs to via
  * `cfg.family` (already set per-builder) — stageA.js's e3 branch uses this to size each
  * family's share of the 1e6-trial budget independently (§5.1: 200k/family, not 1e6/totalCfgs). */
 export function buildE3AllCfgs() {
-  return {
+  const families = {
     P1: buildE3P1Cfgs(), P2: buildE3P2Cfgs(), P3: buildE3P3Cfgs(), P4: buildE3P4Cfgs(), P5: buildE3P5Cfgs(),
   };
+  // Each family's own withCfgIds() call already asserts uniqueness within itself; this checks
+  // the cross-family case (astronomically unlikely — cfgId hashes over `family` too — but the
+  // point of the assertion is not trusting that argument, per P1-3).
+  assertUniqueCfgIds(Object.values(families).flat(), 'buildE3AllCfgs');
+  return families;
 }
 
 // `node src/sweep.js --exp e1 --grid pilot --out cfgs/e1-pilot.json` — writes the committed
