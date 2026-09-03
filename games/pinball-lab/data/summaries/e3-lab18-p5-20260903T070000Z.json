@@ -1,0 +1,7880 @@
+{
+  "exp": "e3",
+  "out": "data/e3/lab18-p5-20260903T070000Z",
+  "instrumentCommitSha": "90f3263fb2703e84817e640293ba485764f6731b",
+  "generatedAt": "2026-09-03T06:53:53.129Z",
+  "cfgCount": 600,
+  "trialCount": 200000,
+  "flaggedFraction": 0,
+  "perFamilyTrials": 200000,
+  "familyMetrics": {
+    "P5": {
+      "trials": 200000,
+      "flaggedFraction": 0,
+      "impactsExhaustedFraction": 0,
+      "flaggedFractionExclArtifacts": 0,
+      "returnRate": 1,
+      "inBandFraction": 0.587035,
+      "feedFractions": {
+        "leftOutlane": 0.100525,
+        "leftInlane": 0.28704,
+        "centre": 0.24095,
+        "rightInlane": 0.266235,
+        "rightOutlane": 0.10525
+      },
+      "stallRate": 0,
+      "returnXVariety": 0.9074514289492918,
+      "timeToReturnMedianS": 0.2208333333333336,
+      "cfgs": 600
+    }
+  },
+  "secs": 2.29323225,
+  "rankingGuardFailures": [],
+  "rankingGuardFallback": {
+    "P5": {
+      "ok": true,
+      "n": 600,
+      "distinctCount": 600,
+      "maxTieFraction": 0.0016666666666666668,
+      "boundaryAmbiguity": 1,
+      "reason": null
+    }
+  },
+  "shards": [
+    {
+      "path": "shard-0.jsonl.gz"
+    },
+    {
+      "path": "shard-1.jsonl.gz"
+    },
+    {
+      "path": "shard-2.jsonl.gz"
+    },
+    {
+      "path": "shard-3.jsonl.gz"
+    },
+    {
+      "path": "shard-4.jsonl.gz"
+    },
+    {
+      "path": "shard-5.jsonl.gz"
+    },
+    {
+      "path": "shard-6.jsonl.gz"
+    },
+    {
+      "path": "shard-7.jsonl.gz"
+    },
+    {
+      "path": "shard-8.jsonl.gz"
+    },
+    {
+      "path": "shard-9.jsonl.gz"
+    },
+    {
+      "path": "shard-10.jsonl.gz"
+    }
+  ],
+  "cfgs": [
+    {
+      "cfgId": "f3207e64",
+      "cfg": {
+        "cfgId": "f3207e64",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.25,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "353f4918",
+      "cfg": {
+        "cfgId": "353f4918",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.25,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "9aae6e09",
+      "cfg": {
+        "cfgId": "9aae6e09",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.25,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "d247983e",
+      "cfg": {
+        "cfgId": "d247983e",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.25,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "1ea4cfcf",
+      "cfg": {
+        "cfgId": "1ea4cfcf",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.25,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "743541c4",
+      "cfg": {
+        "cfgId": "743541c4",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.25,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "1af91c51",
+      "cfg": {
+        "cfgId": "1af91c51",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.25,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 200
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "9eff12aa",
+      "cfg": {
+        "cfgId": "9eff12aa",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.25,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 230
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "b3e33585",
+      "cfg": {
+        "cfgId": "b3e33585",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.25,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 260
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "affad2be",
+      "cfg": {
+        "cfgId": "affad2be",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.25,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 290
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "d3702f23",
+      "cfg": {
+        "cfgId": "d3702f23",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.25,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 320
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "e6e2a8e0",
+      "cfg": {
+        "cfgId": "e6e2a8e0",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.25,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 350
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "e549fc1b",
+      "cfg": {
+        "cfgId": "e549fc1b",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.25,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "9597d318",
+      "cfg": {
+        "cfgId": "9597d318",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.25,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "71754753",
+      "cfg": {
+        "cfgId": "71754753",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.25,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "386b4c8b",
+      "cfg": {
+        "cfgId": "386b4c8b",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.25,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "b58e32c5",
+      "cfg": {
+        "cfgId": "b58e32c5",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.25,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "a3e528fc",
+      "cfg": {
+        "cfgId": "a3e528fc",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.25,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "d0abe987",
+      "cfg": {
+        "cfgId": "d0abe987",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.25,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 200
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "85ee56f0",
+      "cfg": {
+        "cfgId": "85ee56f0",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.25,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 230
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "361d5fa0",
+      "cfg": {
+        "cfgId": "361d5fa0",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.25,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 260
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "817898b0",
+      "cfg": {
+        "cfgId": "817898b0",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.25,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 290
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "9bdd868d",
+      "cfg": {
+        "cfgId": "9bdd868d",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.25,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 320
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "26836bde",
+      "cfg": {
+        "cfgId": "26836bde",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.25,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 350
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "b4273011",
+      "cfg": {
+        "cfgId": "b4273011",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.25,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "0fa51f1b",
+      "cfg": {
+        "cfgId": "0fa51f1b",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.25,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "21350945",
+      "cfg": {
+        "cfgId": "21350945",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.25,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "99d77517",
+      "cfg": {
+        "cfgId": "99d77517",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.25,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "08f143cc",
+      "cfg": {
+        "cfgId": "08f143cc",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.25,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "b8c96de5",
+      "cfg": {
+        "cfgId": "b8c96de5",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.25,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "55def1e6",
+      "cfg": {
+        "cfgId": "55def1e6",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.35,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "eebb88cc",
+      "cfg": {
+        "cfgId": "eebb88cc",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.35,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "4a31d675",
+      "cfg": {
+        "cfgId": "4a31d675",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.35,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "61ac398b",
+      "cfg": {
+        "cfgId": "61ac398b",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.35,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "fea2672c",
+      "cfg": {
+        "cfgId": "fea2672c",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.35,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "7db21981",
+      "cfg": {
+        "cfgId": "7db21981",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.35,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "9212c26b",
+      "cfg": {
+        "cfgId": "9212c26b",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.35,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 200
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "e50c133e",
+      "cfg": {
+        "cfgId": "e50c133e",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.35,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 230
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "8fcdc576",
+      "cfg": {
+        "cfgId": "8fcdc576",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.35,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 260
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "2b7fb6ce",
+      "cfg": {
+        "cfgId": "2b7fb6ce",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.35,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 290
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "1fad6190",
+      "cfg": {
+        "cfgId": "1fad6190",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.35,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 320
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "b34fca8d",
+      "cfg": {
+        "cfgId": "b34fca8d",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.35,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 350
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "01bab575",
+      "cfg": {
+        "cfgId": "01bab575",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.35,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "cc679df7",
+      "cfg": {
+        "cfgId": "cc679df7",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.35,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "f75ba2f2",
+      "cfg": {
+        "cfgId": "f75ba2f2",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.35,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "13634ba2",
+      "cfg": {
+        "cfgId": "13634ba2",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.35,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "3af603c9",
+      "cfg": {
+        "cfgId": "3af603c9",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.35,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "42ba285f",
+      "cfg": {
+        "cfgId": "42ba285f",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.35,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "ff6223da",
+      "cfg": {
+        "cfgId": "ff6223da",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.35,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 200
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "efe1a0e4",
+      "cfg": {
+        "cfgId": "efe1a0e4",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.35,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 230
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "b144f383",
+      "cfg": {
+        "cfgId": "b144f383",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.35,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 260
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "269f7f2e",
+      "cfg": {
+        "cfgId": "269f7f2e",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.35,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 290
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "d479ea8f",
+      "cfg": {
+        "cfgId": "d479ea8f",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.35,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 320
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "ae17b24b",
+      "cfg": {
+        "cfgId": "ae17b24b",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.35,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 350
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "414b355b",
+      "cfg": {
+        "cfgId": "414b355b",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.35,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "160c4d9e",
+      "cfg": {
+        "cfgId": "160c4d9e",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.35,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "f2e2cc94",
+      "cfg": {
+        "cfgId": "f2e2cc94",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.35,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "ab282624",
+      "cfg": {
+        "cfgId": "ab282624",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.35,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "b91441bd",
+      "cfg": {
+        "cfgId": "b91441bd",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.35,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "84ab3f58",
+      "cfg": {
+        "cfgId": "84ab3f58",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.35,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "bb0874a0",
+      "cfg": {
+        "cfgId": "bb0874a0",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.45,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "1e9c3295",
+      "cfg": {
+        "cfgId": "1e9c3295",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.45,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "30336a2e",
+      "cfg": {
+        "cfgId": "30336a2e",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.45,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "5a6e7792",
+      "cfg": {
+        "cfgId": "5a6e7792",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.45,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "bcdcd477",
+      "cfg": {
+        "cfgId": "bcdcd477",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.45,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "e18e6aa2",
+      "cfg": {
+        "cfgId": "e18e6aa2",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.45,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "44c2b6fd",
+      "cfg": {
+        "cfgId": "44c2b6fd",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.45,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 200
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "33391116",
+      "cfg": {
+        "cfgId": "33391116",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.45,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 230
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "53c3b4d4",
+      "cfg": {
+        "cfgId": "53c3b4d4",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.45,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 260
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "8d2b628a",
+      "cfg": {
+        "cfgId": "8d2b628a",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.45,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 290
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "4961d0e9",
+      "cfg": {
+        "cfgId": "4961d0e9",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.45,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 320
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "1065ed3e",
+      "cfg": {
+        "cfgId": "1065ed3e",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.45,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 350
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "7aca04f5",
+      "cfg": {
+        "cfgId": "7aca04f5",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.45,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "68937df6",
+      "cfg": {
+        "cfgId": "68937df6",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.45,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "11b1b80f",
+      "cfg": {
+        "cfgId": "11b1b80f",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.45,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "d1161565",
+      "cfg": {
+        "cfgId": "d1161565",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.45,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "638bb862",
+      "cfg": {
+        "cfgId": "638bb862",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.45,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "5a09f4fc",
+      "cfg": {
+        "cfgId": "5a09f4fc",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.45,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "80405d1f",
+      "cfg": {
+        "cfgId": "80405d1f",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.45,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 200
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "a7bfb0f3",
+      "cfg": {
+        "cfgId": "a7bfb0f3",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.45,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 230
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "41f0fba7",
+      "cfg": {
+        "cfgId": "41f0fba7",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.45,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 260
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "2ab03a23",
+      "cfg": {
+        "cfgId": "2ab03a23",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.45,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 290
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "5df06b69",
+      "cfg": {
+        "cfgId": "5df06b69",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.45,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 320
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "86ff8b64",
+      "cfg": {
+        "cfgId": "86ff8b64",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.45,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 350
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "012da977",
+      "cfg": {
+        "cfgId": "012da977",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.45,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "a083b2ee",
+      "cfg": {
+        "cfgId": "a083b2ee",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.45,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "d2d5fd3c",
+      "cfg": {
+        "cfgId": "d2d5fd3c",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.45,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "bda019da",
+      "cfg": {
+        "cfgId": "bda019da",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.45,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "8d4153c9",
+      "cfg": {
+        "cfgId": "8d4153c9",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.45,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "d8a931b8",
+      "cfg": {
+        "cfgId": "d8a931b8",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.45,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "2b170e62",
+      "cfg": {
+        "cfgId": "2b170e62",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.55,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "3143fc36",
+      "cfg": {
+        "cfgId": "3143fc36",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.55,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "37fdeb43",
+      "cfg": {
+        "cfgId": "37fdeb43",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.55,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "13b27a4e",
+      "cfg": {
+        "cfgId": "13b27a4e",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.55,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "230d1c61",
+      "cfg": {
+        "cfgId": "230d1c61",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.55,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "ed4a89e3",
+      "cfg": {
+        "cfgId": "ed4a89e3",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.55,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "674b9640",
+      "cfg": {
+        "cfgId": "674b9640",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.55,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 200
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "821c9f64",
+      "cfg": {
+        "cfgId": "821c9f64",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.55,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 230
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "79b69e11",
+      "cfg": {
+        "cfgId": "79b69e11",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.55,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 260
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "81aade12",
+      "cfg": {
+        "cfgId": "81aade12",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.55,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 290
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "3908d145",
+      "cfg": {
+        "cfgId": "3908d145",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.55,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 320
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "9e9db9d7",
+      "cfg": {
+        "cfgId": "9e9db9d7",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.55,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 350
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "14385147",
+      "cfg": {
+        "cfgId": "14385147",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.55,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "24f75542",
+      "cfg": {
+        "cfgId": "24f75542",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.55,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "3d9957db",
+      "cfg": {
+        "cfgId": "3d9957db",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.55,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "087d258d",
+      "cfg": {
+        "cfgId": "087d258d",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.55,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "b2dc1ec3",
+      "cfg": {
+        "cfgId": "b2dc1ec3",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.55,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "e942b77b",
+      "cfg": {
+        "cfgId": "e942b77b",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.55,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "93b7f4d1",
+      "cfg": {
+        "cfgId": "93b7f4d1",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.55,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 200
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "76fd0a89",
+      "cfg": {
+        "cfgId": "76fd0a89",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.55,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 230
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "9b788617",
+      "cfg": {
+        "cfgId": "9b788617",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.55,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 260
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "28506090",
+      "cfg": {
+        "cfgId": "28506090",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.55,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 290
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "8a06bc3c",
+      "cfg": {
+        "cfgId": "8a06bc3c",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.55,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 320
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "20c94663",
+      "cfg": {
+        "cfgId": "20c94663",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.55,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 350
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "faf388aa",
+      "cfg": {
+        "cfgId": "faf388aa",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.55,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "fcd6814d",
+      "cfg": {
+        "cfgId": "fcd6814d",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.55,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "2278b8be",
+      "cfg": {
+        "cfgId": "2278b8be",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.55,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "47e6953b",
+      "cfg": {
+        "cfgId": "47e6953b",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.55,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "6fa87025",
+      "cfg": {
+        "cfgId": "6fa87025",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.55,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "2e5846cf",
+      "cfg": {
+        "cfgId": "2e5846cf",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.12,
+        "dropY": 0.55,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "54dca4fb",
+      "cfg": {
+        "cfgId": "54dca4fb",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.25,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "9f304bd7",
+      "cfg": {
+        "cfgId": "9f304bd7",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.25,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "5b723ddf",
+      "cfg": {
+        "cfgId": "5b723ddf",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.25,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "80eb19b9",
+      "cfg": {
+        "cfgId": "80eb19b9",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.25,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "010e6550",
+      "cfg": {
+        "cfgId": "010e6550",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.25,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "0cf53a56",
+      "cfg": {
+        "cfgId": "0cf53a56",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.25,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "7363f128",
+      "cfg": {
+        "cfgId": "7363f128",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.25,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 200
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "a9097633",
+      "cfg": {
+        "cfgId": "a9097633",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.25,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 230
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "b43350fc",
+      "cfg": {
+        "cfgId": "b43350fc",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.25,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 260
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "5bbbfa79",
+      "cfg": {
+        "cfgId": "5bbbfa79",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.25,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 290
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "8b56fb2f",
+      "cfg": {
+        "cfgId": "8b56fb2f",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.25,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 320
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "b6c370bd",
+      "cfg": {
+        "cfgId": "b6c370bd",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.25,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 350
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "e9f83eeb",
+      "cfg": {
+        "cfgId": "e9f83eeb",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.25,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "f13539cc",
+      "cfg": {
+        "cfgId": "f13539cc",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.25,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "b18ac9fa",
+      "cfg": {
+        "cfgId": "b18ac9fa",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.25,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "862ef212",
+      "cfg": {
+        "cfgId": "862ef212",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.25,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "9f7f21ed",
+      "cfg": {
+        "cfgId": "9f7f21ed",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.25,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "cf98bbf7",
+      "cfg": {
+        "cfgId": "cf98bbf7",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.25,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "a1867dcb",
+      "cfg": {
+        "cfgId": "a1867dcb",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.25,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 200
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "2963a7d5",
+      "cfg": {
+        "cfgId": "2963a7d5",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.25,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 230
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "b74fd2be",
+      "cfg": {
+        "cfgId": "b74fd2be",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.25,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 260
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "361d8994",
+      "cfg": {
+        "cfgId": "361d8994",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.25,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 290
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "994e43b5",
+      "cfg": {
+        "cfgId": "994e43b5",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.25,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 320
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "d0aec79b",
+      "cfg": {
+        "cfgId": "d0aec79b",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.25,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 350
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "f09f960d",
+      "cfg": {
+        "cfgId": "f09f960d",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.25,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "83c25569",
+      "cfg": {
+        "cfgId": "83c25569",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.25,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "bc2e2927",
+      "cfg": {
+        "cfgId": "bc2e2927",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.25,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "2fa3f4ee",
+      "cfg": {
+        "cfgId": "2fa3f4ee",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.25,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "6ac5de29",
+      "cfg": {
+        "cfgId": "6ac5de29",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.25,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "2b654c04",
+      "cfg": {
+        "cfgId": "2b654c04",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.25,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "f18a226e",
+      "cfg": {
+        "cfgId": "f18a226e",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.35,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "376569dd",
+      "cfg": {
+        "cfgId": "376569dd",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.35,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "17cc2fd2",
+      "cfg": {
+        "cfgId": "17cc2fd2",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.35,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "6238ae23",
+      "cfg": {
+        "cfgId": "6238ae23",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.35,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "39ffe8ca",
+      "cfg": {
+        "cfgId": "39ffe8ca",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.35,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "c1456557",
+      "cfg": {
+        "cfgId": "c1456557",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.35,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "4b30acdc",
+      "cfg": {
+        "cfgId": "4b30acdc",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.35,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 200
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "cb730f56",
+      "cfg": {
+        "cfgId": "cb730f56",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.35,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 230
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "472ae1fe",
+      "cfg": {
+        "cfgId": "472ae1fe",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.35,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 260
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "d0c3c086",
+      "cfg": {
+        "cfgId": "d0c3c086",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.35,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 290
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "c2befc2c",
+      "cfg": {
+        "cfgId": "c2befc2c",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.35,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 320
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "4833f321",
+      "cfg": {
+        "cfgId": "4833f321",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.35,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 350
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "177438b9",
+      "cfg": {
+        "cfgId": "177438b9",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.35,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "2d46654d",
+      "cfg": {
+        "cfgId": "2d46654d",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.35,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "a46ed6f3",
+      "cfg": {
+        "cfgId": "a46ed6f3",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.35,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "6f4173f2",
+      "cfg": {
+        "cfgId": "6f4173f2",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.35,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "0e69e8bf",
+      "cfg": {
+        "cfgId": "0e69e8bf",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.35,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "9992b9f7",
+      "cfg": {
+        "cfgId": "9992b9f7",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.35,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "2512b3d0",
+      "cfg": {
+        "cfgId": "2512b3d0",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.35,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 200
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "bd442aed",
+      "cfg": {
+        "cfgId": "bd442aed",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.35,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 230
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "503ee2b2",
+      "cfg": {
+        "cfgId": "503ee2b2",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.35,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 260
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "af5701d0",
+      "cfg": {
+        "cfgId": "af5701d0",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.35,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 290
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "5cf46837",
+      "cfg": {
+        "cfgId": "5cf46837",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.35,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 320
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "868d0528",
+      "cfg": {
+        "cfgId": "868d0528",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.35,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 350
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "262b69f7",
+      "cfg": {
+        "cfgId": "262b69f7",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.35,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "c7defc36",
+      "cfg": {
+        "cfgId": "c7defc36",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.35,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "c062a6ef",
+      "cfg": {
+        "cfgId": "c062a6ef",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.35,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "c767bd75",
+      "cfg": {
+        "cfgId": "c767bd75",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.35,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "15b8926a",
+      "cfg": {
+        "cfgId": "15b8926a",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.35,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "9b736e32",
+      "cfg": {
+        "cfgId": "9b736e32",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.35,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "e11dab6c",
+      "cfg": {
+        "cfgId": "e11dab6c",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.45,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "6efef459",
+      "cfg": {
+        "cfgId": "6efef459",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.45,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "79f51554",
+      "cfg": {
+        "cfgId": "79f51554",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.45,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "9aeaa08f",
+      "cfg": {
+        "cfgId": "9aeaa08f",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.45,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "b0b574c2",
+      "cfg": {
+        "cfgId": "b0b574c2",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.45,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "75b4e7d2",
+      "cfg": {
+        "cfgId": "75b4e7d2",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.45,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "7aca5924",
+      "cfg": {
+        "cfgId": "7aca5924",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.45,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 200
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "700f6474",
+      "cfg": {
+        "cfgId": "700f6474",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.45,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 230
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "42bce49d",
+      "cfg": {
+        "cfgId": "42bce49d",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.45,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 260
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "626a57f2",
+      "cfg": {
+        "cfgId": "626a57f2",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.45,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 290
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "f8ae3381",
+      "cfg": {
+        "cfgId": "f8ae3381",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.45,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 320
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "d1f1c592",
+      "cfg": {
+        "cfgId": "d1f1c592",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.45,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 350
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "6ebf8a46",
+      "cfg": {
+        "cfgId": "6ebf8a46",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.45,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "7c195aae",
+      "cfg": {
+        "cfgId": "7c195aae",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.45,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "ba219887",
+      "cfg": {
+        "cfgId": "ba219887",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.45,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "031efb7a",
+      "cfg": {
+        "cfgId": "031efb7a",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.45,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "f1b84355",
+      "cfg": {
+        "cfgId": "f1b84355",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.45,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "8dfcc625",
+      "cfg": {
+        "cfgId": "8dfcc625",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.45,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "867a0d40",
+      "cfg": {
+        "cfgId": "867a0d40",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.45,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 200
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "0860f8bb",
+      "cfg": {
+        "cfgId": "0860f8bb",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.45,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 230
+      },
+      "trials": 334
+    },
+    {
+      "cfgId": "5f37fcb4",
+      "cfg": {
+        "cfgId": "5f37fcb4",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.45,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "7d9954c9",
+      "cfg": {
+        "cfgId": "7d9954c9",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.45,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "de9c5b79",
+      "cfg": {
+        "cfgId": "de9c5b79",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.45,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "94efbbb0",
+      "cfg": {
+        "cfgId": "94efbbb0",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.45,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "92c6714f",
+      "cfg": {
+        "cfgId": "92c6714f",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.45,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "420f7cc7",
+      "cfg": {
+        "cfgId": "420f7cc7",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.45,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "6b929510",
+      "cfg": {
+        "cfgId": "6b929510",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.45,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "c08d0dc5",
+      "cfg": {
+        "cfgId": "c08d0dc5",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.45,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "6ca3684a",
+      "cfg": {
+        "cfgId": "6ca3684a",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.45,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "d5dfb0a3",
+      "cfg": {
+        "cfgId": "d5dfb0a3",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.45,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "6869a194",
+      "cfg": {
+        "cfgId": "6869a194",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.55,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "9b5f06e3",
+      "cfg": {
+        "cfgId": "9b5f06e3",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.55,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "bbece7b3",
+      "cfg": {
+        "cfgId": "bbece7b3",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.55,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "37c19a07",
+      "cfg": {
+        "cfgId": "37c19a07",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.55,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "727134cb",
+      "cfg": {
+        "cfgId": "727134cb",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.55,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "06f2b0c1",
+      "cfg": {
+        "cfgId": "06f2b0c1",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.55,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "47e66087",
+      "cfg": {
+        "cfgId": "47e66087",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.55,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "0be9f839",
+      "cfg": {
+        "cfgId": "0be9f839",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.55,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "57cf5c81",
+      "cfg": {
+        "cfgId": "57cf5c81",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.55,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "7a087b36",
+      "cfg": {
+        "cfgId": "7a087b36",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.55,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "6ddc1603",
+      "cfg": {
+        "cfgId": "6ddc1603",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.55,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "b2b5cdca",
+      "cfg": {
+        "cfgId": "b2b5cdca",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.55,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "2492448d",
+      "cfg": {
+        "cfgId": "2492448d",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.55,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "9c1343ab",
+      "cfg": {
+        "cfgId": "9c1343ab",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.55,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "9ff17379",
+      "cfg": {
+        "cfgId": "9ff17379",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.55,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "f1021b91",
+      "cfg": {
+        "cfgId": "f1021b91",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.55,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "880a4b11",
+      "cfg": {
+        "cfgId": "880a4b11",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.55,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "a3421947",
+      "cfg": {
+        "cfgId": "a3421947",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.55,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "321c7ad1",
+      "cfg": {
+        "cfgId": "321c7ad1",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.55,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "63327bca",
+      "cfg": {
+        "cfgId": "63327bca",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.55,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "3e74e4a3",
+      "cfg": {
+        "cfgId": "3e74e4a3",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.55,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "4ce81169",
+      "cfg": {
+        "cfgId": "4ce81169",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.55,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "a09198c2",
+      "cfg": {
+        "cfgId": "a09198c2",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.55,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "6c9a1815",
+      "cfg": {
+        "cfgId": "6c9a1815",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.55,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "befdadb2",
+      "cfg": {
+        "cfgId": "befdadb2",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.55,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "edca77d7",
+      "cfg": {
+        "cfgId": "edca77d7",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.55,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "82b1eb4a",
+      "cfg": {
+        "cfgId": "82b1eb4a",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.55,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "15223a37",
+      "cfg": {
+        "cfgId": "15223a37",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.55,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "dc019ef6",
+      "cfg": {
+        "cfgId": "dc019ef6",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.55,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "d5b5a444",
+      "cfg": {
+        "cfgId": "d5b5a444",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": -0.06,
+        "dropY": 0.55,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "46b65fde",
+      "cfg": {
+        "cfgId": "46b65fde",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.25,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "b17fd59e",
+      "cfg": {
+        "cfgId": "b17fd59e",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.25,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "54dd7552",
+      "cfg": {
+        "cfgId": "54dd7552",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.25,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "a898d7df",
+      "cfg": {
+        "cfgId": "a898d7df",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.25,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "d498cdb0",
+      "cfg": {
+        "cfgId": "d498cdb0",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.25,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "7601bf21",
+      "cfg": {
+        "cfgId": "7601bf21",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.25,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "87a77e23",
+      "cfg": {
+        "cfgId": "87a77e23",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.25,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "4e880c36",
+      "cfg": {
+        "cfgId": "4e880c36",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.25,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "ae321bf6",
+      "cfg": {
+        "cfgId": "ae321bf6",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.25,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "89a9ae54",
+      "cfg": {
+        "cfgId": "89a9ae54",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.25,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "2b82f06e",
+      "cfg": {
+        "cfgId": "2b82f06e",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.25,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "570cb872",
+      "cfg": {
+        "cfgId": "570cb872",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.25,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "44eeb6ab",
+      "cfg": {
+        "cfgId": "44eeb6ab",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.25,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "748b8ebf",
+      "cfg": {
+        "cfgId": "748b8ebf",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.25,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "e2cd3bf6",
+      "cfg": {
+        "cfgId": "e2cd3bf6",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.25,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "8653c0a9",
+      "cfg": {
+        "cfgId": "8653c0a9",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.25,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "4394d333",
+      "cfg": {
+        "cfgId": "4394d333",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.25,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "2569c887",
+      "cfg": {
+        "cfgId": "2569c887",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.25,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "b27b2800",
+      "cfg": {
+        "cfgId": "b27b2800",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.25,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "131dabbc",
+      "cfg": {
+        "cfgId": "131dabbc",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.25,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "c269519a",
+      "cfg": {
+        "cfgId": "c269519a",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.25,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "54bc5d67",
+      "cfg": {
+        "cfgId": "54bc5d67",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.25,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "11a7543b",
+      "cfg": {
+        "cfgId": "11a7543b",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.25,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "53bf9b89",
+      "cfg": {
+        "cfgId": "53bf9b89",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.25,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "cb95a9cc",
+      "cfg": {
+        "cfgId": "cb95a9cc",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.25,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "4c75e3bc",
+      "cfg": {
+        "cfgId": "4c75e3bc",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.25,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "feb7baab",
+      "cfg": {
+        "cfgId": "feb7baab",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.25,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "4e141eb5",
+      "cfg": {
+        "cfgId": "4e141eb5",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.25,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "f55b7c22",
+      "cfg": {
+        "cfgId": "f55b7c22",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.25,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "d9586268",
+      "cfg": {
+        "cfgId": "d9586268",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.25,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "fb45027c",
+      "cfg": {
+        "cfgId": "fb45027c",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.35,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "5556d4eb",
+      "cfg": {
+        "cfgId": "5556d4eb",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.35,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "830fe0b7",
+      "cfg": {
+        "cfgId": "830fe0b7",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.35,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "6e2ccca3",
+      "cfg": {
+        "cfgId": "6e2ccca3",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.35,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "3398bf69",
+      "cfg": {
+        "cfgId": "3398bf69",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.35,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "0bce7312",
+      "cfg": {
+        "cfgId": "0bce7312",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.35,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "5827109a",
+      "cfg": {
+        "cfgId": "5827109a",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.35,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "0afe75d5",
+      "cfg": {
+        "cfgId": "0afe75d5",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.35,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "01cae823",
+      "cfg": {
+        "cfgId": "01cae823",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.35,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "084acd83",
+      "cfg": {
+        "cfgId": "084acd83",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.35,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "0ab8b9ff",
+      "cfg": {
+        "cfgId": "0ab8b9ff",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.35,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "d73111da",
+      "cfg": {
+        "cfgId": "d73111da",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.35,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "a006ed9f",
+      "cfg": {
+        "cfgId": "a006ed9f",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.35,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "04a46d42",
+      "cfg": {
+        "cfgId": "04a46d42",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.35,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "aababb73",
+      "cfg": {
+        "cfgId": "aababb73",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.35,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "1b632f3c",
+      "cfg": {
+        "cfgId": "1b632f3c",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.35,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "854a236b",
+      "cfg": {
+        "cfgId": "854a236b",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.35,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "621e2b7d",
+      "cfg": {
+        "cfgId": "621e2b7d",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.35,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "8d70928e",
+      "cfg": {
+        "cfgId": "8d70928e",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.35,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "cff33344",
+      "cfg": {
+        "cfgId": "cff33344",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.35,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "c9f9ec60",
+      "cfg": {
+        "cfgId": "c9f9ec60",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.35,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "360d8e90",
+      "cfg": {
+        "cfgId": "360d8e90",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.35,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "59adfc86",
+      "cfg": {
+        "cfgId": "59adfc86",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.35,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "feaced83",
+      "cfg": {
+        "cfgId": "feaced83",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.35,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "c199b359",
+      "cfg": {
+        "cfgId": "c199b359",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.35,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "d18bab70",
+      "cfg": {
+        "cfgId": "d18bab70",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.35,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "7e8110cb",
+      "cfg": {
+        "cfgId": "7e8110cb",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.35,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "9f4fc2b4",
+      "cfg": {
+        "cfgId": "9f4fc2b4",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.35,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "cdc0b6ff",
+      "cfg": {
+        "cfgId": "cdc0b6ff",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.35,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "e077dfe9",
+      "cfg": {
+        "cfgId": "e077dfe9",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.35,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "ace19476",
+      "cfg": {
+        "cfgId": "ace19476",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.45,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "60e0ce0c",
+      "cfg": {
+        "cfgId": "60e0ce0c",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.45,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "ee3bfd5b",
+      "cfg": {
+        "cfgId": "ee3bfd5b",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.45,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "d4e94b6b",
+      "cfg": {
+        "cfgId": "d4e94b6b",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.45,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "6ae2a4a2",
+      "cfg": {
+        "cfgId": "6ae2a4a2",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.45,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "9f932fed",
+      "cfg": {
+        "cfgId": "9f932fed",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.45,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "c45adc93",
+      "cfg": {
+        "cfgId": "c45adc93",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.45,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "74fb3322",
+      "cfg": {
+        "cfgId": "74fb3322",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.45,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "c2dffd33",
+      "cfg": {
+        "cfgId": "c2dffd33",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.45,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "ee74200f",
+      "cfg": {
+        "cfgId": "ee74200f",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.45,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "daadd988",
+      "cfg": {
+        "cfgId": "daadd988",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.45,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "b95a9e70",
+      "cfg": {
+        "cfgId": "b95a9e70",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.45,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "d05e6b1d",
+      "cfg": {
+        "cfgId": "d05e6b1d",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.45,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "1c460fd5",
+      "cfg": {
+        "cfgId": "1c460fd5",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.45,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "a6bf10dd",
+      "cfg": {
+        "cfgId": "a6bf10dd",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.45,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "a6f90a35",
+      "cfg": {
+        "cfgId": "a6f90a35",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.45,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "c7dbb09a",
+      "cfg": {
+        "cfgId": "c7dbb09a",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.45,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "13aa58f8",
+      "cfg": {
+        "cfgId": "13aa58f8",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.45,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "71034aa4",
+      "cfg": {
+        "cfgId": "71034aa4",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.45,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "f2a5f47d",
+      "cfg": {
+        "cfgId": "f2a5f47d",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.45,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "84065378",
+      "cfg": {
+        "cfgId": "84065378",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.45,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "59ea5b82",
+      "cfg": {
+        "cfgId": "59ea5b82",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.45,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "761992ae",
+      "cfg": {
+        "cfgId": "761992ae",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.45,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "4e31d84a",
+      "cfg": {
+        "cfgId": "4e31d84a",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.45,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "386a1001",
+      "cfg": {
+        "cfgId": "386a1001",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.45,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "6cdb647b",
+      "cfg": {
+        "cfgId": "6cdb647b",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.45,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "2c6440a3",
+      "cfg": {
+        "cfgId": "2c6440a3",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.45,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "4c4276df",
+      "cfg": {
+        "cfgId": "4c4276df",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.45,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "559e9af4",
+      "cfg": {
+        "cfgId": "559e9af4",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.45,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "c2008bd9",
+      "cfg": {
+        "cfgId": "c2008bd9",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.45,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "1c081e4f",
+      "cfg": {
+        "cfgId": "1c081e4f",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.55,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "8f929f51",
+      "cfg": {
+        "cfgId": "8f929f51",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.55,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "17e413f9",
+      "cfg": {
+        "cfgId": "17e413f9",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.55,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "ad54b704",
+      "cfg": {
+        "cfgId": "ad54b704",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.55,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "2526a428",
+      "cfg": {
+        "cfgId": "2526a428",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.55,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "41bf6857",
+      "cfg": {
+        "cfgId": "41bf6857",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.55,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "e883272d",
+      "cfg": {
+        "cfgId": "e883272d",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.55,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "68a5e051",
+      "cfg": {
+        "cfgId": "68a5e051",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.55,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "6cb54847",
+      "cfg": {
+        "cfgId": "6cb54847",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.55,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "f3c2621b",
+      "cfg": {
+        "cfgId": "f3c2621b",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.55,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "99b38256",
+      "cfg": {
+        "cfgId": "99b38256",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.55,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "5525e57d",
+      "cfg": {
+        "cfgId": "5525e57d",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.55,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "92e501f6",
+      "cfg": {
+        "cfgId": "92e501f6",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.55,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "41bb9652",
+      "cfg": {
+        "cfgId": "41bb9652",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.55,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "c7d3785a",
+      "cfg": {
+        "cfgId": "c7d3785a",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.55,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "54220c8a",
+      "cfg": {
+        "cfgId": "54220c8a",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.55,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "eb683479",
+      "cfg": {
+        "cfgId": "eb683479",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.55,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "0869ab9c",
+      "cfg": {
+        "cfgId": "0869ab9c",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.55,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "bcbbd868",
+      "cfg": {
+        "cfgId": "bcbbd868",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.55,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "94346a5a",
+      "cfg": {
+        "cfgId": "94346a5a",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.55,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "15e2ec1d",
+      "cfg": {
+        "cfgId": "15e2ec1d",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.55,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "4e286e42",
+      "cfg": {
+        "cfgId": "4e286e42",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.55,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "f9ce46d9",
+      "cfg": {
+        "cfgId": "f9ce46d9",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.55,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "30f982d8",
+      "cfg": {
+        "cfgId": "30f982d8",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.55,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "65b07172",
+      "cfg": {
+        "cfgId": "65b07172",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.55,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "8f640040",
+      "cfg": {
+        "cfgId": "8f640040",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.55,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "2dab5e4f",
+      "cfg": {
+        "cfgId": "2dab5e4f",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.55,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "d13f4f73",
+      "cfg": {
+        "cfgId": "d13f4f73",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.55,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "41c19b02",
+      "cfg": {
+        "cfgId": "41c19b02",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.55,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "357aa980",
+      "cfg": {
+        "cfgId": "357aa980",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0,
+        "dropY": 0.55,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "ca4ca14f",
+      "cfg": {
+        "cfgId": "ca4ca14f",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.25,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "a15cfed0",
+      "cfg": {
+        "cfgId": "a15cfed0",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.25,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "486ccb41",
+      "cfg": {
+        "cfgId": "486ccb41",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.25,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "e6c3f0d1",
+      "cfg": {
+        "cfgId": "e6c3f0d1",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.25,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "53861a71",
+      "cfg": {
+        "cfgId": "53861a71",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.25,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "e45f1474",
+      "cfg": {
+        "cfgId": "e45f1474",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.25,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "1ce2e8b2",
+      "cfg": {
+        "cfgId": "1ce2e8b2",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.25,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "9570189b",
+      "cfg": {
+        "cfgId": "9570189b",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.25,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "9b2b329c",
+      "cfg": {
+        "cfgId": "9b2b329c",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.25,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "b7d93938",
+      "cfg": {
+        "cfgId": "b7d93938",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.25,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "7e92b987",
+      "cfg": {
+        "cfgId": "7e92b987",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.25,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "3f0dd1ed",
+      "cfg": {
+        "cfgId": "3f0dd1ed",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.25,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "4a10a9df",
+      "cfg": {
+        "cfgId": "4a10a9df",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.25,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "70766a87",
+      "cfg": {
+        "cfgId": "70766a87",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.25,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "a30b6d60",
+      "cfg": {
+        "cfgId": "a30b6d60",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.25,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "9ee26f6b",
+      "cfg": {
+        "cfgId": "9ee26f6b",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.25,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "f310901e",
+      "cfg": {
+        "cfgId": "f310901e",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.25,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "fa6b072d",
+      "cfg": {
+        "cfgId": "fa6b072d",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.25,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "b4b0c4ab",
+      "cfg": {
+        "cfgId": "b4b0c4ab",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.25,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "55b42d1b",
+      "cfg": {
+        "cfgId": "55b42d1b",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.25,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "0cffe641",
+      "cfg": {
+        "cfgId": "0cffe641",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.25,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "eeaf078a",
+      "cfg": {
+        "cfgId": "eeaf078a",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.25,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "ea15b93d",
+      "cfg": {
+        "cfgId": "ea15b93d",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.25,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "5da9b8e3",
+      "cfg": {
+        "cfgId": "5da9b8e3",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.25,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "9b45a9e7",
+      "cfg": {
+        "cfgId": "9b45a9e7",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.25,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "c560ee35",
+      "cfg": {
+        "cfgId": "c560ee35",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.25,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "386caa9b",
+      "cfg": {
+        "cfgId": "386caa9b",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.25,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "f82099d2",
+      "cfg": {
+        "cfgId": "f82099d2",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.25,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "26e502f0",
+      "cfg": {
+        "cfgId": "26e502f0",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.25,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "895ec01a",
+      "cfg": {
+        "cfgId": "895ec01a",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.25,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "5961e814",
+      "cfg": {
+        "cfgId": "5961e814",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.35,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "bef8131e",
+      "cfg": {
+        "cfgId": "bef8131e",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.35,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "4dd88e90",
+      "cfg": {
+        "cfgId": "4dd88e90",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.35,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "1fdbdb3f",
+      "cfg": {
+        "cfgId": "1fdbdb3f",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.35,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "c63dfa3b",
+      "cfg": {
+        "cfgId": "c63dfa3b",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.35,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "0d497a77",
+      "cfg": {
+        "cfgId": "0d497a77",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.35,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "336edba3",
+      "cfg": {
+        "cfgId": "336edba3",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.35,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "85b49fca",
+      "cfg": {
+        "cfgId": "85b49fca",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.35,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "39418403",
+      "cfg": {
+        "cfgId": "39418403",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.35,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "e6fa2abc",
+      "cfg": {
+        "cfgId": "e6fa2abc",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.35,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "956d9476",
+      "cfg": {
+        "cfgId": "956d9476",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.35,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "d4a8946d",
+      "cfg": {
+        "cfgId": "d4a8946d",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.35,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "0e755ebf",
+      "cfg": {
+        "cfgId": "0e755ebf",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.35,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "0fd32916",
+      "cfg": {
+        "cfgId": "0fd32916",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.35,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "b44b6928",
+      "cfg": {
+        "cfgId": "b44b6928",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.35,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "b11835cb",
+      "cfg": {
+        "cfgId": "b11835cb",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.35,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "3364ea55",
+      "cfg": {
+        "cfgId": "3364ea55",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.35,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "7de04277",
+      "cfg": {
+        "cfgId": "7de04277",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.35,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "7fc62c92",
+      "cfg": {
+        "cfgId": "7fc62c92",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.35,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "54b3504f",
+      "cfg": {
+        "cfgId": "54b3504f",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.35,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "f5272e2a",
+      "cfg": {
+        "cfgId": "f5272e2a",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.35,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "7b482a70",
+      "cfg": {
+        "cfgId": "7b482a70",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.35,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "30deda9c",
+      "cfg": {
+        "cfgId": "30deda9c",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.35,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "87cc28ba",
+      "cfg": {
+        "cfgId": "87cc28ba",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.35,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "82a80e46",
+      "cfg": {
+        "cfgId": "82a80e46",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.35,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "1badcc77",
+      "cfg": {
+        "cfgId": "1badcc77",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.35,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "2b78a3d4",
+      "cfg": {
+        "cfgId": "2b78a3d4",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.35,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "7e5388e6",
+      "cfg": {
+        "cfgId": "7e5388e6",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.35,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "d54d78f7",
+      "cfg": {
+        "cfgId": "d54d78f7",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.35,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "3a7b804d",
+      "cfg": {
+        "cfgId": "3a7b804d",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.35,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "f9570d35",
+      "cfg": {
+        "cfgId": "f9570d35",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.45,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "62c00171",
+      "cfg": {
+        "cfgId": "62c00171",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.45,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "85e718ca",
+      "cfg": {
+        "cfgId": "85e718ca",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.45,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "27de25f5",
+      "cfg": {
+        "cfgId": "27de25f5",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.45,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "f3b441af",
+      "cfg": {
+        "cfgId": "f3b441af",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.45,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "c851025e",
+      "cfg": {
+        "cfgId": "c851025e",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.45,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "96bf9674",
+      "cfg": {
+        "cfgId": "96bf9674",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.45,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "ec521d0b",
+      "cfg": {
+        "cfgId": "ec521d0b",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.45,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "7dbfbb9a",
+      "cfg": {
+        "cfgId": "7dbfbb9a",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.45,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "e84fb21e",
+      "cfg": {
+        "cfgId": "e84fb21e",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.45,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "85f2f19a",
+      "cfg": {
+        "cfgId": "85f2f19a",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.45,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "b6c9d9fa",
+      "cfg": {
+        "cfgId": "b6c9d9fa",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.45,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "7be2e282",
+      "cfg": {
+        "cfgId": "7be2e282",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.45,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "c7202196",
+      "cfg": {
+        "cfgId": "c7202196",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.45,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "3af10ec4",
+      "cfg": {
+        "cfgId": "3af10ec4",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.45,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "efc999be",
+      "cfg": {
+        "cfgId": "efc999be",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.45,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "eba9756c",
+      "cfg": {
+        "cfgId": "eba9756c",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.45,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "3d622542",
+      "cfg": {
+        "cfgId": "3d622542",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.45,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "9b835e94",
+      "cfg": {
+        "cfgId": "9b835e94",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.45,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "b70059fa",
+      "cfg": {
+        "cfgId": "b70059fa",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.45,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "34e09cf5",
+      "cfg": {
+        "cfgId": "34e09cf5",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.45,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "4be4f14f",
+      "cfg": {
+        "cfgId": "4be4f14f",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.45,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "a933a7d2",
+      "cfg": {
+        "cfgId": "a933a7d2",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.45,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "2757f3df",
+      "cfg": {
+        "cfgId": "2757f3df",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.45,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "f7148f4f",
+      "cfg": {
+        "cfgId": "f7148f4f",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.45,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "3f4be392",
+      "cfg": {
+        "cfgId": "3f4be392",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.45,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "cd7b3812",
+      "cfg": {
+        "cfgId": "cd7b3812",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.45,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "5e00ae34",
+      "cfg": {
+        "cfgId": "5e00ae34",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.45,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "697e2b1e",
+      "cfg": {
+        "cfgId": "697e2b1e",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.45,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "4d04718b",
+      "cfg": {
+        "cfgId": "4d04718b",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.45,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "810dda74",
+      "cfg": {
+        "cfgId": "810dda74",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.55,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "d5f7a134",
+      "cfg": {
+        "cfgId": "d5f7a134",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.55,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "b5bbd2fb",
+      "cfg": {
+        "cfgId": "b5bbd2fb",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.55,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "44c0efc2",
+      "cfg": {
+        "cfgId": "44c0efc2",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.55,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "5a894290",
+      "cfg": {
+        "cfgId": "5a894290",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.55,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "6e1390c6",
+      "cfg": {
+        "cfgId": "6e1390c6",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.55,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "b0e4cd62",
+      "cfg": {
+        "cfgId": "b0e4cd62",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.55,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "fc8d9d2b",
+      "cfg": {
+        "cfgId": "fc8d9d2b",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.55,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "cc267768",
+      "cfg": {
+        "cfgId": "cc267768",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.55,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "68fd2260",
+      "cfg": {
+        "cfgId": "68fd2260",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.55,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "6e085975",
+      "cfg": {
+        "cfgId": "6e085975",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.55,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "fa6de706",
+      "cfg": {
+        "cfgId": "fa6de706",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.55,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "77f06942",
+      "cfg": {
+        "cfgId": "77f06942",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.55,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "3b5c322a",
+      "cfg": {
+        "cfgId": "3b5c322a",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.55,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "a1ba3ae0",
+      "cfg": {
+        "cfgId": "a1ba3ae0",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.55,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "f5c1ea56",
+      "cfg": {
+        "cfgId": "f5c1ea56",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.55,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "14d267b8",
+      "cfg": {
+        "cfgId": "14d267b8",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.55,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "53d815f9",
+      "cfg": {
+        "cfgId": "53d815f9",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.55,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "e22b7b64",
+      "cfg": {
+        "cfgId": "e22b7b64",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.55,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "48d844ea",
+      "cfg": {
+        "cfgId": "48d844ea",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.55,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "5dd8c1d2",
+      "cfg": {
+        "cfgId": "5dd8c1d2",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.55,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "f4db913c",
+      "cfg": {
+        "cfgId": "f4db913c",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.55,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "2d480ac8",
+      "cfg": {
+        "cfgId": "2d480ac8",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.55,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "aca9af4d",
+      "cfg": {
+        "cfgId": "aca9af4d",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.55,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "a5dc42b0",
+      "cfg": {
+        "cfgId": "a5dc42b0",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.55,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "b5acde4b",
+      "cfg": {
+        "cfgId": "b5acde4b",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.55,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "917e977d",
+      "cfg": {
+        "cfgId": "917e977d",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.55,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "b3e0aea4",
+      "cfg": {
+        "cfgId": "b3e0aea4",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.55,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "05c798a8",
+      "cfg": {
+        "cfgId": "05c798a8",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.55,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "a1b58be1",
+      "cfg": {
+        "cfgId": "a1b58be1",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.06,
+        "dropY": 0.55,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "ebb59c3d",
+      "cfg": {
+        "cfgId": "ebb59c3d",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.25,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "32e5425a",
+      "cfg": {
+        "cfgId": "32e5425a",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.25,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "f6da1b7a",
+      "cfg": {
+        "cfgId": "f6da1b7a",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.25,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "1bef506c",
+      "cfg": {
+        "cfgId": "1bef506c",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.25,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "7890b317",
+      "cfg": {
+        "cfgId": "7890b317",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.25,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "79d1217a",
+      "cfg": {
+        "cfgId": "79d1217a",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.25,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "559f970c",
+      "cfg": {
+        "cfgId": "559f970c",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.25,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "72c15d26",
+      "cfg": {
+        "cfgId": "72c15d26",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.25,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "d62d08c9",
+      "cfg": {
+        "cfgId": "d62d08c9",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.25,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "95c51ebf",
+      "cfg": {
+        "cfgId": "95c51ebf",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.25,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "a3f1362e",
+      "cfg": {
+        "cfgId": "a3f1362e",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.25,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "b06a8fe4",
+      "cfg": {
+        "cfgId": "b06a8fe4",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.25,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "35ee7baf",
+      "cfg": {
+        "cfgId": "35ee7baf",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.25,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "b1524103",
+      "cfg": {
+        "cfgId": "b1524103",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.25,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "b30be3f4",
+      "cfg": {
+        "cfgId": "b30be3f4",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.25,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "cf9c3d64",
+      "cfg": {
+        "cfgId": "cf9c3d64",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.25,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "d15c5878",
+      "cfg": {
+        "cfgId": "d15c5878",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.25,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "8ff8ba64",
+      "cfg": {
+        "cfgId": "8ff8ba64",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.25,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "36ce13ba",
+      "cfg": {
+        "cfgId": "36ce13ba",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.25,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "6092802d",
+      "cfg": {
+        "cfgId": "6092802d",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.25,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "f9a3bd95",
+      "cfg": {
+        "cfgId": "f9a3bd95",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.25,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "d8e55adf",
+      "cfg": {
+        "cfgId": "d8e55adf",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.25,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "96fb540f",
+      "cfg": {
+        "cfgId": "96fb540f",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.25,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "eb3cff81",
+      "cfg": {
+        "cfgId": "eb3cff81",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.25,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "7a4b8f71",
+      "cfg": {
+        "cfgId": "7a4b8f71",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.25,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "73a0936d",
+      "cfg": {
+        "cfgId": "73a0936d",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.25,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "46d248dc",
+      "cfg": {
+        "cfgId": "46d248dc",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.25,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "0a5ea466",
+      "cfg": {
+        "cfgId": "0a5ea466",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.25,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "e0cbbc02",
+      "cfg": {
+        "cfgId": "e0cbbc02",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.25,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "9eee91af",
+      "cfg": {
+        "cfgId": "9eee91af",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.25,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "5157c1e0",
+      "cfg": {
+        "cfgId": "5157c1e0",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.35,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "aba001bc",
+      "cfg": {
+        "cfgId": "aba001bc",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.35,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "bb6e5efc",
+      "cfg": {
+        "cfgId": "bb6e5efc",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.35,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "8127f73c",
+      "cfg": {
+        "cfgId": "8127f73c",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.35,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "0af0045d",
+      "cfg": {
+        "cfgId": "0af0045d",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.35,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "4358ad9b",
+      "cfg": {
+        "cfgId": "4358ad9b",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.35,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "798a4584",
+      "cfg": {
+        "cfgId": "798a4584",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.35,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "735d878f",
+      "cfg": {
+        "cfgId": "735d878f",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.35,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "74d94751",
+      "cfg": {
+        "cfgId": "74d94751",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.35,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "9a0b14fb",
+      "cfg": {
+        "cfgId": "9a0b14fb",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.35,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "6ec5ff92",
+      "cfg": {
+        "cfgId": "6ec5ff92",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.35,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "edbf8a4e",
+      "cfg": {
+        "cfgId": "edbf8a4e",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.35,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "f5916853",
+      "cfg": {
+        "cfgId": "f5916853",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.35,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "d0d298d4",
+      "cfg": {
+        "cfgId": "d0d298d4",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.35,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "60b6261e",
+      "cfg": {
+        "cfgId": "60b6261e",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.35,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "3e18ac02",
+      "cfg": {
+        "cfgId": "3e18ac02",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.35,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "af31738c",
+      "cfg": {
+        "cfgId": "af31738c",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.35,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "8b0314a2",
+      "cfg": {
+        "cfgId": "8b0314a2",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.35,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "c9065e01",
+      "cfg": {
+        "cfgId": "c9065e01",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.35,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "f7f7e7c5",
+      "cfg": {
+        "cfgId": "f7f7e7c5",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.35,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "6af0d2c0",
+      "cfg": {
+        "cfgId": "6af0d2c0",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.35,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "a63657b1",
+      "cfg": {
+        "cfgId": "a63657b1",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.35,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "ee66af01",
+      "cfg": {
+        "cfgId": "ee66af01",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.35,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "3510e9f0",
+      "cfg": {
+        "cfgId": "3510e9f0",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.35,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "cd0dd111",
+      "cfg": {
+        "cfgId": "cd0dd111",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.35,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "243459f5",
+      "cfg": {
+        "cfgId": "243459f5",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.35,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "6d4fe0e4",
+      "cfg": {
+        "cfgId": "6d4fe0e4",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.35,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "a1617cfa",
+      "cfg": {
+        "cfgId": "a1617cfa",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.35,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "66141303",
+      "cfg": {
+        "cfgId": "66141303",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.35,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "4e172fc6",
+      "cfg": {
+        "cfgId": "4e172fc6",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.35,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "4eb6befe",
+      "cfg": {
+        "cfgId": "4eb6befe",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.45,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "8c4b7296",
+      "cfg": {
+        "cfgId": "8c4b7296",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.45,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "fd56a780",
+      "cfg": {
+        "cfgId": "fd56a780",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.45,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "86d12f14",
+      "cfg": {
+        "cfgId": "86d12f14",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.45,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "718b4a92",
+      "cfg": {
+        "cfgId": "718b4a92",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.45,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "596162db",
+      "cfg": {
+        "cfgId": "596162db",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.45,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "1974918b",
+      "cfg": {
+        "cfgId": "1974918b",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.45,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "907635d0",
+      "cfg": {
+        "cfgId": "907635d0",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.45,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "fb6e7c1b",
+      "cfg": {
+        "cfgId": "fb6e7c1b",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.45,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "d0ce8b55",
+      "cfg": {
+        "cfgId": "d0ce8b55",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.45,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "770aa5f0",
+      "cfg": {
+        "cfgId": "770aa5f0",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.45,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "e54b6dd6",
+      "cfg": {
+        "cfgId": "e54b6dd6",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.45,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "cdd89199",
+      "cfg": {
+        "cfgId": "cdd89199",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.45,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "86dc6003",
+      "cfg": {
+        "cfgId": "86dc6003",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.45,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "2413fc8f",
+      "cfg": {
+        "cfgId": "2413fc8f",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.45,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "5e67690e",
+      "cfg": {
+        "cfgId": "5e67690e",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.45,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "d881143f",
+      "cfg": {
+        "cfgId": "d881143f",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.45,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "e71b18a2",
+      "cfg": {
+        "cfgId": "e71b18a2",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.45,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "cc2f76c5",
+      "cfg": {
+        "cfgId": "cc2f76c5",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.45,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "d3c1fa71",
+      "cfg": {
+        "cfgId": "d3c1fa71",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.45,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "e8f3e720",
+      "cfg": {
+        "cfgId": "e8f3e720",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.45,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "ee369ece",
+      "cfg": {
+        "cfgId": "ee369ece",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.45,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "5e20d796",
+      "cfg": {
+        "cfgId": "5e20d796",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.45,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "9b96355f",
+      "cfg": {
+        "cfgId": "9b96355f",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.45,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "f78bd2e3",
+      "cfg": {
+        "cfgId": "f78bd2e3",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.45,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "1799798f",
+      "cfg": {
+        "cfgId": "1799798f",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.45,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "f9725099",
+      "cfg": {
+        "cfgId": "f9725099",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.45,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "db558cba",
+      "cfg": {
+        "cfgId": "db558cba",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.45,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "8df87696",
+      "cfg": {
+        "cfgId": "8df87696",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.45,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "dad698b5",
+      "cfg": {
+        "cfgId": "dad698b5",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.45,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "54fe0ebc",
+      "cfg": {
+        "cfgId": "54fe0ebc",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.55,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "5b62b7f1",
+      "cfg": {
+        "cfgId": "5b62b7f1",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.55,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "0b3b42d3",
+      "cfg": {
+        "cfgId": "0b3b42d3",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.55,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "986859d6",
+      "cfg": {
+        "cfgId": "986859d6",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.55,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "f0a2ec08",
+      "cfg": {
+        "cfgId": "f0a2ec08",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.55,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "b34d7abc",
+      "cfg": {
+        "cfgId": "b34d7abc",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.55,
+        "dropSpeed": 0.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "88200a95",
+      "cfg": {
+        "cfgId": "88200a95",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.55,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "9ccfbfea",
+      "cfg": {
+        "cfgId": "9ccfbfea",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.55,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "d413de71",
+      "cfg": {
+        "cfgId": "d413de71",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.55,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "7a28e05a",
+      "cfg": {
+        "cfgId": "7a28e05a",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.55,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "1b9598a1",
+      "cfg": {
+        "cfgId": "1b9598a1",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.55,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "8f1cd857",
+      "cfg": {
+        "cfgId": "8f1cd857",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.55,
+        "dropSpeed": 1,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "348fc527",
+      "cfg": {
+        "cfgId": "348fc527",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.55,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "59799d09",
+      "cfg": {
+        "cfgId": "59799d09",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.55,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "ceafd163",
+      "cfg": {
+        "cfgId": "ceafd163",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.55,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "4ddeb556",
+      "cfg": {
+        "cfgId": "4ddeb556",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.55,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "28dcb0f2",
+      "cfg": {
+        "cfgId": "28dcb0f2",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.55,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "7ef003d0",
+      "cfg": {
+        "cfgId": "7ef003d0",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.55,
+        "dropSpeed": 1.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "1fe64fdb",
+      "cfg": {
+        "cfgId": "1fe64fdb",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.55,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "5ecf9438",
+      "cfg": {
+        "cfgId": "5ecf9438",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.55,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "a33ed7cf",
+      "cfg": {
+        "cfgId": "a33ed7cf",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.55,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "3d7ac060",
+      "cfg": {
+        "cfgId": "3d7ac060",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.55,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "e3a65025",
+      "cfg": {
+        "cfgId": "e3a65025",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.55,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "3578dfd6",
+      "cfg": {
+        "cfgId": "3578dfd6",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.55,
+        "dropSpeed": 2,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "453f1e15",
+      "cfg": {
+        "cfgId": "453f1e15",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.55,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 200
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "6459b259",
+      "cfg": {
+        "cfgId": "6459b259",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.55,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 230
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "ba75b530",
+      "cfg": {
+        "cfgId": "ba75b530",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.55,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 260
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "f9ec4371",
+      "cfg": {
+        "cfgId": "f9ec4371",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.55,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 290
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "08c88327",
+      "cfg": {
+        "cfgId": "08c88327",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.55,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 320
+      },
+      "trials": 333
+    },
+    {
+      "cfgId": "9b8c8094",
+      "cfg": {
+        "cfgId": "9b8c8094",
+        "exp": "e3",
+        "family": "P5",
+        "dropX": 0.12,
+        "dropY": 0.55,
+        "dropSpeed": 2.5,
+        "dropDirectionDeg": 350
+      },
+      "trials": 333
+    }
+  ]
+}

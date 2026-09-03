@@ -22,6 +22,13 @@ function newCfgRow(cfg) {
   return {
     cfgId: cfg.cfgId, family: cfg.family, trials: 0, flagged: 0, impactsExhausted: 0, flaggedExclArtifacts: 0,
     term: {}, feed: {}, rmp: {}, inBandSpeed: 0, reachedCount: 0,
+    // LAB-18: per-cfg reached-trial return speeds — lets the ranking guard fall back to a
+    // continuous metric (median return speed / distance from the in-band centre) when
+    // `inBandFraction` saturates at its ceiling and can't order a top-N cut (P5's own case —
+    // see stageA.js's per-family guard). Bounded by that cfg's own trial count (a few hundred
+    // here), unlike the cross-cfg pooled `familySamples.xx/tt` arrays above, which need the
+    // FAMILY_SAMPLE_CAP because they accumulate across an entire family's cfgs into one array.
+    xsVals: [],
   };
 }
 
@@ -57,6 +64,7 @@ async function run() {
         if (record.term === 'reached') {
           row.reachedCount += 1;
           if (record.xs >= 1.0 && record.xs <= 2.5) row.inBandSpeed += 1;
+          row.xsVals.push(record.xs);
           let fs = familySamples[cfg.family];
           if (!fs) fs = familySamples[cfg.family] = { xx: [], tt: [] };
           if (fs.xx.length < FAMILY_SAMPLE_CAP) fs.xx.push(record.xx);

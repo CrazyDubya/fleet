@@ -203,7 +203,7 @@ const FAMILY_LABEL = {
   P1: 'P1 launch lane', P2: 'P2 orbit', P3: 'P3 return lanes', P4: 'P4 ramp mouth', P5: 'P5 habitrail drop',
 };
 
-function e3ToMarkdown(meta, perCfgRanked, runId, rankingGuard) {
+function e3ToMarkdown(meta, perCfgRanked, runId, rankingGuard, rankingGuardFallback = {}) {
   const lines = [];
   lines.push(`# E3 (paths) summary — run \`${runId}\``);
   lines.push('');
@@ -244,9 +244,32 @@ function e3ToMarkdown(meta, perCfgRanked, runId, rankingGuard) {
     lines.push('');
     const g = rankingGuard[family];
     if (!g.ok) {
+      const fallback = rankingGuardFallback[family];
+      if (fallback?.ok) {
+        // LAB-18: `inBandFraction` saturates at its ceiling for this family (a WINDOW function
+        // of return speed, not a monotonic one — see the `bandCenterCloseness` comment above)
+        // but the continuous `bandCenterCloseness` proxy still orders cleanly. Shown labelled,
+        // not silently swapped for `inBandFraction` in the table header.
+        lines.push(`> ⚠ **\`inBandFraction\` RANKING INVALID (LAB-16 gate)**: cannot rank this family's ` +
+          `${g.n} cfgs — ${g.reason}. Ranked below by **distance from the band centre** ` +
+          '(median return speed vs. the 1.75 m/s midpoint of the 1.0-2.5 m/s band) instead — a ' +
+          'continuous proxy for the same "landed in the playable band" question that does not ' +
+          'saturate the way a bounded fraction can.');
+        lines.push('');
+        lines.push('| cfgId | trials | returnRate | inBandFraction | medianXs (m/s) | stallRate | flagged% |');
+        lines.push('|---|---|---|---|---|---|---|');
+        const top = perCfgRanked.filter((r) => r.family === family && r.bandCenterCloseness !== null)
+          .sort((a, b) => b.bandCenterCloseness - a.bandCenterCloseness).slice(0, 10);
+        for (const r of top) {
+          lines.push(`| ${r.cfgId} | ${r.trials} | ${(r.returnRate * 100).toFixed(1)}% | ${(r.inBandFraction * 100).toFixed(1)}% | ${r.medianXs.toFixed(2)} | ${(r.stallRate * 100).toFixed(1)}% | ${(r.flaggedFraction * 100).toFixed(2)} |`);
+        }
+        lines.push('');
+        continue;
+      }
       // LAB-16 ranking guard: `inBandFraction` cannot order this family's cfgs (operator
       // handoff `20260903T0540Z-e3-p1-is-degenerate.md` — E3 P1's own case, all 288 rows tied
-      // at 0.0 or 1.0). Loud refusal, not a silent "top 10" of insertion order.
+      // at 0.0 or 1.0), and the LAB-18 fallback proxy can't rank it either. Loud refusal, not a
+      // silent "top 10" of insertion order.
       lines.push(`> ⚠ **RANKING INVALID (LAB-16 gate)**: \`inBandFraction\` cannot rank this family's ` +
         `${g.n} cfgs — ${g.reason}. No top-10 table is shown; presenting one would rank by array ` +
         'insertion order, not performance. See the per-family summary table above for this family\'s ' +
@@ -339,6 +362,7 @@ async function runE3Stage(args) {
         prior.trials += row.trials; prior.flagged += row.flagged; prior.reachedCount += row.reachedCount;
         prior.impactsExhausted += row.impactsExhausted; prior.flaggedExclArtifacts += row.flaggedExclArtifacts;
         prior.inBandSpeed += row.inBandSpeed;
+        prior.xsVals.push(...row.xsVals);
         for (const [k, v] of Object.entries(row.term)) prior.term[k] = (prior.term[k] ?? 0) + v;
         for (const [k, v] of Object.entries(row.feed)) prior.feed[k] = (prior.feed[k] ?? 0) + v;
         for (const [k, v] of Object.entries(row.rmp)) prior.rmp[k] = (prior.rmp[k] ?? 0) + v;
@@ -391,15 +415,28 @@ async function runE3Stage(args) {
 
   // --- Per-cfg ranking rows (the trade-off curve data — §5.4's "deliver the trade-off curve,
   // not a single optimum"). ---
-  const perCfgRanked = [...perCfgByIndex.values()].map((r) => ({
-    cfgId: r.cfgId, family: r.family, trials: r.trials,
-    returnRate: r.trials ? r.reachedCount / r.trials : 0,
-    inBandFraction: r.reachedCount ? r.inBandSpeed / r.reachedCount : 0,
-    stallRate: r.trials ? (r.term.stall ?? 0) / r.trials : 0,
-    flaggedFraction: r.trials ? r.flagged / r.trials : 0,
-    feed: r.feed,
-    rmp: r.rmp,
-  })).sort((a, b) => b.inBandFraction - a.inBandFraction);
+  const perCfgRanked = [...perCfgByIndex.values()].map((r) => {
+    const medianXs = r.xsVals.length ? percentile(r.xsVals, 50) : null;
+    return {
+      cfgId: r.cfgId, family: r.family, trials: r.trials,
+      returnRate: r.trials ? r.reachedCount / r.trials : 0,
+      inBandFraction: r.reachedCount ? r.inBandSpeed / r.reachedCount : 0,
+      stallRate: r.trials ? (r.term.stall ?? 0) / r.trials : 0,
+      flaggedFraction: r.trials ? r.flagged / r.trials : 0,
+      feed: r.feed,
+      rmp: r.rmp,
+      // LAB-18: a continuous stand-in for `inBandFraction`, for families whose in-band fraction
+      // saturates at the ceiling and can't order a top-N cut (see the per-family guard below —
+      // P5's `inBandFraction` is a WINDOW function of return speed, [1.0, 2.5] m/s matching
+      // e3Worker.js's own band test, not a monotonic threshold, so it saturates at 1.0 across a
+      // wide swath of the grid). `medianXs` is the per-cfg median return speed among reached
+      // trials; `bandCenterCloseness` folds it against the band's own centre (2.5+1.0)/2 = 1.75
+      // — larger is better (a cfg dead-centre in the target band scores 0, one at either edge
+      // or beyond scores increasingly negative) so it sorts the same direction as `inBandFraction`.
+      medianXs,
+      bandCenterCloseness: medianXs !== null ? -Math.abs(medianXs - 1.75) : null,
+    };
+  }).sort((a, b) => b.inBandFraction - a.inBandFraction);
 
   // --- §2.7 validity gate, per family (any family over the 1% floor, EXCLUDING
   // IMPACTS_EXHAUSTED per the amendment above, blocks the summary). ---
@@ -413,14 +450,29 @@ async function runE3Stage(args) {
   // does not block the whole family's summary (its other metrics — returnRate, stallRate,
   // feed fractions — remain valid regardless); it only suppresses the one table that presents
   // an ordering, per-family, loudly (see e3ToMarkdown).
+  // LAB-18: when `inBandFraction` can't order a family's top-10 (its own guard fails), fall
+  // back to `bandCenterCloseness` — computed above from a genuinely continuous quantity (median
+  // return speed), so it doesn't saturate the way a fraction bounded to [0,1] can. Reported
+  // separately (`rankingGuardFallback`) rather than silently swapped in: e3ToMarkdown uses it
+  // to render a top-10 by the fallback metric, clearly labelled, instead of a blank ⚠ block —
+  // but only when the fallback itself passes its own guard (checked the same way, `topN: 10`);
+  // if a family somehow fails both, no ranking is shown for it at all.
   const rankingGuard = {};
+  const rankingGuardFallback = {};
   for (const family of Object.keys(familyMetrics)) {
-    rankingGuard[family] = rankingValidityResult(
-      perCfgRanked.filter((r) => r.family === family).map((r) => r.inBandFraction),
-      { topN: 10 }
-    );
+    const rows = perCfgRanked.filter((r) => r.family === family);
+    rankingGuard[family] = rankingValidityResult(rows.map((r) => r.inBandFraction), { topN: 10 });
+    if (!rankingGuard[family].ok) {
+      const withCloseness = rows.filter((r) => r.bandCenterCloseness !== null);
+      rankingGuardFallback[family] = rankingValidityResult(withCloseness.map((r) => r.bandCenterCloseness), { topN: 10 });
+    }
   }
-  const rankingGuardFailures = Object.entries(rankingGuard).filter(([, r]) => !r.ok).map(([f, r]) => ({ family: f, ...r }));
+  // A family only truly fails (no top-10 shown at all) if `inBandFraction` fails AND either
+  // there's no fallback or the fallback fails too — a family the fallback rescues isn't a
+  // failure for reporting purposes, it's a substitution (e3ToMarkdown renders it, labelled).
+  const rankingGuardFailures = Object.entries(rankingGuard)
+    .filter(([f, r]) => !r.ok && !(rankingGuardFallback[f]?.ok))
+    .map(([f, r]) => ({ family: f, ...r }));
 
   const secs = (performance.now() - start) / 1000;
   const totalTrials = Object.values(familyMetrics).reduce((a, m) => a + m.trials, 0);
@@ -431,7 +483,7 @@ async function runE3Stage(args) {
     generatedAt: new Date().toISOString(),
     cfgCount: items.length, trialCount: totalTrials,
     flaggedFraction: totalTrials ? totalFlagged / totalTrials : 0,
-    perFamilyTrials, familyMetrics, secs, rankingGuardFailures,
+    perFamilyTrials, familyMetrics, secs, rankingGuardFailures, rankingGuardFallback,
     shards: results.map((r, i) => ({ path: path.relative(out, r.outPath ?? `shard-${i}.jsonl.gz`) })),
     cfgs: items.map(({ cfg, trials }) => ({ cfgId: cfg.cfgId, cfg, trials })),
   };
@@ -459,7 +511,7 @@ async function runE3Stage(args) {
   const summariesDir = path.join(import.meta.dirname, '..', 'data', 'summaries');
   writeFileSync(path.join(summariesDir, `e3-${runId}.json`), JSON.stringify(meta, null, 2));
   writeFileSync(path.join(summariesDir, `e3-${runId}-heatmap.csv`), csvLines.join('\n') + '\n');
-  writeFileSync(path.join(summariesDir, `e3-${runId}.md`), e3ToMarkdown(meta, perCfgRanked, runId, rankingGuard));
+  writeFileSync(path.join(summariesDir, `e3-${runId}.md`), e3ToMarkdown(meta, perCfgRanked, runId, rankingGuard, rankingGuardFallback));
 
   if (rankingGuardFailures.length > 0) {
     console.error(JSON.stringify({
