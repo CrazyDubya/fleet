@@ -10,7 +10,48 @@ import time
 from . import packet as packet_mod, send as send_mod, tmux
 
 BLOCK_RE = re.compile(r"^⏺ ?(.*)$")
-END_RE = re.compile(r"^(✻|❯|·)")
+# The TUI is BUSY exactly while its footer offers the interrupt. This is a
+# semantic signal, unlike the spinner glyph, which rotates through a set the
+# code cannot enumerate (✻ ✶ ✽ ✳ ✢ … all observed). If a future release
+# reworded the footer this degrades to returning a complete-looking reply
+# slightly early - the old behaviour - rather than hanging.
+BUSY_MARK = "esc to interrupt"
+# `<glyph> <Word>…` - one glyph, ONE space, then a token ending in the ellipsis:
+# "✳ Improvising… (2s)", "✢ Doodling…". Deliberately narrow. A looser "line
+# contains …" also matched a pasted packet header whose own body used an
+# ellipsis, which would have made every such lookup time out.
+BUSY_LINE_RE = re.compile(r"^\S ([^\s(]*…)")
+
+
+def _is_body(line: str) -> bool:
+    """True when `line` belongs to a ⏺ block's body.
+
+    A body line is blank, or carries the TUI's continuation indent of EXACTLY
+    two spaces. Everything else is chrome and ends the block: a status line
+    ("✢ Doodling…"), a tip ("⎿  Tip: …"), a pane rule, or the right-aligned
+    update banner - which is indented, but by far more than two, which is why
+    the test is exact rather than a prefix check.
+
+    This replaces an END_RE that listed three terminator glyphs. The spinner
+    is not one of three: over 25 live round trips, 13 returned the correct
+    answer followed by swallowed chrome because the glyph of the moment (✶ ✽
+    ✳ ✢) was not in the list and the block ran on to the input caret.
+    """
+    return not line.strip() or (line[:2] == "  " and line[2:3] != " ")
+
+
+def _is_busy_line(line: str) -> bool:
+    """True for the TUI's still-working status line ("✳ Improvising… (2s)").
+
+    Discriminated from the FINISHED line of the same shape ("✻ Sautéed for 1s
+    · done 9:14 AM") by the ellipsis, not by the glyph - the glyph rotates
+    through a set the code cannot enumerate, which is the bug this module kept
+    hitting. `⏺` is excluded because a block header can legitimately carry an
+    ellipsis ("⏺ Running 1 shell command…") and is handled as a block.
+
+    A false positive here costs one more poll, never a wrong answer.
+    """
+    return bool(BUSY_LINE_RE.match(line)) and not line.startswith("⏺")
 
 
 class AskTimeout(RuntimeError):
@@ -51,7 +92,13 @@ def _logical_lines(lines: list[str]) -> list[tuple[int, str]]:
 
 
 def extract_reply(pane: str, pid: str) -> str | None:
+    # Still mid-turn: whatever has rendered so far may be a partial answer, or
+    # a tool-call summary that precedes the real one. _is_body terminates a
+    # block at the first chrome line, so without this the poll could return a
+    # half-written reply that the old glyph list happened to run past.
     lines = pane.splitlines()
+    if BUSY_MARK in pane or any(_is_busy_line(l) for l in lines):
+        return None
     logical = _logical_lines(lines)
     start = next((idx for idx, l in logical if f"@id{pid}" in _WS_RE.sub("", l)), None)
     # 1. a typed reply header addressed to our id, searched across the WHOLE
@@ -81,7 +128,7 @@ def extract_reply(pane: str, pid: str) -> str | None:
     if re_start is not None:
         body = []
         for l in lines[re_start + 1:]:
-            if END_RE.match(l):
+            if not _is_body(l):
                 break
             body.append(l)
         # A header line with nothing after it (capture landed between the
@@ -99,7 +146,8 @@ def extract_reply(pane: str, pid: str) -> str | None:
         # A single-line block ending in the TUI's ellipsis is a tool-status
         # line ("Running 1 shell command…"), not an answer. Confirmed live:
         # haiku-fs2 running a delegated grep (T6/T7 "empty capture").
-        if b and len(b) == 1 and b[0].rstrip().endswith("…"):
+        core = [x for x in b if x.strip()]
+        if len(core) == 1 and core[0].rstrip().endswith("…"):
             blocks.pop()
 
     for l in lines[start + 1:]:
@@ -108,7 +156,7 @@ def extract_reply(pane: str, pid: str) -> str | None:
             if cur is not None:
                 _drop_if_status(cur)
             cur = [m.group(1)]; blocks.append(cur)
-        elif cur is not None and END_RE.match(l):
+        elif cur is not None and not _is_body(l):
             # A single-line block ending in the TUI's ellipsis is a tool-status
             # line ("Running 1 shell command…", "Bash(node --test …)…"), not an
             # answer - it terminates cleanly and then the real reply renders
