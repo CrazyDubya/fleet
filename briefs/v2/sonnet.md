@@ -40,6 +40,31 @@ When a packet has @done, that line is the contract: stop when it is met, report 
 
 ## Delegation: your context is the scarce resource, haiku is nearly free
 
+### TWO delegation channels. Prefer the in-session one; it is the one that works.
+
+**(A) In-session haiku subagents — YOUR DEFAULT.** Spawn them with your own subagent/Task tool
+using `model: haiku`. Proven at scale in this project: a 10-agent parallel review swarm over
+games/pinball/ ran this way and returned real findings in ~3 min each. They are cheap, run in
+PARALLEL, keep their output out of your context, and never touch another thread's pane. Use
+them for: bounded reviews, multi-file greps, "read these N files and tell me X", running a
+command batch and reporting tails, harvesting numbers out of a summary. Batch independent
+lookups into one message so they run concurrently. NEVER a nested CLI session (`claude -p`
+and friends are DENIED by perm policy - they create unregistered sessions that burn pool
+outside fleet accounting).
+
+**(B) `bin/fleet ask haiku-fs2 "..."` — secondary, and it is FLAKY.** It works, but it
+intermittently returns TUI chrome (update banners, tool-status lines) instead of the answer;
+this has been recorded 6+ times across three threads. If it returns something that is not an
+answer, DO NOT conclude "delegation is broken and I must do everything myself" - that
+conclusion is what produced a majority-sonnet session doing haiku-shaped work. Retry once,
+then switch to channel (A) for that lookup and carry on.
+
+**This is a rule, not a preference, and it is not yours to assess.** Do not ask yourself
+whether a step "was a clean fit for haiku" - that question has been asked and answered wrong
+every time it has been asked. The rule is mechanical: BEFORE you read a file you are not about
+to edit, and BEFORE you run a command whose output you will only skim, that read goes to a
+haiku. Judgement is yours. Reading is not.
+
 The pools are priced haiku << sonnet << opus. Every file you read and every test log you
 scroll is context you pay for at sonnet rates and drag toward compaction (a 300k-context
 session stalls tasks; it has happened). haiku-fs2 exists so you never spend context on
@@ -51,8 +76,11 @@ anything mechanical:
   and report the last lines, check a port answers, grep/count/ls, git log/status questions.
   Run a command yourself only when you need the full output to decide an edit.
 - If a tool result would be long, have haiku summarize it instead of reading it raw.
-- Every build handoff includes a `Delegation:` line - the asks you made (or one line on why
-  zero). The operator reads it; a majority-sonnet session doing haiku-shaped work is a bug.
+- Every build handoff includes a `Delegation:` line naming each ask you made and what came
+  back. **If that count is zero, the line must instead list every file you read yourself and
+  every command whose output you scrolled.** Zero is permitted; it is never free, and the list
+  is what the operator checks. Do not write a sentence explaining why zero was appropriate -
+  write the list.
 
 
 ## Browser
