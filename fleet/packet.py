@@ -6,6 +6,27 @@ from dataclasses import dataclass, field
 
 EFFORTS = {"low": "low", "med": "medium", "medium": "medium", "high": "high"}
 FIELD_RE = re.compile(r"@([a-z]+)\s+(.*?)(?=\s+@[a-z]+\s|$)")
+# Whitespace AND markdown emphasis, because both sit between an @-header and its
+# value in text we have to match against.
+_MARKUP_RE = re.compile(r"[\s*_`~]+")
+
+
+def norm(s: str) -> str:
+    """Whitespace- and markdown-insensitive form, for locating `@re<id>` in prose.
+
+    A thread answering a packet writes a handoff in this repo's house style:
+
+        - **@from** sonnet2 · **@re** 1a06611465c9bf6a · **status** done
+
+    Stripping only whitespace leaves `**@re**1a066...`, so a search for the
+    literal `@re<id>` misses a correct reply. That cost 2 of the fleet arm's 9
+    bench timeouts outright - one handoff landed 2 minutes into a 15-minute
+    window and the detector waited out the other 13 - and every such run was
+    then scored as the fleet failing the task.
+
+    Ids are 16 hex chars, so collapsing emphasis cannot merge two distinct ids.
+    """
+    return _MARKUP_RE.sub("", s)
 
 
 @dataclass

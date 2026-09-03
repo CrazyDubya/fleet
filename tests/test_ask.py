@@ -190,3 +190,23 @@ class ToolStatusBlocksAreNotReplies(unittest.TestCase):
 
     def test_real_answer_after_status_line_is_returned(self):
         self.assertEqual(ask.extract_reply(PANE_TOOL_STATUS_THEN_ANSWER, "abc999"), "7")
+
+
+class MarkdownHeaderTests(unittest.TestCase):
+    """`@re` matching must survive markdown emphasis, not just whitespace.
+
+    Threads write replies in the repo's house style, and the same
+    whitespace-only fold that hid handoffs from the bench hid bolded pane
+    replies from extract_reply."""
+
+    def test_bolded_re_header_is_found(self):
+        pane = "⏺ **@from** sonnet2 · **@re** abc123 · **status** done\n  the answer\n✻ done\n❯ \n"
+        self.assertEqual(ask.extract_reply(pane, "abc123"), "the answer")
+
+    def test_backticked_id_header_is_found(self):
+        pane = "❯ @to sonnet2 `@id` abc123\n⏺ **@re** abc123\n  hello\n✻ done\n❯ \n"
+        self.assertEqual(ask.extract_reply(pane, "abc123"), "hello")
+
+    def test_a_different_id_still_does_not_match(self):
+        pane = "⏺ **@re** abc123\n  the answer\n✻ done\n❯ \n"
+        self.assertIsNone(ask.extract_reply(pane, "def456"))

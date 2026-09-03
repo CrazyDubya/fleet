@@ -83,6 +83,28 @@ class FleetWaitTests(unittest.TestCase):
             arms.fleet_wait_done("run77", 0.0, 5, Path(d), capture=lambda: "", sleep=slept.append, clock=iter([1.0, 6.0]).__next__)
         self.assertEqual(slept, [1])
 
+    def test_handoff_in_the_repos_house_markdown_style_is_detected(self):
+        """The exact line that cost 2 of the fleet arm's 9 bench timeouts.
+
+        sonnet2 answered correctly and on time - the 09-03 handoff landed 2 min into a
+        15 min window - but the detector folded whitespace only, so markdown bold left
+        `**@re**1a066...` and the literal `@re<run>` never matched. The run was then
+        scored as the fleet failing the task."""
+        line = "- **@from** sonnet2 · **@re** 1a06611465c9bf6a · **status** done\n"
+        with tempfile.TemporaryDirectory() as d:
+            hd = Path(d); (hd / "h.md").write_text("# GUI widget build\n\n" + line)
+            self.assertTrue(arms._handoff_done("1a06611465c9bf6a", 0.0, hd))
+            # a different run's handoff must still not satisfy ours
+            self.assertFalse(arms._handoff_done("1a0661f095f6df30", 0.0, hd))
+
+    def test_bolded_reply_header_in_the_pane_is_detected(self):
+        pane = ("⏺ **@from** sonnet2 · **@re** run77 · **status** done\n"
+                "  the answer\n✻ Sauteed for 1s · done\n❯ \n")
+        ok = arms.fleet_wait_done("run77", 0.0, 5, Path("/nonexistent"),
+                                  capture=lambda: pane, sleep=lambda s: None,
+                                  clock=iter([1.0, 2.0]).__next__)
+        self.assertTrue(ok)
+
     def test_old_handoff_is_ignored(self):
         with tempfile.TemporaryDirectory() as d:
             hd = Path(d); f = hd / "old.md"; f.write_text("@re run77"); import os; os.utime(f, (1, 1))

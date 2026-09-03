@@ -62,9 +62,6 @@ def _strip(lines: list[str]) -> str:
     return "\n".join(l[2:] if l.startswith("  ") else l for l in lines).strip()
 
 
-_WS_RE = re.compile(r"\s+")
-
-
 def _logical_lines(lines: list[str]) -> list[tuple[int, str]]:
     """Merge a physical line starting with exactly two spaces into the
     previous logical line, joined by a single space, remembering the first
@@ -77,9 +74,9 @@ def _logical_lines(lines: list[str]) -> list[tuple[int, str]]:
     that back into one logical line, purely for readability; the wrap can
     land anywhere in the source line, including mid-token inside the pid
     itself, so the joining space above is NOT reliable as a token boundary.
-    Callers (`@id`/`@re` detection in extract_reply) must strip whitespace
-    entirely before matching, rather than searching for the literal joined
-    text.
+    Callers (`@id`/`@re` detection in extract_reply) must match against
+    packet.norm(), rather than searching for the literal joined text: it folds
+    whitespace AND markdown emphasis, so a bolded `**@re** <id>` still matches.
     """
     out: list[tuple[int, str]] = []
     for i, l in enumerate(lines):
@@ -100,7 +97,7 @@ def extract_reply(pane: str, pid: str) -> str | None:
     if BUSY_MARK in pane or any(_is_busy_line(l) for l in lines):
         return None
     logical = _logical_lines(lines)
-    start = next((idx for idx, l in logical if f"@id{pid}" in _WS_RE.sub("", l)), None)
+    start = next((idx for idx, l in logical if f"@id{pid}" in packet_mod.norm(l)), None)
     # 1. a typed reply header addressed to our id, searched across the WHOLE
     # pane rather than only after `start`. Header detection above and the
     # @re search below match against a whitespace-stripped form of each
@@ -124,7 +121,7 @@ def extract_reply(pane: str, pid: str) -> str | None:
     # `start` to still be visible; `test_ignores_blocks_before_our_packet`
     # keeps the ordering requirement for step 2 below, where a bare block
     # carries no id to disambiguate it by.
-    re_start = next((idx for idx, l in logical if f"@re{pid}" in _WS_RE.sub("", l)), None)
+    re_start = next((idx for idx, l in logical if f"@re{pid}" in packet_mod.norm(l)), None)
     if re_start is not None:
         body = []
         for l in lines[re_start + 1:]:

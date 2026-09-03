@@ -18,7 +18,6 @@ POLL_S = 1  # done-detection poll: t1 is only as precise as this interval
 # minutes; past this, an outstanding send with no handoff means the work ended without
 # one, not that it is still running.
 DISPATCH_STALE_MIN = 30
-_WS = re.compile(r"\s+")
 
 
 @dataclass
@@ -77,7 +76,7 @@ def _handoff_done(run: str, t0: float, handoff_dir: Path) -> bool:
     if not handoff_dir.is_dir():
         return False
     for p in handoff_dir.iterdir():
-        if p.is_file() and p.stat().st_mtime >= t0 and f"@re{run}" in _WS.sub("", p.read_text(errors="replace")):
+        if p.is_file() and p.stat().st_mtime >= t0 and f"@re{run}" in packet_mod.norm(p.read_text(errors="replace")):
             return True
     return False
 
@@ -88,7 +87,7 @@ def fleet_wait_done(run: str, t0: float, timeout_s: int, handoff_dir: Path, capt
         if _handoff_done(run, t0, handoff_dir):
             return True
         pane = capture()
-        if pane and f"@re{run}" in _WS.sub("", pane) and extract_reply(pane, run) is not None:
+        if pane and f"@re{run}" in packet_mod.norm(pane) and extract_reply(pane, run) is not None:
             return True
         if clock() >= deadline:
             return False
