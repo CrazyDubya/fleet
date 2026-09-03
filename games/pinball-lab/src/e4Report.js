@@ -10,7 +10,7 @@ import { createGunzip } from 'node:zlib';
 import readline from 'node:readline';
 import path from 'node:path';
 import { mean, percentile } from './metrics.js';
-import { validExclStalled } from './gate.js';
+import { validExclStalled, rankingValidityResult } from './gate.js';
 
 async function* streamShards(dir, meta) {
   for (const shard of meta.shards) {
@@ -87,6 +87,10 @@ async function main() {
     guide: row.cfg.guide, radius: row.cfg.radius, trials: row.trials,
     ct: row.ct / row.trials, cr: row.cr / row.trials, cp: row.cp / row.trials, cv: row.cv / row.trials,
   })).sort((x, y) => y.cp - x.cp);
+  // LAB-16 ranking gate, on the FULL population before any top-N slice (see stageA.js's E1
+  // comment for why pre-slice matters — a post-slice top-20 always looks tie-heavy at the
+  // ceiling regardless of whether the metric has real resolution).
+  const a1RankingGuard = rankingValidityResult(a1Ranked.map((r) => r.cp));
 
   // --- A2: the ranked assembly table (§8 item 2), controls' cp for the E1 decomposition. ---
   const a2ByCfg = new Map();
@@ -120,6 +124,7 @@ async function main() {
     fastCradleRate: row.stVals.length ? row.stVals.filter((s) => s < 1.0).length / row.trials : 0,
     medianBn: row.bnVals.length ? percentile(row.bnVals, 50) : null,
   })).sort((x, y) => y.cp - x.cp);
+  const a2RankingGuard = rankingValidityResult(a2Ranked.map((r) => r.cp));
 
   // --- Stage B: the (gapX x activeAngle) pocket-map heatmap, cv-vs-restAngle (§1.3/H7),
   // release-independent ranking by cp. ---
@@ -159,6 +164,7 @@ async function main() {
   const heatmap = [...heatmapCells.values()].map((h) => ({ ...h, cpRate: h.cp / h.trials }));
   const cvTable = [...cvByRest.entries()].map(([restAngleDeg, v]) => ({ restAngleDeg: Number(restAngleDeg), trials: v.trials, cvRate: v.cv / v.trials })).sort((x, y) => x.restAngleDeg - y.restAngleDeg);
   const bRanked = [...bByCfg.values()].map((row) => ({ cfg: row.cfg, cpRate: row.cp / row.trials, trials: row.trials })).sort((x, y) => y.cpRate - x.cpRate);
+  const bRankingGuard = rankingValidityResult(bRanked.map((r) => r.cpRate));
 
   // --- Stage C: release dispersion (§5.4) per assembly, rel mix, controls. ---
   const cByAssembly = new Map(); // baseAssemblyId -> {rxaVals, relCounts, trials}
@@ -186,6 +192,7 @@ async function main() {
     dispersionDeg: row.rxaVals.length >= 2 ? percentile(row.rxaVals, 95) - percentile(row.rxaVals, 5) : null,
     relCounts: row.relCounts,
   })).sort((x, y) => y.shotRate - x.shotRate);
+  const releaseRankingGuard = rankingValidityResult(releaseTable.map((r) => r.shotRate));
 
   // --- §8 item 3: the E1 decomposition — C0 vs C0b vs best pocket, as three headline numbers. ---
   const bestCp = Math.max(
@@ -223,7 +230,20 @@ async function main() {
       n: pkVals.length,
     },
     vTrapByRestAngle: cvTable,
+    rankingGuard: { a1: a1RankingGuard, a2: a2RankingGuard, b: bRankingGuard, releaseDispersion: releaseRankingGuard },
   };
+
+  const rankingGuardFailures = Object.entries(summary.rankingGuard).filter(([, r]) => !r.ok);
+  if (rankingGuardFailures.length > 0) {
+    // LAB-16: loud, not silent — a table below whose header carries a ⚠ is degenerate ranking
+    // input, reported per-table rather than blocking the whole multi-section report (the other
+    // tables/metrics here are independently valid; §7's near-zero shot rate for Stage C is
+    // already narrated in prose above the table it now also flags).
+    console.error(JSON.stringify({
+      warning: 'LAB-16 ranking gate: one or more E4 tables cannot be trusted as an ordering',
+      failures: rankingGuardFailures.map(([k, r]) => ({ table: k, ...r })),
+    }));
+  }
 
   const summariesDir = path.join(import.meta.dirname, '..', 'data', 'summaries');
   const jsonOut = path.join(summariesDir, `e4-${runId}.json`);
@@ -285,6 +305,12 @@ function toMarkdown(summary, csvRelPath) {
 
   lines.push('## §8 item 2 — ranked assembly table (top rows, Stage A2)');
   lines.push('');
+  if (!summary.rankingGuard.a2.ok) {
+    lines.push(`> ⚠ **RANKING INVALID (LAB-16 gate)**: \`cp\` cannot rank the full ${summary.rankingGuard.a2.n}-assembly ` +
+      `A2 population — ${summary.rankingGuard.a2.reason}. Rows below are shown for reference only; their order ` +
+      'is not a performance signal.');
+    lines.push('');
+  }
   lines.push('| gapX | tilt° | endDy | guideE | radius | feed | post | outlaneW | cp% | cr% | ct% | cv% | median st | fastCradle% | median bn |');
   lines.push('|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|');
   for (const a of summary.rankedAssemblies.slice(0, 15)) {
@@ -297,6 +323,11 @@ function toMarkdown(summary, csvRelPath) {
 
   lines.push('## Stage B — flipper geometry / delivery / policy ranking (top rows)');
   lines.push('');
+  if (!summary.rankingGuard.b.ok) {
+    lines.push(`> ⚠ **RANKING INVALID (LAB-16 gate)**: \`cp\` cannot rank the full ${summary.rankingGuard.b.n}-cfg ` +
+      `Stage B population — ${summary.rankingGuard.b.reason}. Rows below are shown for reference only.`);
+    lines.push('');
+  }
   lines.push('| rest° | active° | e_flip | inj | pol | cp% | trials |');
   lines.push('|---|---|---|---|---|---|---|');
   for (const r of summary.stageBRanked.slice(0, 15)) {
@@ -306,6 +337,13 @@ function toMarkdown(summary, csvRelPath) {
 
   lines.push('## §8 item 4 — release dispersion (Stage C)');
   lines.push('');
+  if (!summary.rankingGuard.releaseDispersion.ok) {
+    lines.push(`> ⚠ **RANKING INVALID (LAB-16 gate)**: \`shotRate\` cannot rank these ` +
+      `${summary.rankingGuard.releaseDispersion.n} assemblies — ${summary.rankingGuard.releaseDispersion.reason}. ` +
+      'Consistent with the near-zero, near-uniform shot rate already noted below (§5.4 finding) — this table is ' +
+      'ordered by shotRate for readability only, not as a performance ranking.');
+    lines.push('');
+  }
   lines.push('| assembly | trials | shot% | dispersion (P95-P5, °) | rel mix |');
   lines.push('|---|---|---|---|---|');
   for (const r of summary.releaseDispersion) {

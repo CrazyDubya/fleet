@@ -23,7 +23,7 @@ import { execFileSync } from 'node:child_process';
 import { sdFromAcc, uniformSd, percentile, histogram, entropyBits } from './metrics.js';
 import { INJECTION } from './arenas/e1_flippers.js';
 import { buildE1StageACfgs, cfgId as hashCfg, buildE3AllCfgs } from './sweep.js';
-import { flagGateResult, FLAG_GATE_FRACTION } from './gate.js';
+import { flagGateResult, FLAG_GATE_FRACTION, rankingValidityResult } from './gate.js';
 
 const DEFAULT_TOTAL_TRIALS = 400000; // §3.3 Stage A budget; --trials overrides for smoke tests
 const INBOUND_SD_FLOOR_FRACTION = 0.5;
@@ -165,7 +165,16 @@ async function runE4Stage(args) {
   writeFileSync(path.join(out, 'meta.json'), JSON.stringify(meta, null, 2));
 
   const ranked = [...perCfgSummary].sort((a, b) => b.cp - a.cp);
-  writeFileSync(path.join(out, 'ranking.json'), JSON.stringify({ ranked }, null, 2));
+  const cpRankingGuard = rankingValidityResult(perCfgSummary.map((c) => c.cp));
+  writeFileSync(path.join(out, 'ranking.json'), JSON.stringify({ ranked, rankingGuard: cpRankingGuard }, null, 2));
+  if (!cpRankingGuard.ok) {
+    // LAB-16 gate: reported, not enforced, here — this `ranking.json` is E4's raw per-cfg
+    // screen output, consumed by e4Report.js which re-derives and re-checks its own tables from
+    // the raw shards directly (see that file's guard calls) rather than trusting this file's
+    // pre-sorted order. Surfacing it here too means the failure is visible at the point it first
+    // occurs, not only three files downstream.
+    console.error(JSON.stringify({ warning: 'LAB-16 ranking gate: cp cannot order these cfgs', cpRankingGuard, out }));
+  }
 
   if (!c0Ok) {
     console.error(JSON.stringify({ ok: false, error: `§7 gate: C0 control cp=${((c0?.cp ?? 0) * 100).toFixed(2)}% >= 1%`, out }));
@@ -194,7 +203,7 @@ const FAMILY_LABEL = {
   P1: 'P1 launch lane', P2: 'P2 orbit', P3: 'P3 return lanes', P4: 'P4 ramp mouth', P5: 'P5 habitrail drop',
 };
 
-function e3ToMarkdown(meta, perCfgRanked, runId) {
+function e3ToMarkdown(meta, perCfgRanked, runId, rankingGuard) {
   const lines = [];
   lines.push(`# E3 (paths) summary — run \`${runId}\``);
   lines.push('');
@@ -233,6 +242,18 @@ function e3ToMarkdown(meta, perCfgRanked, runId) {
   for (const family of Object.keys(meta.familyMetrics)) {
     lines.push(`### ${FAMILY_LABEL[family] ?? family}`);
     lines.push('');
+    const g = rankingGuard[family];
+    if (!g.ok) {
+      // LAB-16 ranking guard: `inBandFraction` cannot order this family's cfgs (operator
+      // handoff `20260903T0540Z-e3-p1-is-degenerate.md` — E3 P1's own case, all 288 rows tied
+      // at 0.0 or 1.0). Loud refusal, not a silent "top 10" of insertion order.
+      lines.push(`> ⚠ **RANKING INVALID (LAB-16 gate)**: \`inBandFraction\` cannot rank this family's ` +
+        `${g.n} cfgs — ${g.reason}. No top-10 table is shown; presenting one would rank by array ` +
+        'insertion order, not performance. See the per-family summary table above for this family\'s ' +
+        'real (non-ranking) metrics.');
+      lines.push('');
+      continue;
+    }
     lines.push('| cfgId | trials | returnRate | inBandFraction | stallRate | flagged% |');
     lines.push('|---|---|---|---|---|---|');
     const top = perCfgRanked.filter((r) => r.family === family).slice(0, 10);
@@ -268,7 +289,7 @@ function e3RunWorker(items, outPath) {
 async function runE3Stage(args) {
   const out = args.out;
   if (!out) {
-    console.error('usage: node src/stageA.js --exp e3 --out data/e3/<runId> [--trials <perFamily>]');
+    console.error('usage: node src/stageA.js --exp e3 --out data/e3/<runId> [--trials <perFamily>] [--families P1,P2,...]');
     process.exitCode = 1;
     return;
   }
@@ -276,7 +297,13 @@ async function runE3Stage(args) {
   const start = performance.now();
 
   const perFamilyTrials = args.trials ? Number(args.trials) : E3_TRIALS_PER_FAMILY;
-  const byFamily = buildE3AllCfgs();
+  let byFamily = buildE3AllCfgs();
+  // LAB-16: lets a redesigned single family (P1) be re-run on its own budget without
+  // re-running P2-P5's unchanged, already-banked corpora alongside it.
+  if (args.families) {
+    const wanted = new Set(args.families.split(','));
+    byFamily = Object.fromEntries(Object.entries(byFamily).filter(([f]) => wanted.has(f)));
+  }
   const items = [];
   for (const [family, cfgs] of Object.entries(byFamily)) {
     const counts = splitEvenly(perFamilyTrials, cfgs.length);
@@ -378,6 +405,22 @@ async function runE3Stage(args) {
   // IMPACTS_EXHAUSTED per the amendment above, blocks the summary). ---
   const overGate = Object.entries(familyMetrics).filter(([, m]) => m.flaggedFractionExclArtifacts > E3_FLAG_GATE);
 
+  // --- LAB-16 ranking gate: can `inBandFraction` actually order each family's cfgs? Computed
+  // over the FULL per-family population, before any top-N slice — slicing to top-10 first would
+  // always look tie-heavy at the ceiling regardless of whether the underlying metric has real
+  // resolution (confirmed against E4's a2Ranked/bRanked during this dispatch's audit: the
+  // pre-slice population passed even though the post-slice top-20 looked degenerate). This gate
+  // does not block the whole family's summary (its other metrics — returnRate, stallRate,
+  // feed fractions — remain valid regardless); it only suppresses the one table that presents
+  // an ordering, per-family, loudly (see e3ToMarkdown).
+  const rankingGuard = {};
+  for (const family of Object.keys(familyMetrics)) {
+    rankingGuard[family] = rankingValidityResult(
+      perCfgRanked.filter((r) => r.family === family).map((r) => r.inBandFraction)
+    );
+  }
+  const rankingGuardFailures = Object.entries(rankingGuard).filter(([, r]) => !r.ok).map(([f, r]) => ({ family: f, ...r }));
+
   const secs = (performance.now() - start) / 1000;
   const totalTrials = Object.values(familyMetrics).reduce((a, m) => a + m.trials, 0);
   const totalFlagged = [...perCfgByIndex.values()].reduce((a, r) => a + r.flagged, 0);
@@ -387,7 +430,7 @@ async function runE3Stage(args) {
     generatedAt: new Date().toISOString(),
     cfgCount: items.length, trialCount: totalTrials,
     flaggedFraction: totalTrials ? totalFlagged / totalTrials : 0,
-    perFamilyTrials, familyMetrics, secs,
+    perFamilyTrials, familyMetrics, secs, rankingGuardFailures,
     shards: results.map((r, i) => ({ path: path.relative(out, r.outPath ?? `shard-${i}.jsonl.gz`) })),
     cfgs: items.map(({ cfg, trials }) => ({ cfgId: cfg.cfgId, cfg, trials })),
   };
@@ -415,7 +458,14 @@ async function runE3Stage(args) {
   const summariesDir = path.join(import.meta.dirname, '..', 'data', 'summaries');
   writeFileSync(path.join(summariesDir, `e3-${runId}.json`), JSON.stringify(meta, null, 2));
   writeFileSync(path.join(summariesDir, `e3-${runId}-heatmap.csv`), csvLines.join('\n') + '\n');
-  writeFileSync(path.join(summariesDir, `e3-${runId}.md`), e3ToMarkdown(meta, perCfgRanked, runId));
+  writeFileSync(path.join(summariesDir, `e3-${runId}.md`), e3ToMarkdown(meta, perCfgRanked, runId, rankingGuard));
+
+  if (rankingGuardFailures.length > 0) {
+    console.error(JSON.stringify({
+      warning: 'LAB-16 ranking gate: inBandFraction cannot order one or more families — no top-10 table emitted for them',
+      rankingGuardFailures,
+    }));
+  }
 
   console.log(JSON.stringify({
     ok: true, cfgs: items.length, trials: totalTrials,
@@ -426,6 +476,7 @@ async function runE3Stage(args) {
       stallRate: Number(m.stallRate.toFixed(3)), flaggedFraction: Number(m.flaggedFraction.toFixed(4)),
       impactsExhaustedFraction: Number(m.impactsExhaustedFraction.toFixed(4)),
     }])),
+    rankingGuardOk: rankingGuardFailures.length === 0,
     out,
   }));
 }
@@ -538,6 +589,28 @@ async function main() {
     shotContacts: g.xaVals.length,
   }));
 
+  // LAB-16 ranking gate, checked on the FULL geometry population BEFORE any top-N slice (a
+  // post-slice check always looks tie-heavy at the ceiling regardless of whether the metric has
+  // real resolution — confirmed during this dispatch's audit). Unlike E3's per-family table
+  // (informational only), `selected` here is a real decision: it becomes
+  // `selected-geometries.json`, which downstream LAB-2 Stage B/C treats as "the geometries worth
+  // exploring further." Picking "top 12" from a metric that cannot order the population is the
+  // same mistake as E3 P1's top-10, but with a worse consequence — it silently narrows which
+  // geometries ever get looked at again. So this one blocks, matching §2.7's own precedent for a
+  // gate that invalidates a downstream artifact rather than just a display table.
+  const fanWidthGuard = rankingValidityResult(geometries.filter((g) => g.fanWidthXa !== null).map((g) => g.fanWidthXa));
+  const cradleGuard = rankingValidityResult(geometries.map((g) => g.cradleProxy));
+  if (!fanWidthGuard.ok || !cradleGuard.ok) {
+    console.error(JSON.stringify({
+      ok: false,
+      error: 'LAB-16 ranking gate: a geometry-selection metric cannot support "top N" selection',
+      fanWidthGuard: fanWidthGuard.ok ? undefined : fanWidthGuard,
+      cradleGuard: cradleGuard.ok ? undefined : cradleGuard,
+      note: 'selected-geometries.json was NOT written. See ledger/handoffs for the corpus audit that found this.',
+    }));
+    process.exitCode = 1;
+    return;
+  }
   const byFanWidth = [...geometries].filter((g) => g.fanWidthXa !== null).sort((a, b) => b.fanWidthXa - a.fanWidthXa).slice(0, TOP_N);
   const byCradle = [...geometries].sort((a, b) => b.cradleProxy - a.cradleProxy).slice(0, TOP_N);
   const selectedKeys = new Set([...byFanWidth.map((g) => g.geometryKey), ...byCradle.map((g) => g.geometryKey)]);

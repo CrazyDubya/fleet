@@ -540,28 +540,68 @@ function withE1Coupling(cfgs, inputPrior, shotlineSamplesPath) {
   return cfgs.map((c) => ({ ...c, inputPrior, shotlineSamplesPath: inputPrior === 'e1' ? shotlineSamplesPath : null }));
 }
 
-// P1 launch lane: laneWidth x deflectorAngleDeg x gateThresholdFrac x plungerSpeed = 4x4x3x6 = 288.
+// P1 launch lane — LAB-16 redesign, replacing the LAB-15-fixed 288-cfg 4-way factorial.
 //
-// LAB-15: `laneWidth: 0.028` fouled buildP1's own injection-clearance assertion on every one
-// of its 72 cfgs (arenas/e3_paths.js's `assertInjectionClear`, added by LAB-14) — the plunge
-// injection point sits centred in the lane, so its clearance to each wall is exactly
-// `laneWidth/2`, and the assertion requires that to exceed `BALL_RADIUS + FOUL_MARGIN` =
-// 0.0135 + 0.001 = 0.0145m. Analytic threshold: laneWidth > 2*0.0145 = 0.029m (strict — a
-// clearance exactly equal to the margin still throws). `0.028` misses by 1mm.
-// `0.029` itself is not used, even though it happens to pass here (2*(0.0135+0.001) rounds to
-// 0.028999999999999998 in IEEE754, so `0.029` slips through) — that's a float-rounding fluke,
-// not a deliberate margin, and a different runtime/engine's rounding could flip it. `0.0291`
-// is the grid's new tightest value: 0.1mm of deliberate margin above the analytic threshold
-// (clearance 0.01455m vs the 0.0145m minimum), still the tight, scientifically-interesting end
-// of the sweep, but robust to rounding rather than resting exactly on it.
-export const E3_P1_GRID = {
-  laneWidth: [0.0291, 0.034, 0.040, 0.045],
-  deflectorAngleDeg: [15, 28, 41, 55],
-  gateThresholdFrac: [0.35, 0.6, 0.85], // fraction of the lane's own height, not an absolute y
-  plungerSpeed: [1.0, 1.8, 2.6, 3.4, 4.2, 5.0],
-};
+// Why: the operator's cross-check of LAB-15 (`ledger/handoffs/operator/
+// 20260903T0540Z-e3-p1-is-degenerate.md`) found `inBandFraction` — the metric the old grid was
+// RANKED on — is a pure step function of `plungerSpeed` alone (0.0 at 1.0, 1.0 at every other
+// grid value): the 288-cfg factorial spent 200,000 balls sweeping 4 variables to find what was
+// really a single 1-D threshold, with `deflectorAngleDeg` and `laneWidth` apparently inert and
+// `gateThresholdFrac` real but only sampled at its two range extremes. LAB-16's own gate.js
+// `rankingValidityResult` formalises "was inBandFraction ever able to rank this family" (it
+// wasn't: 2 distinct values, 83% tied). This redesign switches to `returnRate` (continuous,
+// real resolution — see gate.js's audit) and puts the trial budget where the old grid's own
+// data said the transition band actually is.
+//
+// LAB-16's own higher-resolution probe (`ledger/handoffs/sonnet2/<this dispatch>.md` — 7-point
+// sweeps at n=3000/point, held at a fixed representative point elsewhere in the grid) checked
+// the operator's assumption that `deflectorAngleDeg` AND `laneWidth` were both safe to collapse
+// to one representative value:
+//   - `deflectorAngleDeg` across its full original [15,55] range: spread 3.3pp, no monotonic
+//     trend (values bounce, not decline/rise) — genuinely inert. Collapsed to one representative
+//     value (28°, the original grid's own near-median) — see the `deflectorControl` arm below,
+//     which re-confirms this at every trial run rather than resting on this comment.
+//   - `laneWidth` across [0.0291,0.045]: spread 5.4pp, clearly monotonic, and a tight-n corner
+//     check (15,000 trials/end) gave z=7.97 for the difference — NOT inert. The old grid's own
+//     "laneWidth spread 0.0032" (LAB-15/the operator's finding) was computed by pooling group
+//     means across the WHOLE original factorial, most of which sits in a saturated
+//     `returnRate≈0` or `≈1` regime where laneWidth's effect is invisible by construction
+//     (ceiling/floor effect swamping a real but localised signal) — an aggregation artifact of
+//     the same shape LAB-15 already found once for `inBandFraction` x `laneWidth`, just on a
+//     different metric. So `laneWidth` stays a swept axis here, not a fixed value + control arm.
+//   - a 4-corner probe of (plungerSpeed x gateThresholdFrac) inside the operator's proposed
+//     [1.0,1.8]x[0.35,0.6] window found the relationship is NOT a simple joint threshold surface
+//     (e.g. plungerSpeed=1.0 returns 0% at gateThresholdFrac=0.35 but 99% at
+//     gateThresholdFrac=0.6 — the "easier" gate position performs far worse at low speed, not
+//     better) — a real, non-monotonic interaction the operator's own "bisect each axis
+//     independently, holding the other at one representative value" design would have missed
+//     entirely (whichever representative value got picked for the other axis, silently, would
+//     have determined the located "threshold" without that dependence ever being visible). A
+//     joint grid over both axes is the only design that doesn't bake in an unchecked assumption
+//     about their independence.
+//
+// Grid: plungerSpeed(7) x gateThresholdFrac(7) x laneWidth(4), deflectorAngleDeg fixed at 28°
+// = 196 cfgs, plus a 7-point deflectorAngleDeg control arm at a representative interior point
+// of the other three axes = 7 cfgs. 203 total, vs. the old design's 288 — fewer cfgs, but 7x7
+// resolution on the two axes with real structure (old: 6x3, with 3 of the 6 plungerSpeed points
+// wasted above the saturation ceiling at 1.8+) inside the narrower range the old grid's own data
+// said mattered, plus a laneWidth axis the old ranking accidentally hid.
+export const E3_P1_PLUNGER_SPEEDS = [1.0, 1.1333, 1.2667, 1.4, 1.5333, 1.6667, 1.8];
+export const E3_P1_GATE_THRESHOLD_FRACS = [0.35, 0.3917, 0.4333, 0.475, 0.5167, 0.5583, 0.6];
+export const E3_P1_LANE_WIDTHS = [0.0291, 0.034, 0.040, 0.045]; // 0.0291: see LAB-15's foul-margin derivation, kept verbatim
+export const E3_P1_DEFLECTOR_REP_DEG = 28;
+export const E3_P1_DEFLECTOR_CONTROL_DEGS = [15, 21.7, 28.3, 35, 41.7, 48.3, 55]; // spans the old grid's full [15,55] range
 export function buildE3P1Cfgs() {
-  return withCfgIds(expandGrid(E3_P1_GRID).map((g) => ({ exp: 'e3', family: 'P1', ...g })), 'buildE3P1Cfgs');
+  const main = expandGrid({
+    plungerSpeed: E3_P1_PLUNGER_SPEEDS,
+    gateThresholdFrac: E3_P1_GATE_THRESHOLD_FRACS,
+    laneWidth: E3_P1_LANE_WIDTHS,
+  }).map((g) => ({ exp: 'e3', family: 'P1', arm: 'main', deflectorAngleDeg: E3_P1_DEFLECTOR_REP_DEG, ...g }));
+  const deflectorControl = E3_P1_DEFLECTOR_CONTROL_DEGS.map((deflectorAngleDeg) => ({
+    exp: 'e3', family: 'P1', arm: 'deflectorControl',
+    plungerSpeed: 1.4, gateThresholdFrac: 0.475, laneWidth: 0.034, deflectorAngleDeg,
+  }));
+  return withCfgIds([...main, ...deflectorControl], 'buildE3P1Cfgs');
 }
 
 // P2 orbit: radius x entryAngleDeg x exitTangentDeg x wallRestitution = 4x5x5x3 = 300.

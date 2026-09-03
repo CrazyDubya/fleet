@@ -12,6 +12,7 @@ import readline from 'node:readline';
 import path from 'node:path';
 import { mean, sd, percentile } from './metrics.js';
 import { cfgId as hashCfg } from './sweep.js';
+import { rankingValidityResult } from './gate.js';
 
 const GEOMETRY_KEYS = ['restAngleDeg', 'activeAngleDeg', 'upMs', 'omegaProfile', 'radius', 'restitution'];
 const HS_BINS = 10;
@@ -213,7 +214,12 @@ async function main() {
     .filter((g) => g.timingSensitivityDegPerMs <= SENSITIVITY_CEILING)
     .sort((a, b) => b.fanWidthXaDeg - a.fanWidthXaDeg);
 
-  const best = rankedUnderCeiling[0] ?? null;
+  // LAB-16 ranking gate, on the full pre-ceiling-filter population (`withBoth`) — `best` is a
+  // real single-geometry recommendation, not a display table, so it gets the same blocking
+  // treatment as E1's cradle/fan-width selection: refuse to name a "best" geometry rather than
+  // silently pick array position 0 of an unordered tie.
+  const fanWidthRankingGuard = rankingValidityResult(withBoth.map((g) => g.fanWidthXaDeg));
+  const best = fanWidthRankingGuard.ok ? (rankedUnderCeiling[0] ?? null) : null;
 
   // --- Binned transfer function, flattened ---
   const transferTable = [...transferBins.entries()].map(([key, b]) => {
@@ -246,6 +252,7 @@ async function main() {
     rankedUnderCeiling: rankedUnderCeiling.map((g) => g.geometryKey),
     sensitivityCeilingDegPerMs: SENSITIVITY_CEILING,
     bestGeometryKey: best?.geometryKey ?? null,
+    fanWidthRankingGuard,
     transferFunction: {
       bins: { hs: HS_BINS, phase: PHASES, vi: { count: VI_BINS, max: VI_MAX }, ai: { count: AI_BINS, max: AI_MAX } },
       table: transferTable,
@@ -257,6 +264,10 @@ async function main() {
   const mdOut = path.join(summariesDir, `e1-lab2-${runId}.md`);
   writeFileSync(jsonOut, JSON.stringify(summary, null, 2));
   writeFileSync(mdOut, toMarkdown(summary, best));
+
+  if (!fanWidthRankingGuard.ok) {
+    console.error(JSON.stringify({ warning: 'LAB-16 ranking gate: fanWidthXaDeg cannot rank these geometries — no best geometry named', fanWidthRankingGuard }));
+  }
 
   console.log(JSON.stringify({
     ok: true, geometries: geometryResults.length, trials: totalTrials,
@@ -337,6 +348,14 @@ function toMarkdown(summary, best) {
       `(fraction of held-active trials settling within 1.5s — the "feels heavy" number), and a vo/vi-vs-hs gradient of ` +
       `**${fmt(best.voViGradientPerHs, 3)} per unit hs** (positive means tip contact returns more energy than base ` +
       `contact, i.e. the ball rewards a good hit rather than saturating everywhere).`
+    );
+  } else if (!summary.fanWidthRankingGuard.ok) {
+    lines.push('## Recommendation');
+    lines.push('');
+    lines.push(
+      `> ⚠ **RANKING INVALID (LAB-16 gate)**: \`fanWidthXaDeg\` cannot rank the ${summary.fanWidthRankingGuard.n} ` +
+      `characterised geometries — ${summary.fanWidthRankingGuard.reason}. No "best" geometry is named; picking ` +
+      'array position 0 of an unordered tie would be exactly LAB-16\'s E3-P1 mistake repeated here.'
     );
     lines.push('');
   } else {

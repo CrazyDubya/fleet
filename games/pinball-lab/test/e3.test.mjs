@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { runTrial, runTrialWithMeta } from '../src/instrument.js';
 import {
   buildE3P1Cfgs, buildE3P2Cfgs, buildE3P3Cfgs, buildE3P4Cfgs, buildE3P5Cfgs, buildE3AllCfgs,
-  E3_P1_GRID, E3_P2_GRID, E3_P3_GRID, E3_P4_GRID, E3_P5_GRID, cfgId,
+  E3_P2_GRID, E3_P3_GRID, E3_P4_GRID, E3_P5_GRID, cfgId,
 } from '../src/sweep.js';
 import { classifyFeed, HALF_WIDTH, buildE3World } from '../src/arenas/e3_paths.js';
 import { loadShotlineSamples } from '../src/e1Coupling.js';
@@ -27,15 +27,18 @@ function buildableOnly(cfgs) {
   return cfgs.filter((cfg) => { try { buildE3World(cfg); return true; } catch { return false; } });
 }
 
-test('grid sizes match the §5.1 budget this run was built against (288/300/100/100/600 = 1388)', () => {
-  assert.equal(buildE3P1Cfgs().length, 4 * 4 * 3 * 6);
+test('grid sizes match the §5.1 budget this run was built against (203/300/100/100/600 = 1303)', () => {
+  // LAB-16: P1 was redesigned from a 288-cfg 4-way factorial to a 203-cfg design (7x7x4 main
+  // grid over plungerSpeed x gateThresholdFrac x laneWidth, +7 deflectorAngleDeg control-arm
+  // cfgs) — see sweep.js's E3 P1 comment for why. P2-P5 are unchanged.
+  assert.equal(buildE3P1Cfgs().length, 7 * 7 * 4 + 7);
   assert.equal(buildE3P2Cfgs('uniform').length, 4 * 5 * 5 * 3);
   assert.equal(buildE3P3Cfgs('uniform').length, 5 * 4 * 5);
   assert.equal(buildE3P4Cfgs('uniform').length, 4 * 5 * 5);
   assert.equal(buildE3P5Cfgs().length, 5 * 4 * 5 * 6);
   const all = buildE3AllCfgs();
   const total = Object.values(all).reduce((a, cfgs) => a + cfgs.length, 0);
-  assert.equal(total, 1388);
+  assert.equal(total, 1303);
 });
 
 test('every family carries cfg.exp/cfg.family and a stable cfgId', () => {
