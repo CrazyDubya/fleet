@@ -82,6 +82,39 @@ def fleet_wait_done(run: str, t0: float, timeout_s: int, handoff_dir: Path, capt
         sleep(POLL_S)
 
 
+def _dispatch_in_flight(now=None, events=None, handoff=None) -> str:
+    """Non-empty when an operator dispatch is still awaiting its `@done` handoff.
+
+    `state == idle` is NOT enough. A thread pauses between the steps of a long
+    dispatch - waiting on a permission dialog, or simply between turns - and in
+    those gaps it reads as idle while the operator still owns it. That is how
+    the 03:00 and 03:15 runs on 2026-09-03 sent into sonnet2 mid-LAB-18, burned
+    $1.75 and $0.31 on 900 s timeouts, and pulled the thread onto bench work in
+    the middle of a lab experiment.
+
+    "Owned" means: the newest `send` to this thread is newer than its newest
+    handoff. Idle means "not speaking", not "not busy".
+
+    Fails open like every other probe here - an unreadable ledger reports
+    available rather than disabling the arm.
+    """
+    try:
+        from fleet import ledger
+        sends = [e for e in (events if events is not None else ledger.read_events(tail=4000))
+                 if e.get("ev") == "send" and e.get("thread") == FLEET_TARGET
+                 and e.get("from") != "bench"]
+        if not sends:
+            return ""
+        last_send = sends[-1].get("t") or 0
+        h = handoff if handoff is not None else ledger.last_handoff(FLEET_TARGET)
+        last_handoff_t = h.stat().st_mtime if h else 0
+        if last_send > last_handoff_t:
+            return "operator dispatch still in flight (no @done handoff yet)"
+    except Exception:
+        return ""
+    return ""
+
+
 def _target_unavailable(registry_entries: dict, capture=None) -> str:
     """Why FLEET_TARGET must not be sent a packet right now, or "" if it may.
 
@@ -106,6 +139,9 @@ def _target_unavailable(registry_entries: dict, capture=None) -> str:
                 break
     except Exception:
         return ""
+    inflight = _dispatch_in_flight()
+    if inflight:
+        return inflight
     try:
         # escapes=True is load-bearing: the box renders a real draft and Claude
         # Code's dim SUGGESTED next prompt identically without SGR codes.

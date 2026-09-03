@@ -355,3 +355,49 @@ def test_fleet_arm_records_skip_without_sending():
         assert sent == [], "a skipped arm must not send a packet to the live thread"
     finally:
         arms._target_unavailable = orig
+
+
+def _clock_stub(t):
+    class S:
+        def stat(self_inner): return type("St", (), {"st_mtime": t})()
+    return S()
+
+
+def test_dispatch_in_flight_blocks_the_arm_when_the_operator_owns_the_thread():
+    """`state == idle` is not enough. A thread pauses between the steps of a long
+    dispatch - on a permission dialog, or just between turns - and reads as idle
+    while the operator still owns it. That is how the 03:00 and 03:15 runs on
+    2026-09-03 sent into sonnet2 mid-LAB-18, burned $1.75 and $0.31 on 900s
+    timeouts, and pulled it onto bench work mid-experiment."""
+    import time
+    from fleet.bench import arms
+    now = time.time()
+
+    owned = arms._dispatch_in_flight(
+        events=[{"ev": "send", "thread": arms.FLEET_TARGET, "from": "operator", "t": now}],
+        handoff=_clock_stub(now - 600))
+    assert "in flight" in owned, owned
+
+    free = arms._dispatch_in_flight(
+        events=[{"ev": "send", "thread": arms.FLEET_TARGET, "from": "operator", "t": now - 600}],
+        handoff=_clock_stub(now))
+    assert free == "", free
+
+
+def test_the_benchs_own_send_does_not_count_as_operator_ownership():
+    # Otherwise the arm would permanently block itself after its first packet.
+    import time
+    from fleet.bench import arms
+    now = time.time()
+    assert arms._dispatch_in_flight(
+        events=[{"ev": "send", "thread": arms.FLEET_TARGET, "from": "bench", "t": now}],
+        handoff=_clock_stub(now - 600)) == ""
+
+
+def test_dispatch_probe_fails_open():
+    from fleet.bench import arms
+    assert arms._dispatch_in_flight(events=[], handoff=None) == ""
+    class Boom:
+        def stat(self): raise OSError("unreadable")
+    assert arms._dispatch_in_flight(events=[{"ev": "send", "thread": arms.FLEET_TARGET,
+                                             "from": "operator", "t": 1}], handoff=Boom()) == ""
