@@ -1,3 +1,4 @@
+import contextlib
 import json
 import os
 import subprocess
@@ -220,3 +221,54 @@ class PermBrowserNavigate(unittest.TestCase):
     def test_everything_else_denied(self):
         for u in ("http://100.64.0.3:8787/", "https://example.com", "http://127.0.0.1.evil.com/", "file:///etc/passwd", "http://localhost.evil/"):
             self.assertEqual(self._nav(u), "deny", u)
+
+
+class ThreadAttributionTests(unittest.TestCase):
+    """THREAD must come from the registry, not from the shape of a path.
+
+    Both older derivations assume the thread's cwd/transcript dir sits under
+    FLEET_ROOT. A thread steering an outside repo (cwd /Users/pup/muse) matches
+    neither, so every ledger line for that session was attributed to "?" - and
+    per-thread attribution, telemetry and the availability guard all key off it.
+
+    Uses a throwaway profile rather than the live registry: reading real state
+    makes the assertion depend on whatever the fleet happens to be running.
+    """
+    PROFILE = "hooktest"
+    SID = "11111111-2222-3333-4444-555555555555"
+
+    def setUp(self):
+        self.reg = ROOT / "state" / self.PROFILE / "registry.json"
+        self.reg.parent.mkdir(parents=True, exist_ok=True)
+        self.reg.write_text(json.dumps({"muse2": {
+            "name": "muse2", "session_id": self.SID, "cwd": "/Users/pup/muse",
+            "model": "claude-sonnet-5", "status": "running", "spec_hash": "h",
+            "spawned_at": 0.0, "fork_of": None, "lineage": []}}))
+
+    def tearDown(self):
+        self.reg.unlink(missing_ok=True)
+        with contextlib.suppress(OSError):
+            self.reg.parent.rmdir()
+
+    def _thread_for(self, payload):
+        r = subprocess.run(["bash", "-c",
+                            f'source {HOOKS}/_lib.sh >/dev/null 2>&1; echo "${{THREAD:-EMPTY}}"'],
+                           input=json.dumps(payload), capture_output=True, text=True,
+                           env={**os.environ, "FLEET_PROFILE": self.PROFILE}, timeout=20)
+        return r.stdout.strip()
+
+    def test_registry_resolves_a_thread_whose_cwd_is_outside_fleet(self):
+        got = self._thread_for({
+            "cwd": "/Users/pup/muse",
+            "transcript_path": f"/Users/pup/.claude/projects/-Users-pup-muse/{self.SID}.jsonl",
+            "tool_name": "Bash", "tool_input": {"command": "true"}})
+        self.assertEqual(got, "muse2")
+
+    def test_unknown_session_still_falls_back_to_the_path_derivation(self):
+        # bench work dirs legitimately have no registry entry
+        key = str(ROOT / "bench" / "work" / "abc").replace("/", "-")
+        got = self._thread_for({
+            "cwd": str(ROOT / "bench" / "work" / "abc"),
+            "transcript_path": f"/Users/pup/.claude/projects/{key}/99999999-0000-0000-0000-000000000000.jsonl",
+            "tool_name": "Bash", "tool_input": {"command": "true"}})
+        self.assertEqual(got, "bench-work-abc")

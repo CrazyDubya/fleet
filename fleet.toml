@@ -78,3 +78,24 @@ baseline = ["briefs/v2/router.md"]
 permission_mode = "bypassPermissions"
 effort = "low"
 settings = "settings/v2/tool.json"
+
+[profile.v2.thread.muse2]
+model = "claude-sonnet-5"
+tier = "hot"
+persist = "on-demand"
+baseline = ["briefs/v2/_protocol.md", "briefs/v2/muse.md"]
+dir = "/Users/pup/muse"
+dirs = ["/Users/pup/fleet"]
+permission_mode = "acceptEdits"
+effort = "medium"
+settings = "settings/v2/project-muse.json"
+
+# Repos fleet watches but does not own. Health comes from whatever the project
+# already publishes; fleet never instruments it. See fleet/projects.py.
+[[project]]
+name = "muse"
+dir = "/Users/pup/muse"
+thread = "muse2"
+status_glob = "pipeline/status-*.md"
+state_re = 'state:\s*\*\*(\w+)\*\*'
+ok_states = ["OK", "GREEN"]

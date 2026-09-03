@@ -5,7 +5,7 @@ import uuid
 from pathlib import Path
 
 from . import ledger, tmux
-from .paths import ROOT, thread_dir
+from .paths import ROOT, thread_cwd
 from .registry import Entry, Registry
 from .spec import Thread, active_threads, append_thread, spec_hash
 
@@ -42,7 +42,7 @@ def build_argv(thread: Thread, root: Path, session_id: str | None = None, resume
 
 
 def _spawn(thread: Thread, argv: list[str], events_path: Path | None = None) -> None:
-    cwd = thread_dir(thread.name)
+    cwd = thread_cwd(thread)
     cwd.mkdir(parents=True, exist_ok=True)
     if tmux.window_exists(thread.name):
         raise LaunchError(f"{thread.name}: tmux window already exists")
@@ -96,7 +96,7 @@ def up(name: str) -> Entry:
             raise LaunchError(f"{name} is already running")
         sid = str(uuid.uuid4())
         _spawn(t, build_argv(t, ROOT, session_id=sid))
-        e = Entry(name=name, session_id=sid, cwd=str(thread_dir(name)), model=t.model, status="running",
+        e = Entry(name=name, session_id=sid, cwd=str(thread_cwd(t)), model=t.model, status="running",
                   spec_hash=spec_hash(t), spawned_at=time.time(),
                   lineage=(entries[name].lineage + [entries[name].session_id]) if name in entries else [])
         entries[name] = e
@@ -201,7 +201,7 @@ def fork(parent: str, new: str, brief: str) -> Entry:
         except LaunchError:
             toml.write_text(before)
             raise
-        e = Entry(name=new, session_id="pending", cwd=str(thread_dir(new)), model=child.model, status="running",
+        e = Entry(name=new, session_id="pending", cwd=str(thread_cwd(child)), model=child.model, status="running",
                   spec_hash=spec_hash(child), spawned_at=time.time(), fork_of=parent)
         entries[new] = e; reg.save(entries)
     ledger.event("fork", thread=new, fork_of=parent, parent_session=entries[parent].session_id, brief=brief)
@@ -227,7 +227,7 @@ def respawn(name: str) -> Entry:
                 old.status = "parked"
                 reg.save(entries)
             raise
-        e = Entry(name=name, session_id=sid, cwd=str(thread_dir(name)), model=t.model, status="running",
+        e = Entry(name=name, session_id=sid, cwd=str(thread_cwd(t)), model=t.model, status="running",
                   spec_hash=spec_hash(t), spawned_at=time.time(),
                   lineage=(old.lineage + [old.session_id]) if old else [])
         entries[name] = e; reg.save(entries)

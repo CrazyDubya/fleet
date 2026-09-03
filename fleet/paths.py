@@ -10,6 +10,17 @@ def thread_dir(name: str) -> Path:
     return ROOT / name
 
 
+def thread_cwd(thread) -> Path:
+    """Where a thread actually runs.
+
+    ROOT/<name> for fleet's own threads; an absolute `dir` for a thread that
+    steers another repo. One definition, because the launcher set this in
+    three places and each one would have had to learn about projects.
+    """
+    d = getattr(thread, "dir", None)
+    return Path(d) if d else thread_dir(thread.name)
+
+
 def profile_state(profile: str) -> Path:
     return STATE if profile == "v1" else STATE / profile
 

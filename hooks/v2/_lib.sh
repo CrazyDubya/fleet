@@ -13,7 +13,20 @@ PAYLOAD="$(cat 2>/dev/null || true)"
 jf() { printf '%s' "$PAYLOAD" | jq -r "$1 // empty" 2>/dev/null || true; }
 CWD="$(jf .cwd)"
 THREAD=""
-# Primary: derive THREAD from transcript_path, whose project-dir component
+TRANSCRIPT_PATH="$(jf .transcript_path)"
+# Primary: ask the registry which thread owns this session. session_id is the
+# transcript's basename and is unique per thread, so this is exact and works
+# for ANY cwd - including a thread that steers a repo outside FLEET_ROOT,
+# where every path-shaped derivation below silently yields "?" and the ledger
+# loses per-thread attribution for the whole session.
+REG="$FLEET_ROOT/state/${FLEET_PROFILE}/registry.json"
+[ "$FLEET_PROFILE" = "v1" ] && REG="$FLEET_ROOT/state/registry.json"
+if [ -n "$TRANSCRIPT_PATH" ] && [ -r "$REG" ]; then
+  SID="$(basename "$TRANSCRIPT_PATH" .jsonl)"
+  THREAD="$(jq -r --arg s "$SID" \
+    'to_entries[] | select(.value.session_id == $s) | .key' "$REG" 2>/dev/null | head -1)"
+fi
+# Secondary: derive THREAD from transcript_path, whose project-dir component
 # fleet.paths.transcript_path builds as str(cwd).replace("/", "-") for a
 # cwd of "$FLEET_ROOT/<thread>" - so the key is "$FLEET_ROOT" (slashes ->
 # dashes) followed by "-<thread>". This survives the model `cd`-ing Bash's
@@ -21,8 +34,7 @@ THREAD=""
 # at session start. Caveat: a forked expert's transcript lives in its
 # PARENT's project dir (fleet/registry.py:transcript_for), so THREAD then
 # resolves to the parent's name - still a valid thread, just not the fork's.
-TRANSCRIPT_PATH="$(jf .transcript_path)"
-if [ -n "$TRANSCRIPT_PATH" ]; then
+if [ -z "$THREAD" ] && [ -n "$TRANSCRIPT_PATH" ]; then
   PROJ="$(basename "$(dirname "$TRANSCRIPT_PATH")")"
   KEY="$(printf '%s' "$FLEET_ROOT" | tr '/' '-')"
   case "$PROJ" in "$KEY"-*) THREAD="${PROJ#"$KEY"-}";; esac

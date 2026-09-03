@@ -25,6 +25,10 @@ class Thread:
     forkable: bool = False
     fork_of: str | None = None
     resume_policy: str = "packet-first"
+    # Absolute working directory, when the thread steers a repo that is not
+    # this one (a `[[project]]` thread). Default None means ROOT/<name>, the
+    # only shape that existed before fleet began managing outside projects.
+    dir: str | None = None
 
 
 def _read(path: Path | None) -> dict:

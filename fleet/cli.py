@@ -116,11 +116,61 @@ def cmd_send(args):
     print(f"sent packet {pid} to {args.thread} lane={p.lane} effort={p.effort} reply={p.reply}"); return 0
 
 
+def _project_rows():
+    """Health for every declared project, or [] if none / unreadable.
+
+    Never allowed to break `fleet status`: projects are watched repos, and a
+    project whose status file has gone missing must not take the thread table
+    down with it.
+    """
+    from fleet import projects as projects_mod
+    from fleet.registry import Registry
+    try:
+        ps = projects_mod.load()
+        if not ps:
+            return []
+        # fleet's own threads are always "live" on a project they steer; they
+        # must not read as a foreign agent blocking dispatch to themselves.
+        mine = {e.session_id for e in Registry().load().values()}
+        return projects_mod.rows(projects=ps, exclude_sessions=mine)
+    except Exception:
+        return []
+
+
 def cmd_status(args):
     if args.watch:
         status_mod.watch(args.interval)
-    else:
-        print(status_mod.render(status_mod.rows()))
+        return 0
+    print(status_mod.render(status_mod.rows()))
+    from fleet import projects as projects_mod
+    hs = _project_rows()
+    if hs:
+        print()
+        print(projects_mod.render(hs))
+        for h in hs:
+            if not h.ok:
+                print(f"  ! {h.project}: {h.state} - dispatch to {h.thread or '(no thread)'}")
+    return 0
+
+
+def cmd_projects(args):
+    from fleet import agents as agents_mod, projects as projects_mod
+    hs = _project_rows()
+    if not hs:
+        print("no [[project]] declared in fleet.toml")
+        return 0
+    print(projects_mod.render(hs))
+    for h in hs:
+        blocked = projects_mod.dispatch_blocked(h)
+        print(f"\n{h.project}  {h.dir}")
+        print(f"  status   {h.status_file or '(none found)'}")
+        print(f"  dispatch {'BLOCKED - ' + blocked if blocked else 'clear'}")
+        if args.agents:
+            acts = agents_mod.by_cwd(agents_mod.scan(since=None)).get(h.dir, [])
+            print(f"  agents   {len(acts)} session(s) ever")
+            for a in acts[-args.agents:]:
+                when = datetime.fromtimestamp(a.last).strftime("%m-%d %H:%M")
+                print(f"    {when}  {a.agent:6} {a.model or '?':24} {a.session[:8]}")
     return 0
 
 
@@ -240,6 +290,9 @@ def _build_parser():
     s.add_argument("--done"); s.add_argument("--refs", nargs="*")
     s.set_defaults(fn=cmd_send)
     s = sub.add_parser("status"); s.add_argument("--watch", action="store_true"); s.add_argument("--interval", type=int, default=10); s.set_defaults(fn=cmd_status)
+    pj = sub.add_parser("projects"); pj.add_argument("--agents", type=int, default=0, metavar="N",
+                                                    help="also list the last N agent sessions per project")
+    pj.set_defaults(fn=cmd_projects)
     t = sub.add_parser("telemetry"); t.add_argument("--day"); t.set_defaults(fn=cmd_telemetry)
     sub.add_parser("report").set_defaults(fn=cmd_report)
     a = sub.add_parser("ask"); a.add_argument("thread"); a.add_argument("text", nargs="+")

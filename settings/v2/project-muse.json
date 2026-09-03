@@ -1,0 +1,109 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(/Users/pup/fleet/bin/fleet ask *)",
+      "Bash(/Users/pup/fleet/bin/fleet send *)",
+      "Bash(/Users/pup/fleet/bin/fleet miss *)",
+      "Bash(/Users/pup/fleet/bin/fleet status *)",
+      "Read(//Users/pup/fleet/**)",
+      "Edit(//Users/pup/fleet/ledger/handoffs/**)",
+      "Bash(node *)",
+      "Bash(python3 *)",
+      "Bash(git log *)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git show *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(ls *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(wc *)",
+      "Bash(find *)",
+      "Bash(grep *)",
+      "Read(//Users/pup/muse/**)",
+      "Edit(//Users/pup/muse/**)",
+      "Bash(cd /Users/pup/muse *)",
+      "Bash(launchctl list *)"
+    ],
+    "deny": [
+      "Bash(curl *)",
+      "Bash(git push *)",
+      "Bash(launchctl bootout *)",
+      "Bash(launchctl unload *)",
+      "Bash(rm *)",
+      "Bash(rmdir *)",
+      "Bash(scp *)",
+      "Bash(ssh *)",
+      "Bash(sudo *)",
+      "Bash(wget *)",
+      "Edit(//Users/pup/fleet/fleet.toml)",
+      "Edit(//Users/pup/fleet/fleet/**)",
+      "Edit(//Users/pup/fleet/games/pinball/**)",
+      "Edit(//Users/pup/fleet/hooks/**)",
+      "Edit(//Users/pup/fleet/settings/**)",
+      "Edit(//Users/pup/muse/.git/**)",
+      "Edit(//Users/pup/muse/llama.cpp/**)",
+      "Edit(//Users/pup/muse/vendor/**)",
+      "Read(**/.env)",
+      "Read(//Users/pup/.aws/**)",
+      "Read(//Users/pup/.ssh/**)",
+      "Read(//Users/pup/fleet/mail/oauth_client.json)",
+      "Read(//Users/pup/fleet/mail/token.json)",
+      "Read(//Users/pup/fleet/state/gui-token)",
+      "Read(//Users/pup/muse/llama.cpp/**)",
+      "Read(//Users/pup/muse/vendor/**)",
+      "mcp__playwright__browser_file_upload",
+      "mcp__playwright__browser_network_request",
+      "mcp__playwright__browser_run_code_unsafe"
+    ]
+  },
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/pup/fleet/hooks/v2/router.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "SendMessage|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/pup/fleet/hooks/v2/gate.sh",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/pup/fleet/hooks/v2/hold.sh",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "matcher": "Bash|mcp__playwright__browser_navigate",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/pup/fleet/hooks/v2/perm.sh",
+            "timeout": 300
+          }
+        ]
+      }
+    ]
+  }
+}

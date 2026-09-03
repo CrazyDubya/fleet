@@ -99,7 +99,7 @@ class ForkInheritanceTests(unittest.TestCase):
              mock.patch.object(launcher.ledger, "event"), \
              mock.patch.object(launcher.Path, "exists", return_value=True), \
              mock.patch.object(launcher.Path, "read_text", return_value=""), \
-             mock.patch.object(launcher, "thread_dir", side_effect=lambda n: Path(f"/r/{n}")), \
+             mock.patch.object(launcher, "thread_cwd", side_effect=lambda t: Path(f"/r/{t.name}")), \
              mock.patch.object(launcher, "_spawn",
                                side_effect=lambda t, argv, **kw: captured.update(thread=t, argv=argv)):
             launcher.fork(parent.name, "expert-test", "briefs/v2/expert-test.md")
@@ -150,3 +150,27 @@ class ThreadNameTests(unittest.TestCase):
         with self.assertRaises(launcher.LaunchError) as cm:
             launcher.fork("opus", "../escape", "briefs/opus.md")
         self.assertIn("escape", str(cm.exception))
+
+
+class ForeignCwdTests(unittest.TestCase):
+    """A thread that steers a repo fleet does not own runs THERE, not in ROOT/<name>."""
+
+    def test_thread_cwd_defaults_to_root_over_name(self):
+        from fleet.paths import ROOT, thread_cwd
+        t = Thread(name="sonnet2", model="m", tier="hot", persist="singular")
+        self.assertEqual(thread_cwd(t), ROOT / "sonnet2")
+
+    def test_thread_cwd_honours_an_absolute_dir(self):
+        from fleet.paths import thread_cwd
+        t = Thread(name="muse2", model="m", tier="hot", persist="on-demand", dir="/Users/pup/muse")
+        self.assertEqual(thread_cwd(t), Path("/Users/pup/muse"))
+
+    def test_the_declared_muse_thread_resolves_outside_root(self):
+        from fleet import spec
+        from fleet.paths import ROOT, thread_cwd
+        t = spec.load_profile("v2").threads["muse2"]
+        cwd = thread_cwd(t)
+        self.assertEqual(cwd, Path("/Users/pup/muse"))
+        self.assertNotIn(ROOT, cwd.parents)
+        # it still needs fleet on --add-dir, or it cannot read packets or write handoffs
+        self.assertIn("/Users/pup/fleet", t.dirs)
