@@ -50,6 +50,52 @@ DELETE_VERBS = frozenset({"rm", "rmdir", "unlink"})
 EXEC_PRIMARIES = frozenset({"-exec", "-execdir", "-ok", "-okdir"})
 XARGS_OPTS_WITH_ARG = frozenset({"-n", "-I", "-L", "-P", "-s", "-d", "-E", "-a", "-J", "-R", "-S"})
 
+# Commands whose FIRST operand is a search pattern, not a path. `grep -v /data/`
+# filters for the literal text "/data/" and opens nothing, but the path check
+# read it as a path outside the repo and escalated - and `... | grep -v /some/dir/`
+# is a constant idiom, so this interrupted the operator several times per
+# dispatch for entirely benign commands (observed live, sonnet2, LAB-16).
+PATTERN_FIRST_VERBS = frozenset({"grep", "egrep", "fgrep", "rg", "ag"})
+# ...unless the pattern comes from an option instead, in which case the first
+# operand IS a path and must still be checked. `-f`/`--file` reads the patterns
+# from a FILE, so exempting the operand there would wave through a real read.
+GREP_PATTERN_OPTS = frozenset({"-e", "--regexp", "-f", "--file"})
+
+
+def _pattern_operands(tokens: list[str]) -> set[int]:
+    """Indices of tokens that are a search pattern rather than a path.
+
+    Only the FIRST operand of a pattern-first command is exempt: in
+    `grep /etc/passwd /etc/shadow` the second operand is a real file and is
+    still checked. Segment-scoped on SHELL_OPERATORS, the same way
+    _wrapped_verdict scopes its own exemptions, so `ls && grep -v /x/` exempts
+    only grep's operand.
+
+    Fails closed: if the segment carries -e/-f the exemption is skipped
+    entirely, and an unrecognised verb never gets one.
+    """
+    out: set[int] = set()
+    verb_seen = False
+    want = False
+    for i, tok in enumerate(tokens):
+        if tok in SHELL_OPERATORS:
+            verb_seen, want = False, False
+            continue
+        if not verb_seen:
+            verb_seen = True
+            want = os.path.basename(tok) in PATTERN_FIRST_VERBS
+            continue
+        if not want:
+            continue
+        if tok in GREP_PATTERN_OPTS:
+            want = False  # the pattern is an option's argument; operands are paths
+            continue
+        if tok.startswith("-") and tok != "-":
+            continue
+        out.add(i)
+        want = False
+    return out
+
 
 def _xargs_utility(rest: list[str]) -> str:
     """The utility xargs will run: the first operand after its options.
@@ -397,9 +443,13 @@ def decide_auto(command: str, root: Path, _depth: int = 0) -> tuple[str, str]:
     # URL - so merging cannot change which reason a given token produces. It
     # only reports whichever offending token comes first when a command has
     # both, and either way the verdict is escalate.
-    for tok in _tokens(command):
+    tokens = _tokens(command)
+    patterns = _pattern_operands(tokens)
+    for i, tok in enumerate(tokens):
         if _loopback_url(tok) is False:
             return "escalate", f"non-loopback URL: {tok}"
+        if i in patterns:
+            continue  # a search pattern, not a path (see _pattern_operands)
         if not _path_ok(tok, root):
             return "escalate", f"path outside repo: {tok}"
     return "allow-auto", "in-repo, no deny match"

@@ -363,3 +363,45 @@ class UrlsAreNotInRepoPaths(unittest.TestCase):
     def test_userinfo_host_spoof_is_not_treated_as_loopback(self):
         d, _ = prompts.decide_auto("curl https://127.0.0.1@evil.example/x", _ROOT)
         self.assertEqual(d, "escalate")
+
+
+class GrepPatternsAreNotPaths(unittest.TestCase):
+    """`grep -v /data/` filters for literal text and opens nothing, but the path
+    check read it as a path outside the repo and escalated. Observed live
+    (sonnet2, LAB-16): `... | grep -v /some/dir/` is a constant idiom, so this
+    interrupted the operator repeatedly for benign read-only commands."""
+
+    def test_the_live_blocker_now_allows(self):
+        cmd = ('cd /Users/pup/fleet/games/pinball-lab && ls && echo --- && '
+               'find . -iname "*sweep*" | grep -v node_modules | grep -v /data/')
+        d, why = prompts.decide_auto(cmd, _ROOT)
+        self.assertEqual(d, "allow-auto", why)
+
+    def test_pattern_operand_is_exempt_even_with_recursive_flag(self):
+        # With -r the operand order is still pattern-first.
+        self.assertEqual(prompts.decide_auto("grep -rn /usr/bin x.txt", _ROOT)[0], "allow-auto")
+
+    def test_only_the_FIRST_operand_is_exempt(self):
+        # /etc/shadow here is a real file grep would open.
+        d, why = prompts.decide_auto("grep /etc/passwd /etc/shadow", _ROOT)
+        self.assertEqual(d, "escalate", why)
+        self.assertIn("/etc/shadow", why)
+
+    def test_dash_f_reads_patterns_from_a_file_so_no_exemption(self):
+        self.assertEqual(prompts.decide_auto("grep -f /etc/patterns x", _ROOT)[0], "escalate")
+
+    def test_dash_e_means_the_operand_is_a_path(self):
+        d, why = prompts.decide_auto("grep -e foo /etc/shadow", _ROOT)
+        self.assertEqual(d, "escalate", why)
+
+    def test_exemption_does_not_leak_across_shell_operators(self):
+        d, why = prompts.decide_auto("grep -v /x/ && cat /etc/shadow", _ROOT)
+        self.assertEqual(d, "escalate", why)
+        self.assertIn("/etc/shadow", why)
+
+    def test_non_pattern_verbs_are_unaffected(self):
+        self.assertEqual(prompts.decide_auto("ls /data/", _ROOT)[0], "escalate")
+        self.assertEqual(prompts.decide_auto("cat /etc/passwd", _ROOT)[0], "escalate")
+
+    def test_destructive_commands_still_denied(self):
+        self.assertEqual(prompts.decide_auto("rm -rf /Users/pup", _ROOT)[0], "deny")
