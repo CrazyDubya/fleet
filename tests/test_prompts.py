@@ -631,3 +631,55 @@ class VerbPathTests(unittest.TestCase):
 
     def test_but_a_deny_after_a_shell_operator_still_fires(self):
         self.assertEqual(self._d("cd /Users/pup/muse && /usr/bin/git push"), "deny")
+
+
+class TokenRoleTests(unittest.TestCase):
+    """Every token gets exactly one role, assigned in one place.
+
+    The old shape ran _path_ok over every token and bolted on an exemption each
+    time something path-SHAPED turned out not to be a path. That produced five
+    live false positives in three days (URLs, grep patterns, cwd-relative paths,
+    awk/sed/jq programs, an absolute interpreter path), because each fix was an
+    independent set the token loop had to remember to consult.
+    """
+    ROOT = Path("/Users/pup/fleet")
+
+    def _roles(self, cmd):
+        toks = prompts._tokens(cmd)
+        return list(zip(toks, prompts.roles(toks)))
+
+    def test_every_token_gets_exactly_one_role(self):
+        toks = prompts._tokens("grep -r /etc/x /Users/pup/fleet && /bin/cat http://evil.test")
+        rs = prompts.roles(toks)
+        self.assertEqual(len(rs), len(toks))
+        self.assertTrue(set(rs) <= {prompts.VERB, prompts.PATTERN, prompts.URL,
+                                    prompts.PATH, prompts.OTHER})
+
+    def test_the_verb_is_a_verb_even_spelled_as_a_path(self):
+        self.assertEqual(self._roles("/usr/bin/python3 -m harness")[0][1], prompts.VERB)
+
+    def test_a_grep_pattern_is_not_a_path(self):
+        rs = dict(self._roles("grep /etc/passwd /Users/pup/fleet/x"))
+        self.assertEqual(rs["/etc/passwd"], prompts.PATTERN)     # first operand: the pattern
+        self.assertEqual(rs["/Users/pup/fleet/x"], prompts.PATH)  # second: a real file
+
+    def test_a_url_outranks_path_shape(self):
+        self.assertEqual(dict(self._roles("curl https://evil.test/x"))["https://evil.test/x"],
+                         prompts.URL)
+
+    def test_a_verb_after_an_operator_is_still_a_verb(self):
+        rs = self._roles("ls && /bin/cat x")
+        self.assertEqual([r for t, r in rs if t == "/bin/cat"], [prompts.VERB])
+
+    def test_an_option_attached_path_is_still_a_path(self):
+        # _path_ok splits on `=` internally; the classifier must not skip the
+        # token before it gets there, or --config=/etc/passwd becomes invisible
+        self.assertEqual(dict(self._roles("cat --config=/etc/passwd"))["--config=/etc/passwd"],
+                         prompts.PATH)
+        self.assertEqual(prompts.decide_auto("cat --config=/etc/passwd", self.ROOT)[0], "escalate")
+
+    def test_a_redirection_target_is_still_a_path(self):
+        self.assertEqual(prompts.decide_auto("cat >/etc/x", self.ROOT)[0], "escalate")
+
+    def test_plain_words_are_not_paths(self):
+        self.assertEqual(dict(self._roles("ls -la here"))["here"], prompts.OTHER)

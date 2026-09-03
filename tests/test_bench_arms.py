@@ -60,41 +60,23 @@ class SingleTurnTests(unittest.TestCase):
 
 
 class SwarmTests(unittest.TestCase):
-    """N workers race the same task; the first artifact wins and the rest are killed."""
+    """N workers race one task; the first CORRECT one wins, judged by the task's check."""
 
     class FakeProc:
         def __init__(self, out_dir=None, content="answer", rc=0, running=False):
             self.out_dir, self.content, self.rc = out_dir, content, rc
-            self.running = running or out_dir is not None
+            self.running = running
             self.terminated = False
-            self.returncode = None if self.running else rc
+            self.returncode = None if running else rc
+            if out_dir is not None:
+                out_dir.mkdir(parents=True, exist_ok=True)
+                (out_dir / "reply.txt").write_text(content)
 
         def poll(self):
-            # a producing worker writes its artifact and stays running, exactly
-            # like a real one that has not been reaped yet
-            if self.out_dir is not None:
-                self.out_dir.mkdir(parents=True, exist_ok=True)
-                (self.out_dir / "reply.txt").write_text(self.content)
             return None if self.running else self.rc
 
         def terminate(self):
             self.terminated = True
-
-    def _run(self, factory, n=3, timeout_s=5, target=None):
-        d = Path(self.tmp.name)
-        tgt = target or str(d / "canonical")
-        made = []
-
-        def popen(argv, cwd=None, **kw):
-            i = len(made)
-            pr = factory(i, Path(cwd))
-            made.append(pr)
-            return pr
-
-        res = arms.run_swarm("claude-haiku-4-5", f"write to {tgt} please", "run1", Path("/r"),
-                             timeout_s, d / "work", target=tgt, n=n, popen=popen,
-                             sleep=lambda s: None, clock=iter([float(i) for i in range(200)]).__next__)
-        return res, made, Path(tgt)
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -102,6 +84,26 @@ class SwarmTests(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
+    def _run(self, factory, n=3, timeout_s=5, check=None, shell_run=None):
+        d = Path(self.tmp.name)
+        tgt = str(d / "canonical")
+        # the check must NAME the target, because _worker_correct re-points it at
+        # each worker's dir by substituting that exact string
+        check = check.format(target=tgt) if check else None
+        made = []
+
+        def popen(argv, cwd=None, **kw):
+            pr = factory(len(made), Path(cwd))
+            made.append(pr)
+            return pr
+
+        res = arms.run_swarm("claude-haiku-4-5", f"write to {tgt} please", "run1", Path("/r"),
+                             timeout_s, d / "work", target=tgt, check=check, n=n, popen=popen,
+                             sleep=lambda s: None, clock=iter([float(i) for i in range(500)]).__next__,
+                             shell_run=shell_run or (lambda *a, **k: None))
+        return res, made, Path(tgt)
+
+    # --- worker isolation -------------------------------------------------
     def test_each_worker_gets_its_own_target_or_they_race_on_one_file(self):
         seen = []
 
@@ -112,32 +114,71 @@ class SwarmTests(unittest.TestCase):
         arms.run_swarm("m", "write to OUT please", "run1", Path("/r"), 1,
                        Path(self.tmp.name) / "work", target="OUT", n=3, popen=popen,
                        sleep=lambda s: None, clock=iter([0.0, 9.0]).__next__)
-        self.assertEqual(len(seen), 3)
         self.assertEqual(len(set(seen)), 3, "workers must not share a target path")
         for i, pkt in enumerate(seen):
             self.assertIn(f"w{i}", pkt)
-
-    def test_first_artifact_wins_and_is_copied_to_the_canonical_target(self):
-        res, made, tgt = self._run(lambda i, cwd: self.FakeProc(cwd / "out" if i == 1 else None, "the answer"))
-        self.assertEqual(res.status, "done")
-        self.assertIn("w1", res.note)
-        self.assertEqual((tgt / "reply.txt").read_text(), "the answer")
-
-    def test_losers_still_running_are_terminated(self):
-        # losers that had already exited need no terminate(); the ones still
-        # burning tokens on a question already answered are the point
-        res, made, _ = self._run(
-            lambda i, cwd: self.FakeProc(cwd / "out") if i == 0 else self.FakeProc(running=True))
-        self.assertEqual(res.status, "done")
-        # every still-running worker is reaped, the winner included: once the
-        # artifact exists, more tokens buy nothing
-        self.assertTrue(all(p.terminated for p in made))
 
     def test_every_worker_transcript_is_measured_not_just_the_winner(self):
         # a swarm's cost is what ALL workers spent; that is the trade being priced
         res, _, _ = self._run(lambda i, cwd: self.FakeProc(cwd / "out" if i == 2 else None), n=4)
         self.assertEqual(sorted(res.transcripts_by_thread),
                          [f"bench-work-run1-w{i}" for i in range(4)])
+
+    # --- selection --------------------------------------------------------
+    def test_the_first_CORRECT_worker_wins_not_the_first_to_finish(self):
+        """The measured flaw in first-to-finish: 2 of 4 live tasks came back `fail`
+        because every worker produced an artifact and the quickest one was wrong."""
+        def factory(i, cwd):
+            return self.FakeProc(cwd / "out", content="WRONG" if i == 0 else "RIGHT")
+
+        calls = []
+
+        def shell_run(cmd, **kw):
+            calls.append(cmd)
+            wdir = cmd.split()[-1]
+            ok = (Path(wdir) / "reply.txt").read_text() == "RIGHT"
+            return type("R", (), {"returncode": 0 if ok else 1})()
+
+        res, _, tgt = self._run(factory, n=3, check="verify {target}", shell_run=shell_run)
+        self.assertEqual(res.status, "done")
+        self.assertIn("passed the task check", res.note)
+        self.assertEqual((tgt / "reply.txt").read_text(), "RIGHT")
+
+    def test_when_no_worker_is_correct_the_run_records_a_fail_not_a_timeout(self):
+        def shell_run(cmd, **kw):
+            return type("R", (), {"returncode": 1})()
+
+        res, _, tgt = self._run(lambda i, cwd: self.FakeProc(cwd / "out", content="WRONG"),
+                                n=3, check="verify {target}", shell_run=shell_run)
+        self.assertEqual(res.status, "done")           # an artifact exists ...
+        self.assertIn("no worker", res.note)           # ... but none passed
+        self.assertEqual((tgt / "reply.txt").read_text(), "WRONG")
+
+    def test_a_still_running_worker_is_never_judged(self):
+        # judging a half-written file would score a slow-but-correct worker as wrong
+        judged = []
+
+        def shell_run(cmd, **kw):
+            judged.append(cmd)
+            return type("R", (), {"returncode": 0})()
+
+        self._run(lambda i, cwd: self.FakeProc(cwd / "out", running=(i != 1)),
+                  n=3, check="verify {target}", shell_run=shell_run)
+        self.assertEqual(len(judged), 1, "only the exited worker may be judged")
+
+    def test_no_check_means_any_artifact_wins(self):
+        res, _, _ = self._run(lambda i, cwd: self.FakeProc(cwd / "out" if i == 1 else None))
+        self.assertEqual(res.status, "done")
+        self.assertIn("w1", res.note)
+
+    # --- lifecycle --------------------------------------------------------
+    def test_losers_still_running_are_terminated(self):
+        res, made, _ = self._run(
+            lambda i, cwd: self.FakeProc(cwd / "out") if i == 0 else self.FakeProc(running=True))
+        self.assertEqual(res.status, "done")
+        # every still-running worker is reaped, the winner included: once the
+        # artifact exists, more tokens buy nothing
+        self.assertTrue(all(p.terminated for p in made if p.running))
 
     def test_all_workers_failing_to_start_is_skipped_not_a_failure(self):
         res, _, _ = self._run(lambda i, cwd: self.FakeProc(rc=1))

@@ -150,8 +150,11 @@ def _default_execute(root: Path):
                                   current_profile(), Registry().load(),
                                   target=tgt if tgt.is_absolute() else root / tgt)
         if arm in arms.SWARM_ARMS:
+            # the task's own check decides which worker won: first CORRECT, not
+            # first to finish. resolved.check already has {expect} substituted.
             return arms.run_swarm(arms.SWARM_ARMS[arm], resolved.packet, run, root, resolved.timeout_s,
-                                  root / "bench" / "work" / run, target=resolved.target)
+                                  root / "bench" / "work" / run, target=resolved.target,
+                                  check=resolved.check)
         return arms.run_single_turn(arms.ARMS[arm], resolved.packet, run, root, resolved.timeout_s, root / "bench" / "work" / run)
     return execute
 

@@ -79,34 +79,70 @@ def run_single_turn(model: str, packet: str, run: str, root: Path, timeout_s: in
     return ArmResult("done", by_thread, out, "")
 
 
-def _first_artifact(dirs: dict[int, Path], t0: float) -> int | None:
-    """Index of the first worker to write a non-empty file, or None.
+def _has_artifact(d: Path, t0: float) -> bool:
+    """A non-empty file written under `d` since t0.
 
-    Same rule as the fleet arm's _artifact_done, and for the same reason: the
-    task says where its answer goes, so that is what "finished" means. Empty
-    files do not count - the directory and a zero-byte file appear a beat
+    Empty files do not count - the directory and a zero-byte file appear a beat
     before the content.
     """
-    for i, d in dirs.items():
-        if not d.is_dir():
+    if not d.is_dir():
+        return False
+    for p in d.rglob("*"):
+        try:
+            if p.is_file() and p.stat().st_size > 0 and p.stat().st_mtime >= t0:
+                return True
+        except OSError:
             continue
-        for p in d.rglob("*"):
-            try:
-                if p.is_file() and p.stat().st_size > 0 and p.stat().st_mtime >= t0:
-                    return i
-            except OSError:
-                continue
-    return None
+    return False
+
+
+def _copy_tree(src: Path, dest: Path) -> None:
+    dest.mkdir(parents=True, exist_ok=True)
+    for f in src.rglob("*"):
+        if f.is_file():
+            out = dest / f.relative_to(src)
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_bytes(f.read_bytes())
+
+
+def _worker_correct(check: str | None, target: str, wdir: Path, root: Path, shell_run) -> bool:
+    """Does this worker's output satisfy the task's own check?
+
+    The check names the canonical target, so it is re-pointed at the worker's
+    directory the same way the packet is. No check means we cannot tell, and an
+    unjudgeable worker counts as correct - otherwise a task without a check
+    could never produce a winner at all.
+    """
+    if not check:
+        return True
+    try:
+        r = shell_run(check.replace(target, str(wdir)), shell=True, cwd=str(root),
+                      capture_output=True, timeout=120)
+        return r.returncode == 0
+    except Exception:
+        return False
 
 
 def run_swarm(model: str, packet: str, run: str, root: Path, timeout_s: int, workdir: Path,
-              target: str, n: int = SWARM_N, popen=subprocess.Popen, sleep=time.sleep,
-              clock=time.time) -> ArmResult:
-    """N workers race the same task in isolated worktrees; first artifact wins.
+              target: str, check: str | None = None, n: int = SWARM_N, popen=subprocess.Popen,
+              sleep=time.sleep, clock=time.time, shell_run=subprocess.run) -> ArmResult:
+    """N workers race the same task; the first CORRECT one wins.
 
     Each worker gets its OWN target directory, substituted into its copy of the
-    packet - without that they all write the same path and the measurement is a
-    race between partial writes rather than between workers.
+    packet - without that they all write one path and the run measures a race
+    between partial writes rather than between workers.
+
+    Selection is first-correct, not first-to-finish. Measured 2026-09-03 on the
+    original first-to-finish rule: 4 tasks, 2 of them `fail` rather than
+    `timeout` - every worker produced an artifact and half the artifacts were
+    simply wrong. "First" selects for the fastest worker, and fastest correlates
+    with least thorough, so the arm was measuring who types quickest rather than
+    whether a swarm can do the work.
+
+    A worker is judged only once it has EXITED, so a half-written file is never
+    mistaken for a wrong answer. If every worker finishes and none is correct,
+    the first artifact produced is still adopted, so the run records an honest
+    `fail` instead of vanishing into a timeout.
     """
     workdir.mkdir(parents=True, exist_ok=True)
     procs, dirs, by_thread = {}, {}, {}
@@ -120,14 +156,24 @@ def run_swarm(model: str, packet: str, run: str, root: Path, timeout_s: int, wor
         argv = single_turn_argv(model, sid, packet.replace(target, str(out)), root)
         procs[i] = popen(argv, cwd=str(wd), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     t0 = clock()
-    winner = None
+    winner: int | None = None
+    fallback: int | None = None
+    judged: set[int] = set()
     try:
         while True:
-            winner = _first_artifact(dirs, t0)
+            for i, d in dirs.items():
+                if i in judged or procs[i].poll() is None or not _has_artifact(d, t0):
+                    continue
+                judged.add(i)
+                if fallback is None:
+                    fallback = i
+                if _worker_correct(check, target, d, root, shell_run):
+                    winner = i
+                    break
             if winner is not None:
                 break
             if all(p.poll() is not None for p in procs.values()):
-                break  # every worker exited without producing anything
+                break
             if clock() - t0 >= timeout_s:
                 break
             sleep(POLL_S)
@@ -135,21 +181,18 @@ def run_swarm(model: str, packet: str, run: str, root: Path, timeout_s: int, wor
         for p in procs.values():
             if p.poll() is None:
                 p.terminate()
-    if winner is None:
+    chosen = winner if winner is not None else fallback
+    if chosen is None:
         exits = sorted({p.returncode for p in procs.values() if p.returncode is not None})
         # every worker refusing to start is the arm being unavailable, not the
         # model failing - the same distinction run_single_turn draws.
         status = "skipped" if exits and all(e != 0 for e in exits) else "timeout"
         return ArmResult(status, by_thread, None, f"no worker produced an artifact (exits={exits})")
-    # the winner's output becomes the run's, where the task's `check` looks for it
-    dest = Path(target)
-    dest.mkdir(parents=True, exist_ok=True)
-    for src in dirs[winner].rglob("*"):
-        if src.is_file():
-            rel = src.relative_to(dirs[winner])
-            (dest / rel).parent.mkdir(parents=True, exist_ok=True)
-            (dest / rel).write_bytes(src.read_bytes())
-    return ArmResult("done", by_thread, None, f"worker w{winner} of {n} produced first")
+    _copy_tree(dirs[chosen], Path(target))
+    note = (f"worker w{chosen} of {n} passed the task check ({len(judged)} judged)"
+            if winner is not None else
+            f"no worker of {n} passed; adopted w{chosen}'s output so the run records a fail")
+    return ArmResult("done", by_thread, None, note)
 
 
 def _handoff_done(run: str, t0: float, handoff_dir: Path) -> bool:

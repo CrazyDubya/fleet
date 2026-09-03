@@ -75,6 +75,49 @@ PATTERN_FIRST_VERBS = frozenset({"grep", "egrep", "fgrep", "rg", "ag", "awk", "s
 GREP_PATTERN_OPTS = frozenset({"-e", "--regexp", "--expression", "-f", "--file", "--from-file"})
 
 
+# Token roles. Every token gets EXACTLY ONE, assigned in one place.
+#
+# This exists because the old shape - run _path_ok over every token, then bolt
+# on an exemption each time something that merely LOOKS like a path turns out
+# not to be one - produced five separate live false positives in three days:
+# URLs, grep patterns, cwd-relative paths, awk/sed/jq programs, and an absolute
+# interpreter path. Each fix was a new independent exemption set that the token
+# loop had to remember to consult, so the next miss was a matter of time.
+#
+# Adding a sixth kind now means teaching `roles()` about it, in one function,
+# where the precedence between kinds is visible. It does not make a sixth
+# impossible; it makes it a one-line change in a place that is hard to miss.
+VERB = "verb"        # the executable being run
+PATTERN = "pattern"  # a search/program argument (grep, awk, sed, jq)
+URL = "url"          # a non-loopback URL - always escalates
+OTHER = "other"      # not path-shaped; nothing to judge
+PATH = "path"        # a file this command reads or writes
+
+
+def roles(tokens: list[str]) -> list[str]:
+    """One role per token, in precedence order.
+
+    VERB and PATTERN win over PATH because a token in those positions is not a
+    file even when it is spelled like one. URL is checked before PATH because
+    _is_path_candidate would otherwise wave a URL through as "not a path".
+    """
+    verbs = _verb_positions(tokens)
+    patterns = _pattern_operands(tokens)
+    out = []
+    for i, tok in enumerate(tokens):
+        if _loopback_url(tok) is False:
+            out.append(URL)
+        elif i in verbs:
+            out.append(VERB)
+        elif i in patterns:
+            out.append(PATTERN)
+        elif _is_path_candidate(tok.lstrip("<>=").rstrip(";&|)")):
+            out.append(PATH)
+        else:
+            out.append(OTHER)
+    return out
+
+
 def _verb_positions(tokens: list[str]) -> set[int]:
     """Indices of tokens that are the command being RUN, not a file it touches.
 
@@ -551,16 +594,12 @@ def decide_auto(command: str, root: Path, cwd: Path | str | None = None, _depth:
     # only reports whichever offending token comes first when a command has
     # both, and either way the verdict is escalate.
     tokens = _tokens(command)
-    patterns = _pattern_operands(tokens)
-    verbs = _verb_positions(tokens)
     bases = _token_bases(tokens, Path(cwd) if cwd else root)
-    for i, tok in enumerate(tokens):
-        if _loopback_url(tok) is False:
+    for i, (tok, role) in enumerate(zip(tokens, roles(tokens))):
+        if role is URL:
             return "escalate", f"non-loopback URL: {tok}"
-        if i in patterns:
-            continue  # a search pattern, not a path (see _pattern_operands)
-        if i in verbs:
-            continue  # the executable being run, not a file (see _verb_positions)
+        if role is not PATH:
+            continue  # VERB or PATTERN: not a file this command reads or writes
         if not _path_ok(tok, root, bases[i], extra_roots):
             return "escalate", f"path outside repo: {tok}"
     return "allow-auto", "in-repo, no deny match"
