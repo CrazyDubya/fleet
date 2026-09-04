@@ -761,6 +761,14 @@ function runE3Trial(cfg, seed, opts) {
 
     if (events.length >= MAX_IMPACTS) flags |= FLAGS.IMPACTS_EXHAUSTED;
 
+    // LAB-19 instrumentation: this substep's raw contact events, for probes that need to see
+    // which primitive a ball actually touched (e.g. confirming the apron-right graze
+    // mechanism found by opus2's design-lane probes, through the real production trial path
+    // instead of a hand-rolled step loop). Opt-in only (undefined unless a caller passes it);
+    // no effect on any existing trial, record, or metric — purely additive, same pattern as
+    // onStep above.
+    if (opts?.onEvent && events.length > 0) opts.onEvent(events);
+
     if (opts?.onStep) {
       opts.onStep({ t: elapsedS, pos: { x: ball.pos.x, y: ball.pos.y }, vel: { x: ball.vel.x, y: ball.vel.y } });
     }
