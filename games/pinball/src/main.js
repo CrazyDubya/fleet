@@ -132,6 +132,7 @@ const sandBank = mech.buildSandBank();
 const treehouse = mech.buildTreehouseStandup();
 const funLaneDefs = mech.buildFunLanes();
 const spinnerDefs = mech.buildSpinners();
+const swingSetPosts = mech.buildSwingSetPosts();
 
 setLayerPrimitives(world, 'playfield', [
   ...wallSegments.map((shape) => ({ shape })),
@@ -141,6 +142,7 @@ setLayerPrimitives(world, 'playfield', [
   ...hopscotch.targets.map((t) => ({ shape: t.shape })),
   ...sandBank.targets.map((t) => ({ shape: t.shape })),
   { shape: treehouse.shape },
+  ...swingSetPosts.map((p) => ({ shape: p.shape })),
 ]);
 
 // --- T5 ramps, orbits and the SANDBOX scoop ---------------------------------------------
@@ -317,24 +319,28 @@ function buildSlingshotMesh(segments) {
 tiltGroup.add(buildSlingshotMesh(slingshots.left));
 tiltGroup.add(buildSlingshotMesh(slingshots.right));
 // A pair of swing-set posts + top bar behind each slingshot, for the "swing set" read.
-function buildSwingSetPosts(apex) {
-  const group = new THREE.Group();
-  const postGeo = new THREE.CylinderGeometry(0.004, 0.004, 0.09, 8);
-  for (const dx of [-0.03, 0.03]) {
-    const post = coloredMesh(postGeo, 0x777777);
-    const p = toSceneVec(apex.x + dx, apex.y + 0.02, 0.045);
-    post.position.set(p.x, p.y, p.z);
-    group.add(post);
-  }
-  const bar = coloredMesh(new THREE.CylinderGeometry(0.004, 0.004, 0.07, 8), 0x777777);
-  bar.rotation.z = Math.PI / 2;
-  const bp = toSceneVec(apex.x, apex.y + 0.02, 0.09);
-  bar.position.set(bp.x, bp.y, bp.z);
-  group.add(bar);
-  return group;
+// Side-post positions read from mech.buildSwingSetPosts() (table/mechanisms.js) — the same
+// data the physics layer collides against above — rather than a second, independently-
+// hardcoded position list.
+const swingSetPostGeo = new THREE.CylinderGeometry(0.004, 0.004, 0.09, 8);
+for (const p of swingSetPosts) {
+  const mesh = coloredMesh(swingSetPostGeo, 0x777777);
+  const sp = toSceneVec(p.centre.x, p.centre.y, 0.045);
+  mesh.position.set(sp.x, sp.y, sp.z);
+  tiltGroup.add(mesh);
 }
-tiltGroup.add(buildSwingSetPosts({ x: -0.135, y: 0.175 }));
-tiltGroup.add(buildSwingSetPosts({ x: 0.135, y: 0.175 }));
+// The top crossbar: no collider (mech.buildSwingSetPosts() only returns the two side posts).
+// Its lowest point is at scene y = 0.09 - radius(0.004) = 0.086, well above BALL_RADIUS*2
+// (0.027) — overhead, same as the TREEHOUSE roof: a ball rolls under it, the side posts are
+// the actual colliders. Position read from SWING_SET_APEXES, the same shared apex data.
+const swingSetBarGeo = new THREE.CylinderGeometry(0.004, 0.004, 0.07, 8);
+for (const apex of mech.SWING_SET_APEXES) {
+  const mesh = coloredMesh(swingSetBarGeo, 0x777777);
+  mesh.rotation.z = Math.PI / 2;
+  const sp = toSceneVec(apex.x, apex.y + 0.02, 0.09);
+  mesh.position.set(sp.x, sp.y, sp.z);
+  tiltGroup.add(mesh);
+}
 
 // Drop-target banks: standing plates, one per target, scaled to 0 height when dropped.
 const dropTargetPlateGeo = new THREE.BoxGeometry(0.036, 0.03, 0.006);
@@ -361,6 +367,10 @@ const sandMeshes = buildDropBankMeshes(sandBank, 0xd9c07a);
   const trunk = coloredMesh(new THREE.BoxGeometry(0.02, 0.03, 0.02), 0x8a5a34);
   trunk.position.y = 0.015;
   group.add(trunk);
+  // Roof radius (20mm) is wider than the physics trunk radius (12mm) on purpose: the roof's
+  // lowest point sits at y=0.04-0.025/2=0.0275, above BALL_RADIUS*2=0.027 — a ball rolls
+  // underneath the overhang and hits only the trunk, which is the physical collider. Accurate,
+  // not a mismatch: an overhanging roof is what a treehouse looks like.
   const roof = coloredMesh(new THREE.ConeGeometry(0.02, 0.025, 4), 0x4a7a3a);
   roof.rotation.y = Math.PI / 4;
   roof.position.y = 0.04;
@@ -389,7 +399,7 @@ const funMeshes = funLaneDefs.map((f) => {
 // Spinners: a rotating rod whose spin visualises the click/decay state.
 function buildSpinnerMesh(zone) {
   const mid = { x: (zone.a.x + zone.b.x) / 2, y: (zone.a.y + zone.b.y) / 2 };
-  const rod = coloredMesh(new THREE.BoxGeometry(0.05, 0.006, 0.006), 0x333333);
+  const rod = coloredMesh(new THREE.BoxGeometry(mech.SPINNER_BLADE_LENGTH, 0.006, 0.006), 0x333333);
   const p = toSceneVec(mid.x, mid.y, 0.02);
   rod.position.set(p.x, p.y, p.z);
   tiltGroup.add(rod);
@@ -472,6 +482,30 @@ function buildTunnelMesh(points) {
 tiltGroup.add(buildSlideMesh(slide.ramp.points));
 tiltGroup.add(buildMonkeyBarsMesh(monkeyBars.ramp.points));
 tiltGroup.add(buildTunnelMesh(tunnel.ramp.points));
+
+// THE RAMP GATES: thin chrome wires marking each ramp's entry span, drawn along the gate's
+// own real segment endpoints — previously a 44mm zone with no mesh at all, invisible to the
+// player. Same rotation convention as the walls: rotation.y = +Math.atan2(dy, dx), never
+// negated. CylinderGeometry's default axis is Y (vertical), unlike the walls' BoxGeometry
+// whose long axis is already X (horizontal) — so a fixed rotation.z = -Math.PI / 2 lays the
+// wire flat first, before the same yaw the walls use. That extra Z rotation is a constant,
+// not derived from the segment direction, so it carries no sign-convention ambiguity of its
+// own (verified against real endpoints in test/gate-render.test.mjs).
+const gateWireMat = new THREE.MeshStandardMaterial({ color: 0xd8d8d8, metalness: 0.9, roughness: 0.2 });
+function addGateWireMesh(gate) {
+  const dx = gate.b.x - gate.a.x;
+  const dy = gate.b.y - gate.a.y;
+  const len = Math.hypot(dx, dy);
+  const wire = new THREE.Mesh(new THREE.CylinderGeometry(0.0015, 0.0015, len, 10), gateWireMat);
+  const p = toSceneVec((gate.a.x + gate.b.x) / 2, (gate.a.y + gate.b.y) / 2, 0.02);
+  wire.position.set(p.x, p.y, p.z);
+  wire.rotation.z = -Math.PI / 2;
+  wire.rotation.y = Math.atan2(dy, dx);
+  tiltGroup.add(wire);
+}
+addGateWireMesh(slide.gate);
+addGateWireMesh(monkeyBars.gate);
+addGateWireMesh(tunnel.gate);
 
 // THE SANDBOX: a shallow tan pit with a darker rim, drawn at the scoop's actual capture
 // radius (not a multiple of it) — true to physics, per the operator's standard: the sand a

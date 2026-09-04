@@ -3,7 +3,7 @@
 // "dropped" state lives in src/game/mechanisms.js, which owns the shape objects returned
 // here and toggles their `.active` flag at runtime).
 import { Circle, Segment, Zone } from '../physics/shapes.js';
-import { E_RUBBER, POP_BUMPER_KICK, SLINGSHOT_KICK, BALL_RADIUS } from '../physics/constants.js';
+import { E_RUBBER, E_WALL, POP_BUMPER_KICK, SLINGSHOT_KICK, BALL_RADIUS } from '../physics/constants.js';
 import { normalize } from '../physics/vec2.js';
 import {
   SW_POP_DUCK, SW_POP_HORSE, SW_POP_ROCKET,
@@ -47,6 +47,44 @@ export function buildSlingshots() {
   ];
   for (const seg of [...left, ...right]) seg.kick = SLINGSHOT_KICK;
   return { left, right };
+}
+
+/**
+ * Swing-set posts (art pass): a decorative swing-set frame flanks each slingshot, apex at
+ * (∓0.135, 0.175) — the same apex the slingshot kite's own middle point sits at. Each frame
+ * draws as two vertical side posts plus one horizontal top crossbar, all r 4mm cylinders.
+ *
+ * This game's physics is flat — collision is x,y only, z is a render-only height offset and
+ * never gates it — so a collider was first added at all six cylinder positions, crossbar
+ * included. That created a real dead pocket (a ball wedged between the crossbar collider and
+ * its neighbouring side post — see test/drain-sweep-mechanisms.test.mjs). The crossbar is
+ * physically overhead (scene y=0.09, well above BALL_RADIUS*2 — see its height-clearance
+ * comment at the mesh in main.js), the same case as the TREEHOUSE roof: drawn where it
+ * physically is, a ball rolls under it, no collider. Only the two SIDE posts — which span
+ * table height 0 to 0.09, reaching ball height — get colliders here. Four Circle colliders,
+ * r SWING_SET_POST_RADIUS, restitution E_WALL (a solid post, not rubber). Not scored: each
+ * gets its own tag for future use, nothing consumes them yet.
+ *
+ * Single source of truth: main.js's mesh builder reads SWING_SET_APEXES for the crossbar's
+ * own position and this function's data for the side posts, rather than a second literal
+ * position list.
+ */
+export const SWING_SET_APEXES = [{ x: -0.135, y: 0.175 }, { x: 0.135, y: 0.175 }];
+export const SWING_SET_POST_RADIUS = 0.004;
+// dx from the apex: the two side posts (the crossbar itself, dx=0, is drawn but not a collider).
+const SWING_SET_POST_DX = [-0.03, 0.03];
+
+export function buildSwingSetPosts() {
+  const posts = [];
+  for (const apex of SWING_SET_APEXES) {
+    const side = apex.x < 0 ? 'left' : 'right';
+    for (const dx of SWING_SET_POST_DX) {
+      const centre = { x: apex.x + dx, y: apex.y + 0.02 };
+      const tag = `swingset_${side}_post${dx < 0 ? '1' : '2'}`;
+      posts.push({ tag, centre, shape: Circle(centre, SWING_SET_POST_RADIUS, E_WALL, tag) });
+    }
+  }
+  return posts;
 }
 
 /**
@@ -109,10 +147,24 @@ export function buildFunLanes() {
  * TETHERBALL (left orbit lane, x≈-0.170, y 0.30→0.46) and PINWHEEL (at the SLIDE mouth,
  * ~(-0.060, 0.430)) spinners. Modelled as short crossing zones the ball passes through
  * repeatedly as it rolls up/down the lane; each crossing is one "click"/revolution.
+ *
+ * Physics follows art here — the one mismatch tonight resolved that direction, because the
+ * visible blade IS the physical spinner: a ball clipping the blade's edge should register a
+ * spin. Both zones previously spanned less than their shared 50mm blade mesh (16mm/30mm) —
+ * SPINNER_BLADE_LENGTH is the one shared constant both the zone span here and the blade mesh
+ * in main.js read, so they can't drift apart again. Centred at each spinner's original
+ * midpoint — only the span changed, not the position.
  */
+export const SPINNER_BLADE_LENGTH = 0.05;
+
+function spinnerZone(centre, tag) {
+  const half = SPINNER_BLADE_LENGTH / 2;
+  return Zone({ x: centre.x - half, y: centre.y }, { x: centre.x + half, y: centre.y }, tag);
+}
+
 export function buildSpinners() {
-  const tetherball = Zone({ x: -0.178, y: 0.38 }, { x: -0.162, y: 0.38 }, SW_TETHERBALL_SPIN);
-  const pinwheel = Zone({ x: -0.075, y: 0.43 }, { x: -0.045, y: 0.43 }, SW_PINWHEEL_SPIN);
+  const tetherball = spinnerZone({ x: -0.17, y: 0.38 }, SW_TETHERBALL_SPIN);
+  const pinwheel = spinnerZone({ x: -0.06, y: 0.43 }, SW_PINWHEEL_SPIN);
   return { tetherball, pinwheel };
 }
 
