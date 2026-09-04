@@ -22,6 +22,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as THREE from '../vendor/three.module.js';
+import { buildHopscotchBank } from '../src/table/mechanisms.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(here, '..');
@@ -52,17 +53,21 @@ function findRotationLine(src, varName) {
   return line;
 }
 
-/** Endpoint error (metres, scene space) between what `sign * atan2(dy, dx)` implies
- * a box mesh's ends are, and where the physics segment's ends actually are. */
-function impliedEndpointError(sign, seg) {
+/** Endpoint error (metres, scene space) between what a box mesh at rotation
+ * `sign * atan2(dy, dx)` (or 0°, if `sign` is null — "no rotation set at all",
+ * today's drop-target bug) and local x-width `width` implies its ends are, and
+ * where the physics segment's ends actually are. `width` defaults to the
+ * segment's own length (the wall/slingshot case, where the mesh is sized to
+ * exactly span the segment). */
+function impliedEndpointError(sign, seg, width = null) {
   const dx = seg.b.x - seg.a.x;
   const dy = seg.b.y - seg.a.y;
-  const len = Math.hypot(dx, dy);
+  const len = width ?? Math.hypot(dx, dy);
   const midScene = toSceneVec((seg.a.x + seg.b.x) / 2, (seg.a.y + seg.b.y) / 2, 0);
 
   const obj = new THREE.Object3D();
   obj.position.set(midScene.x, midScene.y, midScene.z);
-  obj.rotation.y = sign * Math.atan2(dy, dx);
+  obj.rotation.y = sign === null ? 0 : sign * Math.atan2(dy, dx);
   obj.updateMatrixWorld(true);
 
   const half = new THREE.Vector3(len / 2, 0, 0).applyQuaternion(obj.quaternion);
@@ -96,5 +101,46 @@ test('slingshot bar mesh rotation matches physics endpoints for a diagonal segme
     err < 1e-9,
     `slingshot bar rotation sign desyncs rendered geometry from physics for a ` +
     `diagonal segment: endpoint error ${(err * 1000).toFixed(1)}mm (sign=${sign})`
+  );
+});
+
+// Drop-target plates: buildDropBankMeshes (main.js) draws each plate from a shared
+// BoxGeometry and positions it at the target's centre, but (as of the pre-fix code)
+// never rotates it to the physics face's actual angle, and sizes it 30mm wide when
+// every physics target face (buildTargetRow, table/mechanisms.js) is 36mm
+// (2 * targetWidth). HOPSCOTCH is angled 15°; S-A-N-D only 3° — a missing rotation
+// barely registers on a 3° row, so this deliberately uses the real HOPSCOTCH row
+// (buildHopscotchBank) where a missing/wrong rotation is unmistakable.
+const HOPSCOTCH_TARGET_SHAPE = buildHopscotchBank().targets[0].shape;
+
+/** Width (metres) passed as `dropTargetPlateGeo`'s local-x argument in main.js. */
+function extractDropTargetPlateWidth(src) {
+  const m = src.match(/dropTargetPlateGeo\s*=\s*new THREE\.BoxGeometry\(\s*([\d.]+)\s*,/);
+  assert.ok(m, 'expected "dropTargetPlateGeo = new THREE.BoxGeometry(width, ...)" in main.js');
+  return parseFloat(m[1]);
+}
+
+/** Rotation sign buildDropBankMeshes applies to `plate.rotation.y`, or null if the
+ * function never assigns `plate.rotation.y` at all (today's bug: every plate stays
+ * at its default 0°, regardless of the physics face's real angle). */
+function extractDropTargetRotationSign(src) {
+  const fnStart = src.indexOf('function buildDropBankMeshes');
+  assert.ok(fnStart >= 0, 'expected to find "function buildDropBankMeshes" in main.js');
+  const fnEnd = src.indexOf('\n}', fnStart);
+  const body = src.slice(fnStart, fnEnd);
+  const m = body.match(/plate\.rotation\.y\s*=\s*(-)?\s*Math\.atan2\(dy,\s*dx\)/);
+  return m ? (m[1] === '-' ? -1 : 1) : null;
+}
+
+test('drop-target plate mesh matches physics endpoints for the 15° HOPSCOTCH row', () => {
+  const src = fs.readFileSync(MAIN_JS, 'utf8');
+  const width = extractDropTargetPlateWidth(src);
+  const sign = extractDropTargetRotationSign(src);
+  const err = impliedEndpointError(sign, HOPSCOTCH_TARGET_SHAPE, width);
+  assert.ok(
+    err < 1e-9,
+    `drop-target plate geometry desyncs from physics on the 15° HOPSCOTCH row: ` +
+    `endpoint error ${(err * 1000).toFixed(2)}mm (width=${(width * 1000).toFixed(1)}mm, ` +
+    `rotation=${sign === null ? 'never set (stuck at 0°)' : `sign=${sign}`})`
   );
 });

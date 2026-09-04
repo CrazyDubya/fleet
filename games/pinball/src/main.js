@@ -334,13 +334,16 @@ tiltGroup.add(buildSwingSetPosts({ x: -0.135, y: 0.175 }));
 tiltGroup.add(buildSwingSetPosts({ x: 0.135, y: 0.175 }));
 
 // Drop-target banks: standing plates, one per target, scaled to 0 height when dropped.
-const dropTargetPlateGeo = new THREE.BoxGeometry(0.03, 0.03, 0.006);
+const dropTargetPlateGeo = new THREE.BoxGeometry(0.036, 0.03, 0.006);
 function buildDropBankMeshes(bank, color) {
   const meshes = new Map();
   for (const t of bank.targets) {
     const plate = coloredMesh(dropTargetPlateGeo, color);
     const p = toSceneVec(t.centre.x, t.centre.y, 0.015);
     plate.position.set(p.x, p.y, p.z);
+    const dx = t.shape.b.x - t.shape.a.x;
+    const dy = t.shape.b.y - t.shape.a.y;
+    plate.rotation.y = Math.atan2(dy, dx);
     tiltGroup.add(plate);
     meshes.set(t.tag, plate);
   }
