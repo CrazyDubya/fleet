@@ -64,6 +64,28 @@ export function rngForTrial(cfg, seed) {
   return seededRng((cfgHash ^ (seed >>> 0)) >>> 0);
 }
 
+/** §3.5 cradle-family pilot (ledger/handoffs/opus2/20260904T150000Z-three-gate-rulings.md §(a)):
+ * a pure accumulator for two continuous per-trial statistics proposed to replace `cradleProxy`
+ * (a rare-terminal-event count, shown to be degenerate — 0/1/2 events per geometry is pure
+ * noise). `samples`: one entry per physics substep, in trial order, `{ inContact, speed }` —
+ * `inContact` true wherever that substep registered >=1 flipper collision event, `speed` the
+ * ball's speed (m/s) at that substep. Returns the minimum speed observed while `inContact` (null
+ * if never in contact) and the total dwell time in contact (substep count in contact * STEP_DT).
+ * Exported and unit-tested directly against a synthetic sample array — far easier to construct
+ * a "known contact profile" this way than to engineer one out of real trial timing — then fed
+ * the SAME per-substep values the trial loop below already computes, so runtime behaviour can't
+ * drift from what the test checked. Additive: does not touch any existing record field. */
+export function contactStats(samples) {
+  let minSpeed = null;
+  let dwellSubsteps = 0;
+  for (const { inContact, speed } of samples) {
+    if (!inContact) continue;
+    dwellSubsteps += 1;
+    if (minSpeed === null || speed < minSpeed) minSpeed = speed;
+  }
+  return { minSpeed, dwellS: dwellSubsteps * STEP_DT };
+}
+
 function angleDeg(vec) {
   let a = (Math.atan2(vec.y, vec.x) * 180) / Math.PI;
   if (a < 0) a += 360;
@@ -147,6 +169,9 @@ function runE1Trial(cfg, seed, opts) {
   let term = null;
   let crossing = null;
   let steps = 0;
+  // §3.5 pilot only (cs/cd below): gated to cradle trials so ordinary E1 trials — the vast
+  // majority of runner volume — never build this array.
+  const contactSamples = cfg.cradle ? [] : null;
 
   while (term === null) {
     steps += 1;
@@ -179,6 +204,9 @@ function runE1Trial(cfg, seed, opts) {
         right: { angle: (flippers.right.angle * 180) / Math.PI, omega: flippers.right.angularVel },
         contacts: flipperEvents.length,
       });
+    }
+    if (contactSamples) {
+      contactSamples.push({ inContact: flipperEvents.length > 0, speed: Math.hypot(ball.vel.x, ball.vel.y) });
     }
     if (flipperEvents.length > 0) {
       contacts += 1;
@@ -243,6 +271,8 @@ function runE1Trial(cfg, seed, opts) {
     prevY = ball.pos.y;
   }
 
+  const cradleContact = contactSamples ? contactStats(contactSamples) : null;
+
   const record = {
     c: cfg.cfgId,
     s: seed,
@@ -272,6 +302,12 @@ function runE1Trial(cfg, seed, opts) {
     cr: cfg.cradle ? ((flags & FLAGS.STALLED) !== 0 && contacts > 0 ? 1 : 0) : null,
     st: cfg.cradle && (flags & FLAGS.STALLED) !== 0 ? stallSinceS : null,
     bn: cfg.cradle ? contacts : null,
+    // §3.5 pilot (opus2's proposed cradleProxy replacement, continuous rather than a rare-event
+    // count): cs = min ball speed (m/s) while touching a flipper anywhere in the trial, null if
+    // never in contact; cd = total contact dwell time (s). Both null on every non-cradle trial,
+    // same convention as cr/st/bn above.
+    cs: cradleContact ? cradleContact.minSpeed : null,
+    cd: cradleContact ? cradleContact.dwellS : null,
   };
   // `inbound` and `steps` are meta, not part of the §3.4 record — runTrial() strips them.
   // §2.4a needs the raw injected state (not vi/ai, which are null on a no-contact trial) to

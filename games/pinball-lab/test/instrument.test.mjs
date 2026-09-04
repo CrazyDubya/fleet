@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { runTrial, runTrialWithMeta, rngForTrial } from '../src/instrument.js';
+import { runTrial, runTrialWithMeta, rngForTrial, contactStats } from '../src/instrument.js';
+import { STEP_DT } from '../../pinball/src/physics/constants.js';
 import { createPolicy } from '../src/policy.js';
 import { buildE1PilotCfgs, buildE1CradleCfgs } from '../src/sweep.js';
 
@@ -147,4 +148,54 @@ test('cradle: a heldActive/cradle trial reports cr/st/bn; an ordinary trial leav
   assert.equal(rec.cr, null);
   assert.equal(rec.st, null);
   assert.equal(rec.bn, null);
+});
+
+// --- §3.5 pilot (opus2's proposed cradleProxy replacement, ledger/handoffs/opus2/
+// 20260904T150000Z-three-gate-rulings.md §(a)): min contact speed and contact dwell time. ---
+test('contactStats: a known contact profile yields the exact expected min-speed and dwell', () => {
+  // 3 substeps out of contact (speeds irrelevant, must be ignored), 4 in contact
+  // (speeds 2.5/1.2/1.8/3.0 -> min 1.2), 2 more out of contact.
+  const samples = [
+    { inContact: false, speed: 9.9 },
+    { inContact: false, speed: 0.01 },
+    { inContact: false, speed: 5.0 },
+    { inContact: true, speed: 2.5 },
+    { inContact: true, speed: 1.2 },
+    { inContact: true, speed: 1.8 },
+    { inContact: true, speed: 3.0 },
+    { inContact: false, speed: 7.0 },
+    { inContact: false, speed: 0.5 },
+  ];
+  const result = contactStats(samples);
+  assert.equal(result.minSpeed, 1.2, 'min speed must be the minimum across ONLY the in-contact substeps');
+  assert.ok(Math.abs(result.dwellS - 4 * STEP_DT) < 1e-12, `dwell must be exactly the 4 in-contact substeps * STEP_DT, got ${result.dwellS}`);
+});
+
+test('contactStats: a trial that never contacts a flipper reports null minSpeed and zero dwell', () => {
+  const samples = [{ inContact: false, speed: 3.0 }, { inContact: false, speed: 1.0 }];
+  const result = contactStats(samples);
+  assert.equal(result.minSpeed, null);
+  assert.equal(result.dwellS, 0);
+});
+
+test('contactStats: an empty sample array (never advanced) reports null minSpeed and zero dwell', () => {
+  const result = contactStats([]);
+  assert.equal(result.minSpeed, null);
+  assert.equal(result.dwellS, 0);
+});
+
+test('cradle: a real settled cradle trial (seed 654, same cfg as the cr/st/bn test above) reports cs/cd consistent with bn; an ordinary trial leaves them null', () => {
+  const geometry = { restAngleDeg: -50, activeAngleDeg: 38, upMs: 18, omegaProfile: 'easeOut', radius: 0.009, restitution: 0.45 };
+  const cradleCfgs = buildE1CradleCfgs([geometry]);
+  const settled = runTrial(cradleCfgs[0], 654);
+  assert.equal(settled.term, 'stall');
+  assert.ok(settled.cs !== null && settled.cs >= 0, 'a contacting, settled trial reports a non-null min contact speed');
+  assert.ok(settled.cs <= 0.05 + 1e-9, `a trial that STALLED while in contact must have cs at or under the stall speed threshold (0.05 m/s), got ${settled.cs}`);
+  assert.ok(settled.cd > 0, 'a settled cradle trial has positive contact dwell time');
+  assert.ok(settled.bn > 0 && settled.cd <= settled.bn * STEP_DT + 1e-9, 'dwell cannot exceed contact-substep-count * STEP_DT');
+
+  const ordinary = cfgByPol('never');
+  const rec = runTrial(ordinary, 1);
+  assert.equal(rec.cs, null);
+  assert.equal(rec.cd, null);
 });
