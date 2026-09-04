@@ -71,20 +71,13 @@ export function rankingValidityResult(values, { topN = null, minDistinct = RANKI
   const distinctCount = counts.size;
   const maxTieFraction = Math.max(...counts.values()) / n;
 
-  if (topN != null && topN < n) {
-    const sorted = [...values].sort((a, b) => b - a);
-    const cutValue = sorted[topN - 1];
-    const higherCount = sorted.filter((v) => v > cutValue).length;
-    const tieBlockSize = counts.get(cutValue);
-    const slotsRemaining = topN - higherCount;
-    const boundaryAmbiguity = tieBlockSize / slotsRemaining;
-    const ok = boundaryAmbiguity <= maxBoundaryAmbiguity;
-    const reason = ok ? null :
-      `top-${topN} cut lands inside a ${tieBlockSize}-way tie for ${slotsRemaining} remaining slot(s) ` +
-      `(${boundaryAmbiguity.toFixed(2)}x, ceiling ${maxBoundaryAmbiguity}x) — most of the selection would be insertion order, not a ranking`;
-    return { ok, n, distinctCount, maxTieFraction, boundaryAmbiguity, reason };
-  }
-
+  // LAB-20: the population checks below apply on EVERY path. They used to live only in the
+  // fall-through, so passing a `topN` silently disabled them and left boundary ambiguity as the
+  // sole test — which is how E1's September `cradleProxy` shipped a "top 12" off 4 distinct
+  // values in 3,888 rows (the identical array failed without `topN` and passed with it), and how
+  // the LAB-20 cradle-metric pilot's contact-dwell-time did the same at 2 distinct values in 24
+  // rows. The boundary test answers "is the CUT arbitrary"; these answer "can this metric order
+  // anything at all". A top-N needs both, and they are not substitutes for one another.
   const reasons = [];
   if (distinctCount < minDistinct) {
     reasons.push(`only ${distinctCount} distinct value(s) across ${n} rows (floor ${minDistinct}) — cannot support an ordering`);
@@ -92,6 +85,25 @@ export function rankingValidityResult(values, { topN = null, minDistinct = RANKI
   if (maxTieFraction > maxTieBlockFraction) {
     reasons.push(`${(maxTieFraction * 100).toFixed(1)}% of rows tied at one value (ceiling ${(maxTieBlockFraction * 100).toFixed(0)}%) — presenting this as an order would be misleading`);
   }
+
+  if (topN != null && topN < n) {
+    const sorted = [...values].sort((a, b) => b - a);
+    const cutValue = sorted[topN - 1];
+    const higherCount = sorted.filter((v) => v > cutValue).length;
+    const tieBlockSize = counts.get(cutValue);
+    const slotsRemaining = topN - higherCount;
+    const boundaryAmbiguity = tieBlockSize / slotsRemaining;
+    if (boundaryAmbiguity > maxBoundaryAmbiguity) {
+      reasons.push(
+        `top-${topN} cut lands inside a ${tieBlockSize}-way tie for ${slotsRemaining} remaining slot(s) ` +
+        `(${boundaryAmbiguity.toFixed(2)}x, ceiling ${maxBoundaryAmbiguity}x) — most of the selection would be insertion order, not a ranking`);
+    }
+    return {
+      ok: reasons.length === 0, n, distinctCount, maxTieFraction, boundaryAmbiguity,
+      reason: reasons.length ? reasons.join('; ') : null,
+    };
+  }
+
   return { ok: reasons.length === 0, n, distinctCount, maxTieFraction, boundaryAmbiguity: null, reason: reasons.length ? reasons.join('; ') : null };
 }
 

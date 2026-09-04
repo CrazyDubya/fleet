@@ -9,6 +9,7 @@ import { readFileSync, writeFileSync, createReadStream } from 'node:fs';
 import { createGunzip } from 'node:zlib';
 import readline from 'node:readline';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { mean, percentile } from './metrics.js';
 import { validExclStalled, rankingValidityResult } from './gate.js';
 
@@ -258,6 +259,16 @@ async function main() {
       warning: 'LAB-16 ranking gate: one or more E4 tables cannot be trusted as an ordering',
       failures: rankingGuardFailures.map(([k, r]) => ({ table: k, ...r })),
     }));
+    // LAB-20: enforced, not merely recorded. This stays a WARNING rather than a block, unlike
+    // stageA.js's cradle guard which refuses to write `selected-geometries.json` — the
+    // difference is what the artifact is for. stageA's file is a downstream contract: Stage B
+    // and the cradle sweep consume it, so a bad ranking there silently narrows what is ever
+    // examined again. e4Report writes only the summary json/csv/md (verified: those are its
+    // only writeFileSync calls) and nothing consumes them, so blocking would suppress the
+    // pocket map, the H6 verdict, the E1 decomposition and vTrap — all independently valid —
+    // to punish one unusable ordering. A non-zero exit makes the failure visible to a caller
+    // or CI, which `console.error` alone did not.
+    process.exitCode = 1;
   }
 
   const summariesDir = path.join(import.meta.dirname, '..', 'data', 'summaries');
@@ -283,13 +294,42 @@ function toPocketMapCsv(heatmap) {
   return lines.join('\n') + '\n';
 }
 
-function toMarkdown(summary, csvRelPath) {
+/**
+ * LAB-20: the status of every ranking guard, in one block, whatever the verdict.
+ *
+ * Three of the four guards had a per-table ⚠ block; `a1` renders no table of its own, so a
+ * failing a1 existed only as a JSON field and was invisible to a reader of the markdown. A
+ * per-table block structurally cannot cover a guard with no table — hence one enumerated block,
+ * stating all four. Passing guards are listed too: "which guards ran and what they said" is the
+ * record, and a block that appears only on failure teaches a reader nothing when it is absent.
+ */
+export function guardStatusLines(rankingGuard) {
+  const lines = ['## Ranking guard status (LAB-16/LAB-20)', ''];
+  const failures = Object.entries(rankingGuard).filter(([, g]) => !g.ok);
+  if (failures.length > 0) {
+    lines.push(`> ⚠ **RANKING INVALID (LAB-16 gate)** — ${failures.length} of ` +
+      `${Object.keys(rankingGuard).length} ranking guards failed. Any ordering they govern is ` +
+      'insertion order, not a ranking; the rows themselves remain individually valid.');
+    lines.push('');
+  }
+  lines.push('| guard | population | verdict | reason |');
+  lines.push('|---|---|---|---|');
+  for (const [name, g] of Object.entries(rankingGuard)) {
+    lines.push(`| \`${name}\` | ${g.n ?? '—'} | ${g.ok ? '✓ ok' : '⚠ INVALID'} | ${g.ok ? '—' : g.reason} |`);
+  }
+  lines.push('');
+  return lines;
+}
+
+export function toMarkdown(summary, csvRelPath) {
   const lines = [];
   lines.push(`# E4 — LAB-6 the pocket (\`${summary.runId}\`)`);
   lines.push('');
   lines.push(`- **instrument commit**: \`${summary.instrumentCommitSha}\`  ·  **generated**: ${summary.generatedAt}`);
   lines.push(`- **grand total trials (A+B+C)**: ${summary.totals.grandTotalTrials}`);
   lines.push('');
+
+  lines.push(...guardStatusLines(summary.rankingGuard));
 
   lines.push('## §9 slice verdict — H6');
   lines.push('');
@@ -407,7 +447,13 @@ function toMarkdown(summary, csvRelPath) {
   return lines.join('\n');
 }
 
-main().catch((err) => {
-  console.error(JSON.stringify({ ok: false, error: String(err?.stack ?? err) }));
-  process.exitCode = 1;
-});
+// LAB-20: run the CLI only when this file IS the entry point. It used to call main() at module
+// top level, so `import`ing anything from here (a test importing `guardStatusLines`, say) ran
+// the whole report, printed the usage banner and set a non-zero exit — the test file failed
+// with no individual test failing, which is a confusing way to find out.
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((err) => {
+    console.error(JSON.stringify({ ok: false, error: String(err?.stack ?? err) }));
+    process.exitCode = 1;
+  });
+}

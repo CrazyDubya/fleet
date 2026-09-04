@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { buildE4World, pocketSolve, guideEndpoints, classifySettle } from '../src/arenas/e4_pocket.js';
 import { runTrial, runTrialWithMeta } from '../src/instrument.js';
 import { buildE4SliceCfgs, buildE4Controls, buildE4StageA1Cfgs, E4_LAB2_WINNER } from '../src/sweep.js';
+import { guardStatusLines } from '../src/e4Report.js';
 
 const BASE = {
   exp: 'e4', ...E4_LAB2_WINNER, pol: 'heldActive', inj: 'drop',
@@ -170,4 +171,37 @@ test('e4: Stage C (release) trials continue past settle instead of terminating o
     if (record.ct === 1 && record.term !== 'settled') sawPostSettleStep = true;
   }
   assert.ok(sawPostSettleStep, 'no seed among the first 40 ever settled-then-continued for a release cfg — Stage C loop is terminating on STALLED like Stage A/B');
+});
+
+// --- LAB-20: every ranking guard must be visible in the markdown -------------------------
+// e4Report computes four guards (a1/a2/b/releaseDispersion) but only three had a per-table ⚠
+// block. `a1` renders no table of its own at all, so a failing a1 was invisible to a reader of
+// the .md and survived only as a JSON field. A per-table block cannot fix that class of gap —
+// a guard with no table has nowhere to hang one — so the status of ALL FOUR is now stated in
+// one block near the top, whatever each guard's verdict.
+test('LAB-20: guardStatusLines reports every guard, including one with no table of its own (a1)', () => {
+  const lines = guardStatusLines({
+    a1: { ok: false, n: 350, reason: 'only 1 distinct value(s) across 350 rows (floor 5) — cannot support an ordering' },
+    a2: { ok: true, n: 198, reason: null },
+    b: { ok: false, n: 540, reason: 'top-20 cut lands inside a 101-way tie for 20 remaining slot(s) (5.05x, ceiling 2x)' },
+    releaseDispersion: { ok: false, n: 6, reason: 'only 3 distinct value(s) across 6 rows (floor 5)' },
+  });
+  const text = lines.join('\n');
+  for (const k of ['a1', 'a2', 'b', 'releaseDispersion']) {
+    assert.match(text, new RegExp(`\\b${k}\\b`), `${k} must appear in the guard status block`);
+  }
+  assert.match(text, /101-way tie/, "b's reason must be quoted, not just its name");
+  assert.match(text, /cannot support an ordering/, "a1's reason must be quoted");
+});
+
+test('LAB-20: guardStatusLines marks an all-passing set as such without crying wolf', () => {
+  const lines = guardStatusLines({
+    a1: { ok: true, n: 350, reason: null },
+    a2: { ok: true, n: 198, reason: null },
+    b: { ok: true, n: 540, reason: null },
+    releaseDispersion: { ok: true, n: 6, reason: null },
+  });
+  const text = lines.join('\n');
+  assert.doesNotMatch(text, /RANKING INVALID/, 'no failure banner when every guard passes');
+  assert.match(text, /a1/, 'still enumerates the guards so their status is on the record');
 });
