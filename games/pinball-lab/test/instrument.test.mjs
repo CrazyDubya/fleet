@@ -127,6 +127,29 @@ test('cradle: a heldActive/cradle trial reports cr/st/bn; an ordinary trial leav
   // seed 654 is the first of those 4, independently re-verified below. See
   // ledger/handoffs/sonnet2/20260904T031500Z-e3-stallrate-and-cradle-determination.md for the full
   // trace (old-vs-new contact histograms, the 3000-seed settle-rate sweep).
+  //
+  // Seed changed AGAIN, 654 -> 708, by the flipper re-strike fix (2026-09-04,
+  // games/pinball's abd4e88 — sub-stepping flipper motion/collision to STEP_DT/4 while a
+  // flipper is moving, ledger/handoffs/opus2/20260904T180000Z-true-to-physics-standard.md §5
+  // Experiment A'-3). instrument.js:12 imports `advance` from pinball's world.js directly, so
+  // every lab trial with an active flipper — this cradle policy is `heldActive`, active from
+  // the first tick — now runs under the finer resolution too. Seed 654 now times out. Same
+  // determination as before, same conclusion: this is the CORRECT physics, not a broken
+  // mechanic, and the fix is squarely why. The old (coarse) resolution let the flipper
+  // re-strike the ball repeatedly as it swept through — each re-strike is a lossy collision
+  // (restitution < 1), so coarse resolution was an extra, spurious source of energy
+  // dissipation on top of whatever a real single clean impact would cost. That inflates how
+  // often a chaotic trajectory happens to bleed enough energy to cross the 0.05 m/s stall
+  // threshold within the 1.5s window — i.e. the OLD model over-produced stalls, not the new
+  // one under-producing them. Excluding lab trials from the fix instead would leave the lab
+  // measuring a deliberately less accurate physics model than the game it shares
+  // physics/world.js with, for exactly the case (repeated flipper contact) the fix exists to
+  // correct — the wrong trade for an experiment whose subject is flipper/cradle physics.
+  // Re-swept the same 3000-seed range under the fixed code: 6/3000 settle, 0.20% — same order
+  // of magnitude as both prior rates (0.133%, 0.3%), so cradling still happens at a consistent
+  // rate; this specific knife-edge seed just isn't one of the settling ones anymore, same as
+  // 138 wasn't after the solver fix. Seed 708 is the first of those 6, independently
+  // re-verified below (deterministic, re-run bit-identical).
   const geometry = { restAngleDeg: -50, activeAngleDeg: 38, upMs: 18, omegaProfile: 'easeOut', radius: 0.009, restitution: 0.45 };
   const cradleCfgs = buildE1CradleCfgs([geometry]);
   assert.equal(cradleCfgs.length, 1);
@@ -134,7 +157,7 @@ test('cradle: a heldActive/cradle trial reports cr/st/bn; an ordinary trial leav
   assert.equal(cradleCfgs[0].cradle, true);
   assert.equal(cradleCfgs[0].cfgId, '639a5287');
 
-  const settled = runTrial(cradleCfgs[0], 654);
+  const settled = runTrial(cradleCfgs[0], 708);
   assert.equal(settled.term, 'stall');
   assert.equal(settled.cr, 1);
   assert.ok(settled.st !== null && settled.st > 0 && settled.st <= 1.5, 'settle time reported, within the 1.5s window');
@@ -184,10 +207,12 @@ test('contactStats: an empty sample array (never advanced) reports null minSpeed
   assert.equal(result.dwellS, 0);
 });
 
-test('cradle: a real settled cradle trial (seed 654, same cfg as the cr/st/bn test above) reports cs/cd consistent with bn; an ordinary trial leaves them null', () => {
+test('cradle: a real settled cradle trial (seed 708, same cfg as the cr/st/bn test above) reports cs/cd consistent with bn; an ordinary trial leaves them null', () => {
+  // Seed 654 -> 708: same flipper re-strike fix, same determination — see the long comment on
+  // the cr/st/bn test above.
   const geometry = { restAngleDeg: -50, activeAngleDeg: 38, upMs: 18, omegaProfile: 'easeOut', radius: 0.009, restitution: 0.45 };
   const cradleCfgs = buildE1CradleCfgs([geometry]);
-  const settled = runTrial(cradleCfgs[0], 654);
+  const settled = runTrial(cradleCfgs[0], 708);
   assert.equal(settled.term, 'stall');
   assert.ok(settled.cs !== null && settled.cs >= 0, 'a contacting, settled trial reports a non-null min contact speed');
   assert.ok(settled.cs <= 0.05 + 1e-9, `a trial that STALLED while in contact must have cs at or under the stall speed threshold (0.05 m/s), got ${settled.cs}`);
