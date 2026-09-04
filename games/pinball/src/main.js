@@ -589,10 +589,26 @@ function launchFromMergeGoRound(entry, speed) {
  * sync takes over from here) and give the ball an outward launch into the main field. */
 function releaseFromMergeGoRound(entry, speed) {
   if (!entry) return;
+  // Presentation tween, release: while mgrMounted, entry.mesh.position is LOCAL to the
+  // rotating mgrGroup — its real world position depends on mgrGroup's current rotation, which
+  // changes every frame. getWorldPosition() (still parented, before the reparent below) reads
+  // THREE's own transform pipeline for the exact rendered position, the same way every other
+  // number here comes from something physics/rendering already computed rather than a
+  // re-derived angle. Converted back to physics space via toSceneVec's own inverse
+  // (x, y=-z, z=y — see render/scene.js) so this tween is expressed the same way the other
+  // four hand-offs' tweens are, and the render loop's single tweenPosition/toSceneVec
+  // consumption path (render-handoffs.test.mjs) needs no special case for this one.
   if (entry.mgrMounted) {
+    const worldPos = new THREE.Vector3();
+    entry.mesh.getWorldPosition(worldPos);
     mgrGroup.remove(entry.mesh);
     tiltGroup.add(entry.mesh);
     entry.mgrMounted = false;
+    entry.presentationTween = startTween(
+      { x: worldPos.x, y: -worldPos.z, z: worldPos.y },
+      { x: mgrRelease.pos.x, y: mgrRelease.pos.y, z: 0 },
+      elapsedS,
+    );
   }
   entry.phys.layer = 'playfield';
   entry.phys.z = 0;
@@ -605,6 +621,10 @@ function releaseFromMergeGoRound(entry, speed) {
  * capture radius the same way the SANDBOX scoop's eject does. */
 function ejectFromMergeGoRound(entry) {
   if (!entry) return;
+  // Presentation tween: never mounted, so the mesh has sat at the capture zone's own centre
+  // (world.js's checkCaptures) since entry — the same real point the SANDBOX scoop's capture
+  // tween reads from, here for the same reason.
+  entry.presentationTween = startTween(merryGoRound.centre, { x: mgrRelease.pos.x, y: mgrRelease.pos.y, z: 0 }, elapsedS);
   launchFromMergeGoRound(entry, 1.4);
 }
 

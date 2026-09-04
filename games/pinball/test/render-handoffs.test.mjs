@@ -1,10 +1,12 @@
 // Visual-accuracy audit (ledger/handoffs/haiku-fs2/20260904-drawn-vs-physical.md): seven places
 // a ball's physics position teleports with nothing drawn carrying it. This closes the four the
 // operator ranked worst — the two ramp habitrail returns (exit-top, rollback) and the SANDBOX
-// scoop capture/eject — with a presentation-only tween (src/render/presentationTween.js) driven
-// by the SAME endpoints physics used, never a duplicated coordinate. See that file's own header
-// for why a straight-line, presentation-only tween is the right shape, and this dispatch's
-// handoff for why the merry-go-round pair and the drain were left untouched.
+// scoop capture/eject — plus the merry-go-round release/eject pair, added in the follow-up
+// dispatch (1a06e7c7c49773b4) — with a presentation-only tween (src/render/presentationTween.js)
+// driven by the SAME endpoints physics used, never a duplicated coordinate. See that file's own
+// header for why a straight-line, presentation-only tween is the right shape, and this
+// dispatch's handoff for why the drain was left untouched (the mount was already fine — a
+// reparent onto a visible rotating object, no teleport to bridge).
 //
 // main.js can't be imported under node --test (bare 'three' specifier, browser-only import
 // map — see glue-scope.test.mjs), so this file source-text-extracts the four wiring points and
@@ -82,6 +84,23 @@ test('scoop eject presentation tween: from reads the real capture-zone centre, t
   const assignIdx = MAIN_JS_SRC.indexOf('scoop.ball.vel = { x: evel.x, y: evel.y };');
   const tweenIdx = MAIN_JS_SRC.indexOf('ejectedEntry.presentationTween');
   assert.ok(assignIdx >= 0 && tweenIdx > assignIdx, 'the eject tween must be started AFTER scoop.ball.pos is set to the eject point, so "to" is the real post-eject position');
+});
+
+test('merry-go-round release presentation tween: from reads the mesh\'s real world position via THREE\'s own transform, to reads the real release point', () => {
+  const m = MAIN_JS_SRC.match(/entry\.presentationTween = startTween\(\s*\{ x: worldPos\.x, y: -worldPos\.z, z: worldPos\.y \},\s*\{ x: mgrRelease\.pos\.x, y: mgrRelease\.pos\.y, z: 0 \},\s*elapsedS,\s*\);/);
+  assert.ok(m, 'expected the MGR-release startTween(...) call in main.js, reading `from` from a captured worldPos and `to` from mgrRelease.pos');
+
+  // worldPos must come from entry.mesh.getWorldPosition, called BEFORE the reparent (mgrGroup
+  // -> tiltGroup) that would otherwise change what "local" means for this mesh.
+  const worldPosIdx = MAIN_JS_SRC.indexOf('entry.mesh.getWorldPosition(worldPos);');
+  const reparentIdx = MAIN_JS_SRC.indexOf('mgrGroup.remove(entry.mesh);\n    tiltGroup.add(entry.mesh);\n    entry.mgrMounted = false;');
+  assert.ok(worldPosIdx >= 0, 'expected entry.mesh.getWorldPosition(worldPos) in main.js');
+  assert.ok(reparentIdx > worldPosIdx, 'getWorldPosition must be captured BEFORE the mgrGroup -> tiltGroup reparent, or it reads the wrong transform');
+});
+
+test('merry-go-round eject (unlit pass-through) presentation tween: from reads the real capture-zone centre, to reads the real release point', () => {
+  const m = MAIN_JS_SRC.match(/entry\.presentationTween = startTween\(merryGoRound\.centre,\s*\{ x: mgrRelease\.pos\.x, y: mgrRelease\.pos\.y, z: 0 \},\s*elapsedS\);/);
+  assert.ok(m, 'expected the MGR-eject (never-mounted) startTween(...) call in main.js, reading `from` from merryGoRound.centre and `to` from mgrRelease.pos — the same real objects checkCaptures/computeMergeGoRoundRelease already used');
 });
 
 test('render loop consumes the presentation tween by the SAME interpolation function the tween tests pin, not a separate re-implementation', () => {
