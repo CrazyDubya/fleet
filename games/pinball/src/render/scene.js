@@ -8,7 +8,10 @@ export function createScene(canvas) {
   // through) reused as the backboard/sky behind the tilted table, per the reference art
   // redirect. Falls back to a dark navy if the texture hasn't loaded yet.
   scene.background = new THREE.Color(0x0c1220);
-  new THREE.TextureLoader().load('./assets/textures/backglass.jpg', (tex) => {
+  // Module-relative, not page-relative. Sibling projects import this module while serving
+  // their own page from a different path, and a './' URL resolves against the PAGE, not the
+  // module — so it 404s for every consumer but this one (observed 2026-09-04).
+  new THREE.TextureLoader().load(new URL('../../assets/textures/backglass.jpg', import.meta.url).href, (tex) => {
     if ('colorSpace' in tex) tex.colorSpace = THREE.SRGBColorSpace;
     scene.background = tex;
   });
