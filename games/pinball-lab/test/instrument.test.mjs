@@ -104,11 +104,28 @@ test('analytic: "heldActive" (§3.5 cradle family) fires both flippers on the ve
 // --- LAB-2 cradle family (§3.5): cfg.cradle routes injection through CRADLE_INJECTION and
 // exposes cr/st/bn on the record; every ordinary (non-cradle) trial must leave them null. ---
 test('cradle: a heldActive/cradle trial reports cr/st/bn; an ordinary trial leaves them null', () => {
-  // Exact geometry of Stage B cradle cfg `639a5287` (data/e1/stageB-cradle-<runId>) — seed 138
-  // is a verified cr=1 (settled) trial under that cfg, so this checks the real record shape
-  // against a known outcome rather than hoping a settle turns up in a handful of tries (the
-  // measured cradle rate at Stage B resolution is well under 1%, so searching a small seed
-  // range for one wouldn't be reliable).
+  // Exact geometry of Stage B cradle cfg `639a5287` (data/e1/stageB-cradle-<runId>) — this
+  // checks the real record shape against a known settled outcome rather than hoping a settle
+  // turns up in a handful of tries (the measured cradle rate at Stage B resolution is well
+  // under 1%, so searching a small seed range for one wouldn't be reliable).
+  //
+  // Seed changed from 138 to 654 by LAB-19's solver-fix determination (2026-09-04,
+  // games/pinball's e5ff0d7 — the maxImpacts t=0 double-overlap strand + gravity-per-remaining
+  // fix). Seed 138 was a verified settle under the PRE-FIX solver; under the fixed solver it
+  // times out instead. Determined this is not a broken cradle mechanic: traced seed 138's own
+  // trial and found it never exercises the t=0/maxImpacts-exhaustion path this cfg's flipper
+  // geometry (radius=0.009, activeAngle=38°) could in principle trigger — max 1 flipper
+  // contact per physics substep throughout, on both the old and new solver, across a 300-seed
+  // sweep (never above 3). The outcome flip is instead the ordinary sensitivity of a long
+  // (~20-25 bounce, ~1.5s) chaotic multi-bounce trajectory to the gravity-per-remaining fix,
+  // which changes trajectories on essentially every bounce, not just double-overlap ones —
+  // exactly the kind of small, correct physics change that can flip one specific seed's
+  // knife-edge outcome without saying anything about the mechanism itself. Confirmed cradling
+  // still happens under the fixed solver at the expected rate (4/3000 seeds settle, 0.133% —
+  // consistent with the old solver's own 1/300, 0.3%, given how rare and noisy this event is);
+  // seed 654 is the first of those 4, independently re-verified below. See
+  // ledger/handoffs/sonnet2/20260904T031500Z-e3-stallrate-and-cradle-determination.md for the full
+  // trace (old-vs-new contact histograms, the 3000-seed settle-rate sweep).
   const geometry = { restAngleDeg: -50, activeAngleDeg: 38, upMs: 18, omegaProfile: 'easeOut', radius: 0.009, restitution: 0.45 };
   const cradleCfgs = buildE1CradleCfgs([geometry]);
   assert.equal(cradleCfgs.length, 1);
@@ -116,7 +133,7 @@ test('cradle: a heldActive/cradle trial reports cr/st/bn; an ordinary trial leav
   assert.equal(cradleCfgs[0].cradle, true);
   assert.equal(cradleCfgs[0].cfgId, '639a5287');
 
-  const settled = runTrial(cradleCfgs[0], 138);
+  const settled = runTrial(cradleCfgs[0], 654);
   assert.equal(settled.term, 'stall');
   assert.equal(settled.cr, 1);
   assert.ok(settled.st !== null && settled.st > 0 && settled.st <= 1.5, 'settle time reported, within the 1.5s window');
