@@ -121,7 +121,7 @@ async function main() {
     : 'MODEL';
 
   const out = {
-    exp: 'e5a', runId, generatedAt: new Date().toISOString(),
+    exp: 'e5a', runId, generatedAt: new Date().toISOString(), instrumentCommitSha: meta.instrumentCommitSha,
     c0Cp: c0, c0OnTarget: c0Ok,
     trialCount: meta.trialCount, secs: meta.secs,
     assemblies,
@@ -132,6 +132,8 @@ async function main() {
 
   const lines = [];
   lines.push(`# E5a — the release diagnostic (LAB-10)`);
+  lines.push('');
+  lines.push(`- **instrument commit**: \`${meta.instrumentCommitSha}\`  ·  **generated**: ${out.generatedAt}`);
   lines.push('');
   lines.push(`## VERDICT: **${verdict}**`);
   lines.push('');

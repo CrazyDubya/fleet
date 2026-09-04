@@ -201,8 +201,23 @@ async function main() {
   const c0Cp = (a2Controls.C0?.cp ?? 0) / (a2Controls.C0?.trials || 1);
   const c0bCp = (a2Controls.C0b?.cp ?? 0) / (a2Controls.C0b?.trials || 1);
 
+  // A corpus that cannot name its instrument commit cannot be audited from itself (opus2,
+  // 2026-09-04 solver-fix audit — E4/E5a were the two writers missing this; recovering the
+  // commit meant reading raw run meta.json instead of the summary). Four stage runs feed one
+  // E4 summary; if they were ever produced at different commits that's worth knowing loudly,
+  // not silently reporting whichever stage happened to be read first.
+  const stageCommits = { a1: a1.meta.instrumentCommitSha, a2: a2.meta.instrumentCommitSha, b: b.meta.instrumentCommitSha, c: c.meta.instrumentCommitSha };
+  const instrumentCommitSha = stageCommits.a1;
+  const commitMismatches = Object.entries(stageCommits).filter(([, sha]) => sha !== instrumentCommitSha);
+  if (commitMismatches.length > 0) {
+    console.error(JSON.stringify({
+      warning: 'E4 stages were built at different instrument commits',
+      stageCommits,
+    }));
+  }
+
   const summary = {
-    exp: 'e4', runId, generatedAt: new Date().toISOString(),
+    exp: 'e4', runId, generatedAt: new Date().toISOString(), instrumentCommitSha,
     h6: {
       survived: h6Survived,
       sliceW1Cp: sliceArms.w1 ? sliceArms.w1.cp / sliceArms.w1.trials : null,
@@ -272,7 +287,7 @@ function toMarkdown(summary, csvRelPath) {
   const lines = [];
   lines.push(`# E4 — LAB-6 the pocket (\`${summary.runId}\`)`);
   lines.push('');
-  lines.push(`- **generated**: ${summary.generatedAt}`);
+  lines.push(`- **instrument commit**: \`${summary.instrumentCommitSha}\`  ·  **generated**: ${summary.generatedAt}`);
   lines.push(`- **grand total trials (A+B+C)**: ${summary.totals.grandTotalTrials}`);
   lines.push('');
 
