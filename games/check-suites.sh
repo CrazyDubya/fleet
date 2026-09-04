@@ -44,4 +44,13 @@ if [ "$status" -ne 0 ]; then
   echo "At least one suite failed. If you changed games/pinball/src/physics/, the consumers"
   echo "(pinball-lab, pinball-sandbox) import it directly — a red there is your change, not theirs."
 fi
+
+# A verdict line, because the exit status is easy to lose. `./check-suites.sh | grep ...`
+# reports grep's status, not this script's — the operator did exactly that on 2026-09-04 and
+# read a red board as green. Anyone filtering the output still sees this line.
+if [ "$status" -eq 0 ]; then
+  echo "VERDICT: all suites passed"
+else
+  echo "VERDICT: SUITE FAILURES PRESENT — see above (exit 1)"
+fi
 exit "$status"
