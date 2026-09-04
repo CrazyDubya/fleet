@@ -11,12 +11,15 @@
 import * as THREE from 'three';
 import { createScene, toSceneVec } from '../../pinball/src/render/scene.js';
 import {
-  createWorld, setLayerPrimitives, addBall, removeBall, addFlipper, advance,
+  createWorld, setLayerPrimitives, setLayerZones, addRamp, setCaptureZones,
+  addBall, removeBall, addFlipper, advance,
 } from '../../pinball/src/physics/world.js';
 import { createFlipper } from '../../pinball/src/physics/flipper.js';
 import { BALL_RADIUS, PITCH_DEG } from '../../pinball/src/physics/constants.js';
 import * as recess from '../../pinball/src/table/recess.js';
 import * as mech from '../../pinball/src/table/mechanisms.js';
+import * as ramps from '../../pinball/src/table/ramps.js';
+import * as game from '../../pinball/src/game/mechanisms.js';
 import { wireInput } from '../../pinball/src/ui/input.js';
 
 const canvas = document.getElementById('view');
@@ -42,11 +45,10 @@ floor.position.set(0, 0, -recess.HEIGHT / 2);
 tiltGroup.add(floor);
 
 // --- World + real table geometry -----------------------------------------------------------
-// Same table the game plays on: walls, flippers, pop bumpers, slingshots, and both drop-target
+// Same table the game plays on: walls, flippers, pop bumpers, slingshots, both drop-target
 // banks (still and un-droppable here — there's no rules layer to ever drop or reset them, so
-// they simply sit at their physics geometry as fixed colliders). Ramps, the SANDBOX scoop and
-// the merry-go-round are deliberately out of scope for this first slice — see the handoff's
-// "next slice" list.
+// they simply sit at their physics geometry as fixed colliders), all three ramps, the SANDBOX
+// scoop and the merry-go-round.
 const world = createWorld();
 const wallSegments = recess.buildWalls();
 const popBumpers = mech.buildPopBumpers();
@@ -71,6 +73,54 @@ for (const cfg of recess.buildFlipperConfigs()) {
   addFlipper(world, flipper);
   flippers[cfg.name] = flipper;
 }
+
+// --- Ramps, the SANDBOX scoop, and the merry-go-round --------------------------------------
+// Same builders and same wiring calls as games/pinball/src/main.js (setLayerZones/addRamp/
+// setCaptureZones with the identical [sandbox.captureZone, merryGoRound.captureZone] list and
+// the same three ramp gates) — test/capture-zone-parity.test.mjs source-text-checks both
+// main.js files register the exact same expressions, so this cannot silently drift from the
+// game.
+const slide = ramps.buildSlideRamp();
+const monkeyBars = ramps.buildMonkeyBarsRamp();
+const tunnel = ramps.buildTunnelRamp();
+const sandbox = ramps.buildSandbox();
+const merryGoRound = mech.buildMerryGoRound();
+
+// The merry-go-round's release landing point, computed the same way main.js does — via
+// mech.buildEjectionSites, which is what actually calls computeMergeGoRoundRelease
+// (table/mechanisms.js) under the hood. Not reimplemented here.
+const ejectionSites = new Map(mech.buildEjectionSites(sandbox).map((s) => [s.name, s]));
+const mgrRelease = ejectionSites.get('merry_go_round_release').placement;
+
+addRamp(world, slide.ramp);
+addRamp(world, monkeyBars.ramp);
+addRamp(world, tunnel.ramp);
+
+setLayerZones(world, 'playfield', [slide.gate, monkeyBars.gate, tunnel.gate]);
+setCaptureZones(world, 'playfield', [sandbox.captureZone, merryGoRound.captureZone]);
+
+// SANDBOX scoop: capture-and-release timer only (game/mechanisms.js's createScoop/armScoop/
+// tickScoop) — the mechanical part, not a rules decision. Eject math mirrors main.js exactly
+// (same sandbox.eject.vel, same capture-radius clearance).
+const scoop = game.createScoop();
+let scoopHeldSinceS = null;
+
+// The merry-go-round's real behaviour (lock progression toward a 3-ball rules-driven
+// multiball release, gated by TREEHOUSE lighting) lives entirely in rules/multiball.js's
+// onMerryGoRoundEntry (src/rules/multiball.js:49-89), consumed by rules/game.js:237 — there is
+// no fixed hold duration anywhere in the physics/table/game layers this sandbox is allowed to
+// use. Per "no locks, no multiball": the sandbox mounts one ball at a time (a second capture
+// while occupied is ejected immediately via the same real placement math main.js's
+// ejectFromMergeGoRound fallback uses) and releases it after a fixed MGR_HOLD_S — a disclosed
+// sandbox-only invention, not a physics or rules value, standing in for what the lock/
+// multiball state machine decides in the real game.
+let mgrMounted = null; // { entry, mountedAtS } | null
+const MGR_HOLD_S = 2.5;
+// Rendering-only visual tuning, copied from main.js's own local (unexported) literals for
+// visual parity — not physics values, so there's nothing to import.
+const MGR_MOUNT_RADIUS = 0.045;
+const MGR_BALL_HEIGHT = 0.02;
+const MGR_SPIN_S = 0.6; // rad/s, main.js's MGR_SPIN_IDLE — the sandbox has no multiball to spin faster for
 
 // --- Minimal generic table renderer --------------------------------------------------------
 // Not a copy of games/pinball/src/main.js's stylized per-mechanism art (wood-tone rails,
@@ -120,6 +170,83 @@ for (const flipper of Object.values(flippers)) {
   flipper._mesh = mesh;
 }
 
+// Ramps: a generic tube-per-segment renderer walking each ramp's own real `points` (the
+// physics track itself), one call per ramp with a different colour for legibility. Not a copy
+// of main.js's per-ramp art (box-frame slide, wireform monkey bars, open culvert tunnel) —
+// same reasoning as the generic segment/circle renderers above. RAMP_TUBE_RADIUS is a
+// rendering-only thickness (ramps have no single physics "radius" to read from — friction and
+// pitch, not a tube radius, are what physics/ramp.js actually tracks).
+const RAMP_TUBE_RADIUS = 0.02;
+function addRampTubeMesh(points, color) {
+  const mat = new THREE.MeshStandardMaterial({ color, metalness: 0.3, roughness: 0.5 });
+  for (let i = 0; i < points.length - 1; i++) {
+    const a = toSceneVec(points[i].x, points[i].y, points[i].z);
+    const b = toSceneVec(points[i + 1].x, points[i + 1].y, points[i + 1].z);
+    const dir = new THREE.Vector3(b.x - a.x, b.y - a.y, b.z - a.z);
+    const len = dir.length();
+    if (len < 1e-6) continue;
+    const tube = new THREE.Mesh(new THREE.CylinderGeometry(RAMP_TUBE_RADIUS, RAMP_TUBE_RADIUS, len, 12), mat);
+    tube.position.set((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
+    tube.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+    tiltGroup.add(tube);
+  }
+}
+addRampTubeMesh(slide.ramp.points, 0xf0c927);
+addRampTubeMesh(monkeyBars.ramp.points, 0xd8d8d8);
+addRampTubeMesh(tunnel.ramp.points, 0x7d6b58);
+
+// THE SANDBOX: pit + rim drawn at the real capture radius, same as main.js post-becbdbe (a
+// ball visibly on the sand IS within the scoop's real capture radius).
+const SANDBOX_RIM_LIP = 0.006; // rendering-only decorative lip, not a physics quantity
+{
+  const pit = new THREE.Mesh(
+    new THREE.CircleGeometry(sandbox.captureZone.radius, 20),
+    new THREE.MeshStandardMaterial({ color: 0xd9c07a })
+  );
+  pit.rotation.x = -Math.PI / 2;
+  const pp = toSceneVec(sandbox.captureZone.centre.x, sandbox.captureZone.centre.y, 0.001);
+  pit.position.set(pp.x, pp.y, pp.z);
+  tiltGroup.add(pit);
+  const rim = new THREE.Mesh(
+    new THREE.RingGeometry(sandbox.captureZone.radius, sandbox.captureZone.radius + SANDBOX_RIM_LIP, 20),
+    new THREE.MeshStandardMaterial({ color: 0x8a6339 })
+  );
+  rim.rotation.x = -Math.PI / 2;
+  const rp = toSceneVec(sandbox.captureZone.centre.x, sandbox.captureZone.centre.y, 0.0015);
+  rim.position.set(rp.x, rp.y, rp.z);
+  tiltGroup.add(rim);
+}
+
+// THE MERRY-GO-ROUND: base drawn at the real capture radius (merryGoRound.radius), same as
+// main.js post-becbdbe. mgrGroup is kept as a top-level reference so a mounted ball's mesh can
+// be reparented onto it (to visibly ride the rotation) and back.
+const mgrGroup = new THREE.Group();
+{
+  const base = new THREE.Mesh(
+    new THREE.CylinderGeometry(merryGoRound.radius, merryGoRound.radius, 0.012, 20),
+    new THREE.MeshStandardMaterial({ color: 0xe0a832, metalness: 0.2, roughness: 0.5 })
+  );
+  base.position.y = 0.006;
+  mgrGroup.add(base);
+  const pole = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.006, 0.006, 0.09, 8),
+    new THREE.MeshStandardMaterial({ color: 0xb8b8b8 })
+  );
+  pole.position.y = 0.05;
+  mgrGroup.add(pole);
+  const roof = new THREE.Mesh(
+    new THREE.ConeGeometry(0.05, 0.03, 8),
+    new THREE.MeshStandardMaterial({ color: 0x4a7a3a })
+  );
+  roof.position.y = 0.1;
+  mgrGroup.add(roof);
+}
+{
+  const p = toSceneVec(merryGoRound.centre.x, merryGoRound.centre.y, 0);
+  mgrGroup.position.set(p.x, p.y, p.z);
+}
+tiltGroup.add(mgrGroup);
+
 // --- Balls -----------------------------------------------------------------------------------
 const ballGeo = new THREE.SphereGeometry(BALL_RADIUS, 24, 16);
 const ballMat = new THREE.MeshStandardMaterial({ color: 0xe8e8e8, metalness: 0.7, roughness: 0.25 });
@@ -140,15 +267,53 @@ function spawnBall(pos, vel) {
   return entry;
 }
 
+function findBallEntry(physBall) {
+  return balls.find((b) => b.phys === physBall) ?? null;
+}
+
 function despawnBall(entry) {
   removeBall(world, entry.phys.id);
-  tiltGroup.remove(entry.mesh);
+  // A merry-go-round-mounted ball's mesh is parented under mgrGroup, not tiltGroup.
+  if (entry.mgrMounted) mgrGroup.remove(entry.mesh);
+  else tiltGroup.remove(entry.mesh);
   balls = balls.filter((b) => b !== entry);
   if (mostRecentBall === entry) mostRecentBall = balls[balls.length - 1] ?? null;
+  if (mgrMounted && mgrMounted.entry === entry) mgrMounted = null;
+  if (scoop.ball === entry.phys) {
+    scoop.ball = null;
+    scoop.ejectAt = null;
+    scoopHeldSinceS = null;
+  }
 }
 
 function clearAllBalls() {
   for (const entry of [...balls]) despawnBall(entry);
+}
+
+/** Mount a captured ball onto the carousel so it visibly rides the rotation — same reparenting
+ * technique as main.js's mountAtMergeGoRound, single slot only (see the "no locks" note above
+ * where mgrMounted is declared). */
+function mountAtMergeGoRound(entry) {
+  tiltGroup.remove(entry.mesh);
+  mgrGroup.add(entry.mesh);
+  entry.mesh.position.set(MGR_MOUNT_RADIUS, MGR_BALL_HEIGHT, 0);
+  entry.mgrMounted = true;
+}
+
+/** Hand the ball back to tiltGroup and launch it from the real, pre-computed clear landing
+ * point (mgrRelease, from mech.buildEjectionSites -> computeMergeGoRoundRelease) — same
+ * function main.js's releaseFromMergeGoRound/ejectFromMergeGoRound use, not reimplemented. */
+function releaseFromMergeGoRound(entry, speed) {
+  if (entry.mgrMounted) {
+    mgrGroup.remove(entry.mesh);
+    tiltGroup.add(entry.mesh);
+    entry.mgrMounted = false;
+  }
+  entry.phys.layer = 'playfield';
+  entry.phys.z = 0;
+  entry.phys.captured = false;
+  entry.phys.pos = { x: mgrRelease.pos.x, y: mgrRelease.pos.y };
+  entry.phys.vel = { x: mgrRelease.heading.x * speed, y: mgrRelease.heading.y * speed };
 }
 
 // --- Input: flippers (reused verbatim), Clear key, click/drag ball placement ----------------
@@ -254,14 +419,65 @@ canvas.addEventListener('pointerup', (e) => {
 
 // --- Frame loop --------------------------------------------------------------------------
 let last = performance.now();
+let elapsedS = 0;
 function frame(now) {
   const dt = Math.min((now - last) / 1000, 0.05);
   last = now;
+  elapsedS += dt;
 
-  advance(world, dt);
+  const events = advance(world, dt);
+
+  // Capture handling: the mechanical part only (SANDBOX hold timer, merry-go-round mount) —
+  // no scoring, no locks, no multiball. See the declarations above for what's a real reused
+  // function vs. a disclosed sandbox-only stand-in.
+  for (const event of events) {
+    if (event.tag === sandbox.captureZone.tag) {
+      const entry = findBallEntry(event.ball);
+      if (entry) {
+        game.armScoop(scoop, elapsedS, entry.phys);
+        scoopHeldSinceS = elapsedS;
+      }
+    } else if (event.tag === merryGoRound.captureZone.tag) {
+      const entry = findBallEntry(event.ball);
+      if (!entry) continue;
+      if (mgrMounted) {
+        // Already riding one ball (single-slot, see "no locks" note) — eject the new capture
+        // immediately via the same real placement math, mirroring main.js's
+        // ejectFromMergeGoRound fallback for an unlit pass-through capture.
+        releaseFromMergeGoRound(entry, 1.4);
+      } else {
+        mountAtMergeGoRound(entry);
+        mgrMounted = { entry, mountedAtS: elapsedS };
+      }
+    }
+  }
+
+  if (game.tickScoop(scoop, elapsedS)) {
+    const evel = sandbox.eject.vel;
+    const evLen = Math.hypot(evel.x, evel.y) || 1;
+    const clear = sandbox.captureZone.radius * 1.3;
+    if (scoop.ball) {
+      scoop.ball.pos = {
+        x: sandbox.captureZone.centre.x + (evel.x / evLen) * clear,
+        y: sandbox.captureZone.centre.y + (evel.y / evLen) * clear,
+      };
+      scoop.ball.vel = { x: evel.x, y: evel.y };
+      scoop.ball.captured = false;
+    }
+    scoopHeldSinceS = null;
+  }
+
+  if (mgrMounted && elapsedS >= mgrMounted.mountedAtS + MGR_HOLD_S) {
+    releaseFromMergeGoRound(mgrMounted.entry, 1.6);
+    mgrMounted = null;
+  }
+  mgrGroup.rotation.y += MGR_SPIN_S * dt;
 
   for (const entry of [...balls]) {
-    if (recess.isDrained(entry.phys)) {
+    if (entry.mgrMounted) continue; // carried by mgrGroup's own rotation instead
+    // A captured (scoop-held) ball is pinned at the zone centre, not drained — but its mesh
+    // still needs to follow that pinned position, same as any other ball.
+    if (!entry.phys.captured && recess.isDrained(entry.phys)) {
       despawnBall(entry);
       continue;
     }
@@ -274,6 +490,11 @@ function frame(now) {
     flipper._mesh.rotation.y = flipper.angle;
   }
 
+  const holdLines = [];
+  if (scoopHeldSinceS !== null) holdLines.push(`hold: sandbox ${(elapsedS - scoopHeldSinceS).toFixed(2)}s`);
+  if (mgrMounted) holdLines.push(`hold: merry-go-round ${(elapsedS - mgrMounted.mountedAtS).toFixed(2)}s`);
+  const holdText = holdLines.length ? holdLines.join('\n') + '\n' : '';
+
   if (mostRecentBall && balls.includes(mostRecentBall)) {
     const speed = Math.hypot(mostRecentBall.phys.vel.x, mostRecentBall.phys.vel.y);
     readoutEl.textContent =
@@ -281,10 +502,12 @@ function frame(now) {
       `speed: ${speed.toFixed(3)} m/s\n` +
       `pos:   (${mostRecentBall.phys.pos.x.toFixed(3)}, ${mostRecentBall.phys.pos.y.toFixed(3)})\n` +
       `peak:  ${mostRecentBall.peakSpeed.toFixed(3)} m/s\n` +
+      holdText +
       (dragReadout ? `${dragReadout}\n` : '') +
       `[C] clear all balls`;
   } else {
     readoutEl.textContent =
+      holdText +
       (dragReadout ? `${dragReadout}\n` : 'no ball placed yet — click the playfield\n') +
       `[C] clear all balls`;
   }
