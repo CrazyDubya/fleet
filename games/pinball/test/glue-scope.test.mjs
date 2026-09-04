@@ -285,3 +285,30 @@ test('every free identifier in src/main.js is imported, declared, or an allowlis
     `${JSON.stringify(flagged)}`
   );
 });
+
+// Source-text sibling to the NUDGE_IMPULSE fix: physics/constants.js's PITCH_DEG feeds
+// gravityForPitch() (the simulated table angle), while the *rendered* playfield tilt at
+// main.js's tiltGroup.rotation.x was set from an independent hardcoded 6.5 — the same value
+// today only by coincidence. Retuning PITCH_DEG would silently desync what the physics
+// simulates from what the player sees the table drawn at. Asserted as source text (main.js
+// imports three.js/DOM and cannot be imported by node --test), same idiom as the rest of this
+// file: import presence, then the exact assignment line derives from PITCH_DEG rather than
+// restating its value.
+test('main.js imports PITCH_DEG and derives the rendered table tilt from it, not a literal', () => {
+  const src = fs.readFileSync(MAIN_JS, 'utf8');
+
+  const importsPitchDeg = /import\s*\{[^}]*\bPITCH_DEG\b[^}]*\}\s*from\s*['"]\.\/physics\/constants\.js['"]/.test(src);
+  assert.ok(
+    importsPitchDeg,
+    'src/main.js must import PITCH_DEG from ./physics/constants.js rather than hardcoding the table pitch angle'
+  );
+
+  const tiltLine = src.split('\n').find((line) => /tiltGroup\.rotation\.x\s*=/.test(line));
+  assert.ok(tiltLine, 'expected to find the tiltGroup.rotation.x assignment in main.js');
+  assert.ok(
+    /degToRad\(\s*PITCH_DEG\s*\)/.test(tiltLine),
+    `tiltGroup.rotation.x must derive from PITCH_DEG (via degToRad(PITCH_DEG)), not a ` +
+    `hardcoded numeric literal — the rendered tilt and physics gravity would otherwise be ` +
+    `free to desync: got "${tiltLine.trim()}"`
+  );
+});

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { createScene, toSceneVec } from './render/scene.js';
 import { createWorld, setLayerPrimitives, setLayerZones, addRamp, setCaptureZones, addBall, removeBall, addFlipper, advance } from './physics/world.js';
 import { createFlipper } from './physics/flipper.js';
-import { BALL_RADIUS, PLUNGER_MAX_SPEED, NUDGE_IMPULSE } from './physics/constants.js';
+import { BALL_RADIUS, PLUNGER_MAX_SPEED, NUDGE_IMPULSE, PITCH_DEG } from './physics/constants.js';
 import * as recess from './table/recess.js';
 import * as mech from './table/mechanisms.js';
 import * as ramps from './table/ramps.js';
@@ -24,7 +24,7 @@ import { isDebugEnabled, mountDebugPanel, mountEventLog } from './ui/debug.js';
 
 const canvas = document.getElementById('view');
 const { scene, camera, renderer, tiltGroup, resize } = createScene(canvas);
-tiltGroup.rotation.x = -THREE.MathUtils.degToRad(6.5);
+tiltGroup.rotation.x = -THREE.MathUtils.degToRad(PITCH_DEG);
 camera.position.set(0, 1.0, 0.65);
 camera.lookAt(0, 0, -0.5);
 
@@ -81,7 +81,7 @@ for (const seg of wallSegments) {
   const mesh = new THREE.Mesh(geo, wallMaterial(seg.tag));
   const p = toSceneVec((seg.a.x + seg.b.x) / 2, (seg.a.y + seg.b.y) / 2, 0.015);
   mesh.position.set(p.x, p.y, p.z);
-  mesh.rotation.y = -Math.atan2(dy, dx);
+  mesh.rotation.y = Math.atan2(dy, dx);
   tiltGroup.add(mesh);
 }
 
@@ -306,7 +306,7 @@ function buildSlingshotMesh(segments) {
     const bar = new THREE.Mesh(new THREE.BoxGeometry(len, 0.05, 0.012), slingshotMat);
     const p = toSceneVec((seg.a.x + seg.b.x) / 2, (seg.a.y + seg.b.y) / 2, 0.025);
     bar.position.set(p.x, p.y, p.z);
-    bar.rotation.y = -Math.atan2(dy, dx);
+    bar.rotation.y = Math.atan2(dy, dx);
     group.add(bar);
   }
   return group;
