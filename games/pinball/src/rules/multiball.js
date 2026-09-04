@@ -14,6 +14,12 @@ import { MODE_SHOT_TAGS } from './modes.js';
 export const LOCK_MAX = 3;
 export const JACKPOT_BASE_POINTS = 500000;
 export const MULTIBALL_SAVE_S = 20; // "Ball save (DO-OVER) is on for 20s from multiball start" (§4.4)
+export const RELOCK_MIN_INTERVAL_S = 1; // no real relock is physically possible faster than
+  // this (ball must eject, travel, and re-enter) — defence in depth against a future geometry
+  // or physics bug producing same-frame repeat captures, independent of the P0 geometry fix.
+export const JACKPOT_MAX_VALUE = JACKPOT_BASE_POINTS * 32; // 16,000,000 — opus2's own
+  // reference ceiling from the design doc's "five re-locks is comparable to the whole
+  // 15-40M good-game scale" note (20260830T024139Z-pinball-design.md).
 
 export function createMultiballState() {
   return {
@@ -26,6 +32,7 @@ export function createMultiballState() {
     jackpotReady: false,
     jackpotValue: JACKPOT_BASE_POINTS,
     addABallUsed: false, // "once per multiball at the SANDBOX" (§4.4)
+    lastRelockAtS: -Infinity, // last genuine relock's atS, for RELOCK_MIN_INTERVAL_S
   };
 }
 
@@ -39,7 +46,7 @@ export function onTreehouseHit(m) {
 }
 
 /**
- * A ball has physically settled into the merry-go-round (SW_MERRYGOROUND). Returns one of:
+ * A ball has physically settled into the merry-go-round (SW_MERRY_GO_ROUND). Returns one of:
  *   { action: 'eject' }                    — not lit: kicked straight back into play
  *   { action: 'relock', jackpotValue }     — already in multiball: doubles the jackpot,
  *                                             then also ejected (locking further during an
@@ -53,7 +60,9 @@ export function onTreehouseHit(m) {
  */
 export function onMerryGoRoundEntry(m, atS) {
   if (m.active) {
-    m.jackpotValue *= 2;
+    if (atS - m.lastRelockAtS < RELOCK_MIN_INTERVAL_S) return { action: 'eject' };
+    m.lastRelockAtS = atS;
+    m.jackpotValue = Math.min(JACKPOT_MAX_VALUE, m.jackpotValue * 2);
     return { action: 'relock', jackpotValue: m.jackpotValue };
   }
   if (!m.lockLit) return { action: 'eject' };
@@ -75,6 +84,7 @@ export function onMerryGoRoundEntry(m, atS) {
   m.jackpotReady = false;
   m.jackpotValue = JACKPOT_BASE_POINTS;
   m.addABallUsed = false;
+  m.lastRelockAtS = -Infinity;
   return { action: 'startMultiball', saveUntilS: atS + MULTIBALL_SAVE_S };
 }
 

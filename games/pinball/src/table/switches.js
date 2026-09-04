@@ -43,13 +43,13 @@ export const SW_TUNNEL_EXIT = 'tunnel_exit';
 export const SW_SANDBOX_ENTRY = 'sandbox_entry';
 export const SW_SANDBOX_EJECT = 'sandbox_eject';
 
-// T8 — RECESS MULTIBALL (design doc §4.4/§9 T8 row). SW_MERRYGOROUND fires on every
+// T8 — RECESS MULTIBALL (design doc §4.4/§9 T8 row). SW_MERRY_GO_ROUND fires on every
 // physical capture by the merry-go-round zone, whether or not lock is lit — rules/multiball.js
 // decides what that capture means (lock, re-lock jackpot escalator, or an unlit pass-through
 // eject). SW_BALL_ADDED/SW_BALL_LOST are synthetic, like SW_DRAIN/SW_SOFT_PLUNGE: main.js
 // pushes them onto a frame's tag batch (never mutates rules state directly) whenever it
 // physically puts an extra ball into play (a staggered multiball release, or the SANDBOX
 // add-a-ball) or removes one while other balls remain live (so the drain isn't the final one).
-export const SW_MERRYGOROUND = 'merry_go_round';
+export const SW_MERRY_GO_ROUND = 'merry_go_round';
 export const SW_BALL_ADDED = 'ball_added';
 export const SW_BALL_LOST = 'ball_lost';

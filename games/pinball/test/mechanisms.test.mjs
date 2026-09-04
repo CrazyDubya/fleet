@@ -4,6 +4,7 @@ import { createWorld, setLayerPrimitives, setLayerZones, addBall, advance } from
 import { BALL_RADIUS, STEP_DT, POP_BUMPER_KICK, SLINGSHOT_KICK } from '../src/physics/constants.js';
 import { length } from '../src/physics/vec2.js';
 import * as mech from '../src/table/mechanisms.js';
+import * as ramps from '../src/table/ramps.js';
 import { SW_HOPSCOTCH, SW_SAND, SW_FUN, SW_TETHERBALL_SPIN } from '../src/table/switches.js';
 import * as game from '../src/game/mechanisms.js';
 
@@ -112,8 +113,9 @@ test('a ball crossing the TETHERBALL spinner zone fires a switch event and drive
   const spinner = game.createSpinner();
   game.registerSpinnerHit(spinner);
   assert.ok(spinner.angularVel > 0);
+  const before = spinner.angularVel;
   game.tickSpinner(spinner, 1);
-  assert.ok(spinner.angularVel < spinner.angularVel + 1, 'sanity: decay reduces angularVel over time');
+  assert.ok(spinner.angularVel < before, 'decay should reduce angularVel over time');
 });
 
 test('the TREEHOUSE standup registers a hit without dropping (fixed post)', () => {
@@ -125,4 +127,28 @@ test('the TREEHOUSE standup registers a hit without dropping (fixed post)', () =
   const hit = events.some((e) => e.primitive?.shape?.tag === 'treehouse');
   assert.ok(hit, 'expected a collision event against the TREEHOUSE standup');
   assert.equal(treehouse.shape.active, undefined, 'standup never sets active=false');
+});
+
+test('merry-go-round release/eject clears every other mechanism skirt in the real table layout', () => {
+  const merryGoRound = mech.buildMerryGoRound();
+  const popBumpers = mech.buildPopBumpers();
+  const treehouse = mech.buildTreehouseStandup();
+  const sandbox = ramps.buildSandbox();
+
+  const obstacles = [
+    ...popBumpers.map((b) => ({ centre: b.centre, radius: b.shape.radius, name: b.name })),
+    { centre: treehouse.shape.centre, radius: treehouse.shape.radius, name: 'treehouse' },
+    { centre: sandbox.captureZone.centre, radius: sandbox.captureZone.radius, name: 'sandbox' },
+  ];
+
+  const release = mech.computeMergeGoRoundRelease(merryGoRound, obstacles);
+
+  for (const o of obstacles) {
+    const dist = Math.hypot(release.pos.x - o.centre.x, release.pos.y - o.centre.y);
+    assert.ok(
+      dist >= o.radius + BALL_RADIUS,
+      `release point (${release.pos.x.toFixed(4)}, ${release.pos.y.toFixed(4)}) is ` +
+      `${(o.radius + BALL_RADIUS - dist).toFixed(5)}m inside ${o.name}'s skirt+ball margin`
+    );
+  }
 });

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGame, launchBall, processEvents, activePlayer } from '../src/rules/game.js';
 import {
-  SW_TREEHOUSE, SW_MERRYGOROUND, SW_BALL_ADDED, SW_BALL_LOST, SW_DRAIN,
+  SW_TREEHOUSE, SW_MERRY_GO_ROUND, SW_BALL_ADDED, SW_BALL_LOST, SW_DRAIN,
   SW_SLIDE_EXIT, SW_MONKEYBARS_EXIT, SW_TUNNEL_EXIT, SW_SANDBOX_ENTRY,
 } from '../src/table/switches.js';
 
@@ -18,7 +18,7 @@ function lockThreeBalls(state) {
   let display;
   for (let i = 0; i < 3; i++) {
     processEvents(state, [SW_TREEHOUSE], i * 2);
-    display = processEvents(state, [SW_MERRYGOROUND], i * 2 + 1);
+    display = processEvents(state, [SW_MERRY_GO_ROUND], i * 2 + 1);
   }
   return display;
 }
@@ -27,7 +27,7 @@ test('TREEHOUSE lights lock; an unlit MERRY-GO-ROUND entry is just an eject, no 
   const state = freshGame();
   const p = activePlayer(state);
 
-  let display = processEvents(state, [SW_MERRYGOROUND], 0);
+  let display = processEvents(state, [SW_MERRY_GO_ROUND], 0);
   assert.ok(display.some((d) => d.kind === 'merryGoRoundEject'), 'unlit entry ejects');
   assert.equal(p.multiball.locks, 0);
 
@@ -41,19 +41,19 @@ test('locking the 1st and 2nd ball mounts it and serves a replacement; lock must
   const p = activePlayer(state);
 
   processEvents(state, [SW_TREEHOUSE], 0);
-  let display = processEvents(state, [SW_MERRYGOROUND], 1);
+  let display = processEvents(state, [SW_MERRY_GO_ROUND], 1);
   assert.ok(display.some((d) => d.kind === 'lock' && d.locks === 1));
   assert.ok(display.some((d) => d.kind === 'lockedBallServed'));
   assert.equal(p.multiball.locks, 1);
   assert.equal(p.multiball.lockLit, false, 'consumed — must be relit for the next lock');
 
   // A second MERRY-GO-ROUND entry without relighting TREEHOUSE just ejects.
-  display = processEvents(state, [SW_MERRYGOROUND], 2);
+  display = processEvents(state, [SW_MERRY_GO_ROUND], 2);
   assert.ok(display.some((d) => d.kind === 'merryGoRoundEject'));
   assert.equal(p.multiball.locks, 1, 'unlit entry does not consume a lock slot');
 
   processEvents(state, [SW_TREEHOUSE], 3);
-  display = processEvents(state, [SW_MERRYGOROUND], 4);
+  display = processEvents(state, [SW_MERRY_GO_ROUND], 4);
   assert.ok(display.some((d) => d.kind === 'lock' && d.locks === 2));
   assert.equal(p.multiball.active, false, 'not multiball yet — only 2 locks');
 });
@@ -77,7 +77,7 @@ test('re-locking during an active multiball doubles the jackpot and ejects rathe
   const p = activePlayer(state);
   lockThreeBalls(state);
 
-  const display = processEvents(state, [SW_MERRYGOROUND], 10);
+  const display = processEvents(state, [SW_MERRY_GO_ROUND], 10);
   assert.ok(display.some((d) => d.kind === 'merryGoRoundEject'));
   const jv = display.find((d) => d.kind === 'jackpotValue');
   assert.ok(jv);

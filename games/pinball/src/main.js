@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import { createScene, toSceneVec } from './render/scene.js';
 import { createWorld, setLayerPrimitives, setLayerZones, addRamp, setCaptureZones, addBall, removeBall, addFlipper, advance } from './physics/world.js';
 import { createFlipper } from './physics/flipper.js';
-import { sampleRamp } from './physics/ramp.js';
 import { BALL_RADIUS, PLUNGER_MAX_SPEED } from './physics/constants.js';
 import * as recess from './table/recess.js';
 import * as mech from './table/mechanisms.js';
@@ -15,7 +14,7 @@ import {
   SW_HOPSCOTCH, SW_SAND, SW_TREEHOUSE,
   SW_SLIDE_ENTER, SW_MONKEYBARS_ENTER, SW_TUNNEL_ENTER,
   SW_SANDBOX_ENTRY, SW_SANDBOX_EJECT,
-  SW_MERRYGOROUND, SW_BALL_ADDED,
+  SW_MERRY_GO_ROUND, SW_BALL_ADDED,
 } from './table/switches.js';
 import * as game from './game/mechanisms.js';
 import { createGame, launchBall, processEvents as processRules, activePlayer } from './rules/game.js';
@@ -51,7 +50,6 @@ new THREE.TextureLoader().load('./assets/textures/playfield.jpg', (tex) => {
 // --- World, walls, flippers ---
 const world = createWorld();
 const wallSegments = recess.buildWalls();
-setLayerPrimitives(world, 'playfield', wallSegments.map((shape) => ({ shape })));
 
 // Wood-tone side rails + chrome lane/apron guides, sampled from the reference photo's
 // worn pine border and chrome slingshot/corner plates (was flat gold/blue placeholder).
@@ -151,6 +149,14 @@ const tunnel = ramps.buildTunnelRamp();
 const sandbox = ramps.buildSandbox();
 const merryGoRound = mech.buildMerryGoRound();
 
+// Every other circular mechanism skirt a merry-go-round release/eject must clear — see
+// computeMergeGoRoundRelease's doc comment for why this exists (the P0 jackpot-runaway bug).
+const mgrRelease = mech.computeMergeGoRoundRelease(merryGoRound, [
+  ...popBumpers.map((b) => ({ centre: b.centre, radius: b.shape.radius })),
+  { centre: treehouse.shape.centre, radius: treehouse.shape.radius },
+  { centre: sandbox.captureZone.centre, radius: sandbox.captureZone.radius },
+]);
+
 addRamp(world, slide.ramp);
 addRamp(world, monkeyBars.ramp);
 addRamp(world, tunnel.ramp);
@@ -179,7 +185,7 @@ const pinwheelSpinner = game.createSpinner();
 // purity boundary; there is now exactly one scoring path.
 const rulesState = createGame({ numPlayers: 1, ballsPerPlayer: 3 });
 const scoop = game.createScoop();
-// T8: which physical ball each SW_MERRYGOROUND capture event this frame belongs to,
+// T8: which physical ball each SW_MERRY_GO_ROUND capture event this frame belongs to,
 // consumed in tag order against the matching lock/eject/multiballStart display events
 // rules/game.js returns for those same tags — see the frame loop's display-handling pass.
 let mergeGoRoundQueue = [];
@@ -203,7 +209,7 @@ const MECHANISM_TAGS = new Set([
   `${slide.ramp.id}_exit`, `${monkeyBars.ramp.id}_exit`, `${tunnel.ramp.id}_exit`,
   `${slide.ramp.id}_rollback`, `${monkeyBars.ramp.id}_rollback`, `${tunnel.ramp.id}_rollback`,
   SW_SANDBOX_ENTRY, SW_SANDBOX_EJECT,
-  SW_MERRYGOROUND,
+  SW_MERRY_GO_ROUND,
 ]);
 
 function tagOf(event) {
@@ -258,7 +264,7 @@ function processMechanismEvents(events) {
       game.armScoop(scoop, elapsedS, event.ball);
       fired.push(tag);
       if (eventLog) eventLog.log(tag);
-    } else if (tag === SW_MERRYGOROUND) {
+    } else if (tag === SW_MERRY_GO_ROUND) {
       mergeGoRoundQueue.push(event.ball);
       fired.push(tag);
       if (eventLog) eventLog.log(tag);
@@ -340,10 +346,11 @@ tiltGroup.add(buildSwingSetPosts({ x: -0.135, y: 0.175 }));
 tiltGroup.add(buildSwingSetPosts({ x: 0.135, y: 0.175 }));
 
 // Drop-target banks: standing plates, one per target, scaled to 0 height when dropped.
+const dropTargetPlateGeo = new THREE.BoxGeometry(0.03, 0.03, 0.006);
 function buildDropBankMeshes(bank, color) {
   const meshes = new Map();
   for (const t of bank.targets) {
-    const plate = coloredMesh(new THREE.BoxGeometry(0.03, 0.03, 0.006), color);
+    const plate = coloredMesh(dropTargetPlateGeo, color);
     const p = toSceneVec(t.centre.x, t.centre.y, 0.015);
     plate.position.set(p.x, p.y, p.z);
     tiltGroup.add(plate);
@@ -530,6 +537,14 @@ function mountAtMergeGoRound(entry, slot) {
   entry.mgrMounted = true;
 }
 
+/** Shared by release and eject: drop the ball at the precomputed clear landing point
+ * (mgrRelease — see computeMergeGoRoundRelease) heading out at `speed`. */
+function launchFromMergeGoRound(entry, speed) {
+  entry.phys.captured = false;
+  entry.phys.pos = { x: mgrRelease.pos.x, y: mgrRelease.pos.y };
+  entry.phys.vel = { x: mgrRelease.heading.x * speed, y: mgrRelease.heading.y * speed };
+}
+
 /** The design doc's "flings all three out at once (staggered 400ms)" and the SANDBOX
  * add-a-ball share this exit path: hand the mesh back to tiltGroup (the per-frame ball-mesh
  * sync takes over from here) and give the ball an outward launch into the main field. */
@@ -540,19 +555,9 @@ function releaseFromMergeGoRound(entry, speed) {
     tiltGroup.add(entry.mesh);
     entry.mgrMounted = false;
   }
-  entry.phys.captured = false;
   entry.phys.layer = 'playfield';
   entry.phys.z = 0;
-  const dx = -0.15, dy = -1; // outward/downward toward the main field — one fixed release
-                             // heading for all three, not a per-slot vector; adequate for
-                             // this beat, not claimed to be geometrically exact.
-  const len = Math.hypot(dx, dy);
-  // Cleared past the capture radius, same reasoning as the SANDBOX scoop's eject clearance:
-  // leaving it dead-centre with world.js's checkCaptures still active would just re-capture
-  // it on the very next physics step.
-  const clear = merryGoRound.radius * 1.05;
-  entry.phys.pos = { x: merryGoRound.centre.x + (dx / len) * clear, y: merryGoRound.centre.y + (dy / len) * clear };
-  entry.phys.vel = { x: (dx / len) * Math.max(speed, 0.6), y: (dy / len) * Math.max(speed, 0.6) };
+  launchFromMergeGoRound(entry, Math.max(speed, 0.6));
 }
 
 /** An unlit pass-through, or a re-lock during an already-active multiball: the ball was
@@ -561,12 +566,7 @@ function releaseFromMergeGoRound(entry, speed) {
  * capture radius the same way the SANDBOX scoop's eject does. */
 function ejectFromMergeGoRound(entry) {
   if (!entry) return;
-  entry.phys.captured = false;
-  const dx = -0.15, dy = -1;
-  const len = Math.hypot(dx, dy);
-  const clear = merryGoRound.radius * 1.05;
-  entry.phys.pos = { x: merryGoRound.centre.x + (dx / len) * clear, y: merryGoRound.centre.y + (dy / len) * clear };
-  entry.phys.vel = { x: (dx / len) * 1.4, y: (dy / len) * 1.4 };
+  launchFromMergeGoRound(entry, 1.4);
 }
 
 // The 3 balls mounted while building toward the 3rd lock; consumed (and cleared) the moment
@@ -781,7 +781,7 @@ function frame(now) {
     }
 
     // T8: MERRY-GO-ROUND lock/eject/multiball. Each of these display kinds corresponds 1:1,
-    // in emission order, to a queued SW_MERRYGOROUND capture from this same frame's physics
+    // in emission order, to a queued SW_MERRY_GO_ROUND capture from this same frame's physics
     // events — see mergeGoRoundQueue's doc comment.
     if (d.kind === 'merryGoRoundEject') {
       ejectFromMergeGoRound(findBallEntry(mergeGoRoundQueue.shift()));

@@ -25,7 +25,18 @@ const DODGEBALL_LIGHT_EVERY = 25; // "Every 25 hits lights DODGEBALL at the SAND
 const COMBO_DECAY_S = 8; // "decays after 8 s without a slide" (§4.4); applied to the tunnel/tetherball combo too, by the same reasoning
 const JUMP_ROPE_STALL_S = 4; // "Ends when the spinner stops for 4 s" (§4.4)
 const JUMP_ROPE_TIME_PER_REV_S = 1;
-const JUMP_ROPE_MAX_MULT = 10;
+const JUMP_ROPE_MAX_MULT = 50; // was 10 — §4.4 ratified 50 ("Double Dutch" needs it; a 10x
+  // cap made an achievement the design doc itself already wrote unreachable, per opus2's
+  // 20260830T024139Z-pinball-design.md ~line 741).
+const JUMP_ROPE_MULT_PER_REV = 0.5; // was an inline 0.1 in onJumpRopeSpin. Retuned alongside
+  // the 50x cap: at 0.1/rev, reaching 50x needs 490 revs, which — combined with JUMP_ROPE's
+  // own timing floor (remainingS only grows 1s/rev, so sustaining the mode at all needs >=1
+  // rev/sec) — is ~8.2 minutes of gapless play on a bare open-field crossing zone with no
+  // loop geometry backing a real continuous spin (see buildSpinners() in table/mechanisms.js).
+  // Not "hard but reachable" per §4.4's own phrase. At 0.5/rev, the cap needs 98 revs (~98s
+  // at the same 1 rev/sec floor) — the same rough difficulty order the previous 10x cap had
+  // at 0.1/rev (90 revs), for a genuinely rarer 50x mastery achievement. Judgment call, not
+  // ratified like the 50x number itself.
 
 const KICKBALL_HOME_RUN_POINTS = 2000000;
 const HIDE_SEEK_WRONG_POINTS = 100000;
@@ -223,7 +234,7 @@ export function onDodgeballHit(modesState, delta) {
 export function onJumpRopeSpin(modesState, atS) {
   const mode = modesState.activeMode;
   if (!mode || mode.name !== 'JUMP_ROPE') return { points: 0, display: [], modesCompletedDelta: 0 };
-  mode.mult = Math.min(JUMP_ROPE_MAX_MULT, mode.mult + 0.1);
+  mode.mult = Math.min(JUMP_ROPE_MAX_MULT, mode.mult + JUMP_ROPE_MULT_PER_REV);
   mode.remainingS += JUMP_ROPE_TIME_PER_REV_S;
   mode.lastRevAtS = atS;
   return { points: Math.round(JUMP_ROPE_REV_POINTS * mode.mult), display: [], modesCompletedDelta: 0 };

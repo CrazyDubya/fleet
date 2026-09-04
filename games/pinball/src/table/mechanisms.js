@@ -3,7 +3,8 @@
 // "dropped" state lives in src/game/mechanisms.js, which owns the shape objects returned
 // here and toggles their `.active` flag at runtime).
 import { Circle, Segment, Zone } from '../physics/shapes.js';
-import { E_RUBBER, POP_BUMPER_KICK, SLINGSHOT_KICK } from '../physics/constants.js';
+import { E_RUBBER, POP_BUMPER_KICK, SLINGSHOT_KICK, BALL_RADIUS } from '../physics/constants.js';
+import { normalize } from '../physics/vec2.js';
 import {
   SW_POP_DUCK, SW_POP_HORSE, SW_POP_ROCKET,
   SW_SLING_LEFT, SW_SLING_RIGHT,
@@ -11,7 +12,7 @@ import {
   SW_TREEHOUSE,
   SW_FUN,
   SW_TETHERBALL_SPIN, SW_PINWHEEL_SPIN,
-  SW_MERRYGOROUND,
+  SW_MERRY_GO_ROUND,
 } from './switches.js';
 
 const POP_SKIRT_RADIUS = 0.03;
@@ -134,5 +135,62 @@ export function buildSpinners() {
 export function buildMerryGoRound() {
   const centre = { x: 0.01, y: 0.9 };
   const radius = 0.075;
-  return { centre, radius, captureZone: { centre, radius, tag: SW_MERRYGOROUND } };
+  return { centre, radius, captureZone: { centre, radius, tag: SW_MERRY_GO_ROUND } };
+}
+
+// Design doc's own preferred release heading — down/in toward the main field, away from the
+// spring-rider cluster it was originally (wrongly) never checked against. Kept as the
+// starting point so an unobstructed table still gets the intended-looking release.
+const MGR_RELEASE_PREFERRED_HEADING = normalize({ x: -0.15, y: -1 });
+
+/**
+ * Where a ball leaves the merry-go-round — a genuine 3-lock release, a re-lock ejection
+ * during active multiball, or an unlit pass-through. Derived from the current table layout
+ * instead of a hardcoded constant, so a future mechanism-layout change can't silently
+ * reintroduce a ball landing back inside another mechanism's collision skirt.
+ *
+ * This exists because of a real bug: the previous hardcoded (-0.15, -1) heading was chosen
+ * only to clear the merry-go-round's own capture radius (a 1.05x margin) and was never
+ * checked against anything else. It landed 7.85mm inside the horse spring-rider's 30mm
+ * skirt — every release/relock ball spawned already overlapping the pop bumper, which
+ * re-kicked it back into the merry-go-round's capture zone, which re-doubled an uncapped
+ * jackpot, forever (500,000 -> 1.757e+165 in ~5s, confirmed live). See the 2026-09-01 P0
+ * handoff for the full trace.
+ *
+ * `obstacles` is every other circular mechanism skirt the landing point must clear —
+ * `{ centre, radius }` pairs — e.g. the pop bumpers' skirts, the TREEHOUSE standup, the
+ * SANDBOX scoop's capture zone. `margin` on top of each obstacle's own radius accounts for
+ * the ball's own footprint (defaults to BALL_RADIUS) so the ball doesn't spawn edge-touching
+ * a skirt either.
+ *
+ * Starts from the design doc's preferred heading; if that lands inside some obstacle's
+ * skirt+margin, sweeps outward from it in 1-degree steps (alternating either side) to the
+ * nearest heading that clears every obstacle. Throws if literally nothing within 180 degrees
+ * clears — that would mean the merry-go-round is boxed in by the layout itself, a table-design
+ * problem no release heading can paper over.
+ */
+export function computeMergeGoRoundRelease(mgr, obstacles, margin = BALL_RADIUS) {
+  const clear = mgr.radius * 1.05;
+  const landingFor = (heading) => ({
+    x: mgr.centre.x + heading.x * clear,
+    y: mgr.centre.y + heading.y * clear,
+  });
+  const clearsAll = (heading) => {
+    const p = landingFor(heading);
+    return obstacles.every((o) => Math.hypot(p.x - o.centre.x, p.y - o.centre.y) >= o.radius + margin);
+  };
+
+  if (clearsAll(MGR_RELEASE_PREFERRED_HEADING)) {
+    return { heading: MGR_RELEASE_PREFERRED_HEADING, pos: landingFor(MGR_RELEASE_PREFERRED_HEADING) };
+  }
+
+  const baseAngle = Math.atan2(MGR_RELEASE_PREFERRED_HEADING.y, MGR_RELEASE_PREFERRED_HEADING.x);
+  for (let deg = 1; deg <= 180; deg++) {
+    for (const sign of [1, -1]) {
+      const angle = baseAngle + (sign * deg * Math.PI) / 180;
+      const heading = { x: Math.cos(angle), y: Math.sin(angle) };
+      if (clearsAll(heading)) return { heading, pos: landingFor(heading) };
+    }
+  }
+  throw new Error('computeMergeGoRoundRelease: no heading within 180 degrees clears every mechanism skirt');
 }

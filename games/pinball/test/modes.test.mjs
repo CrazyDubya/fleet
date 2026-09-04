@@ -117,6 +117,20 @@ test('JUMP ROPE: revolutions add time and build a multiplier; it ends when the s
   assert.equal(p.modesState.activeMode, null);
 });
 
+test('JUMP ROPE: the 50x multiplier cap is reached at exactly 98 revs, not 97', () => {
+  const state = freshGame();
+  forceStartMode(state, 'JUMP_ROPE', 0);
+  const p = activePlayer(state);
+
+  for (let rev = 1; rev <= 97; rev++) {
+    processEvents(state, [SW_TETHERBALL_SPIN], rev);
+  }
+  assert.equal(p.modesState.activeMode.mult, 49.5, '97 revs at 0.5/rev from a base of 1 should reach 49.5, not the 50x cap');
+
+  processEvents(state, [SW_TETHERBALL_SPIN], 98);
+  assert.equal(p.modesState.activeMode.mult, 50, '98th rev should hit the 50x cap exactly');
+});
+
 test('skill shot: landing the lit F-U-N lane at plunge scores 250,000 x ball number', () => {
   const state = freshGame();
   const p = activePlayer(state);

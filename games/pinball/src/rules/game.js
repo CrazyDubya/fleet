@@ -19,7 +19,7 @@ import {
   SW_HOPSCOTCH_COMPLETE, SW_SAND_COMPLETE,
   SW_SLIDE_EXIT, SW_MONKEYBARS_EXIT, SW_TUNNEL_EXIT, SW_SANDBOX_ENTRY,
   SW_TETHERBALL_SPIN, SW_SLING_LEFT, SW_SLING_RIGHT,
-  SW_TREEHOUSE, SW_MERRYGOROUND, SW_BALL_ADDED, SW_BALL_LOST,
+  SW_TREEHOUSE, SW_MERRY_GO_ROUND, SW_BALL_ADDED, SW_BALL_LOST,
 } from '../table/switches.js';
 import { POP_TAGS, POP_BASE_POINTS, POP_ESCALATOR, SWITCH_POINTS, fallbackPointsFor, SHOT_TAGS, BONUS_X_MAX } from './scoring.js';
 import { computeBonus } from './bonus.js';
@@ -234,7 +234,7 @@ function scoreSwitchTag(state, p, tag, atS) {
     return display;
   }
 
-  if (tag === SW_MERRYGOROUND) {
+  if (tag === SW_MERRY_GO_ROUND) {
     const result = multiball.onMerryGoRoundEntry(p.multiball, atS);
     if (result.action === 'eject') {
       display.push({ kind: 'merryGoRoundEject' });
