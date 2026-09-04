@@ -12,6 +12,12 @@ export const SW_POP_ROCKET = 'pop_rocket';
 export const SW_SLING_LEFT = 'sling_left';
 export const SW_SLING_RIGHT = 'sling_right';
 
+// Left outlane kickback. Fires on every physical contact, lit or not — game/mechanisms.js's
+// tryKickback decides whether that contact actually launches the ball back into play (see its
+// own doc comment); a passive contact when unlit or already used this ball fires the same tag
+// with no state change, same as any other collider.
+export const SW_KICKBACK = 'kickback';
+
 export const SW_HOPSCOTCH = ['hopscotch_1', 'hopscotch_2', 'hopscotch_3', 'hopscotch_4'];
 export const SW_HOPSCOTCH_COMPLETE = 'hopscotch_complete';
 
@@ -72,6 +78,7 @@ export function mechanismTags({ slide, monkeyBars, tunnel }) {
   return new Set([
     SW_POP_DUCK, SW_POP_HORSE, SW_POP_ROCKET,
     SW_SLING_LEFT, SW_SLING_RIGHT,
+    SW_KICKBACK,
     ...SW_HOPSCOTCH, ...SW_SAND,
     SW_TREEHOUSE,
     ...SW_FUN,

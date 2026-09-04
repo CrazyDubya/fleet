@@ -5,7 +5,7 @@ import { BALL_RADIUS, STEP_DT, POP_BUMPER_KICK, SLINGSHOT_KICK } from '../src/ph
 import { length } from '../src/physics/vec2.js';
 import * as mech from '../src/table/mechanisms.js';
 import * as ramps from '../src/table/ramps.js';
-import { SW_HOPSCOTCH, SW_SAND, SW_FUN, SW_TETHERBALL_SPIN } from '../src/table/switches.js';
+import { SW_HOPSCOTCH, SW_SAND, SW_FUN, SW_TETHERBALL_SPIN, SW_KICKBACK } from '../src/table/switches.js';
 import * as game from '../src/game/mechanisms.js';
 
 function makeWorldWith(primitives = [], zones = []) {
@@ -156,4 +156,57 @@ test('every ejection site (merry-go-round release, SANDBOX add-a-ball) clears it
       );
     }
   }
+});
+
+// --- Left outlane kickback (physics-level contact) ---
+// Unlike the pop bumper/slingshot above, contact alone must NOT change the ball's velocity —
+// the collider is deliberately passive (no .kick); table/mechanisms.js's buildKickback doc
+// comment explains why (whether a contact fires is a lit/once-per-ball GAME decision, not a
+// physics one). This test proves the tag fires on contact and that physics alone does nothing
+// with it; game/mechanisms.js's tryKickback (below) and its main.js call site are what apply
+// kickback.kick.vel when the decision says yes.
+test('the kickback collider fires SW_KICKBACK on contact but applies no physics-level kick (passive collider)', () => {
+  const kickback = mech.buildKickback();
+  const { world, ball } = makeWorldWith([{ shape: kickback.shape }]);
+  // Place the ball just outside the collider, moving slowly inward — same shape as the pop
+  // bumper test above, but watching for the TAG, not a speed jump.
+  const dir = { x: 1, y: 0 };
+  ball.pos = { x: kickback.centre.x - (kickback.radius + BALL_RADIUS + 0.02), y: kickback.centre.y };
+  ball.vel = { x: 0.3, y: 0 };
+  let tagFired = false;
+  let maxSpeedSeen = 0;
+  for (let i = 0; i < 60; i++) {
+    const events = advance(world, STEP_DT);
+    for (const e of events) if (e.primitive?.shape?.tag === SW_KICKBACK) tagFired = true;
+    maxSpeedSeen = Math.max(maxSpeedSeen, length(ball.vel));
+  }
+  assert.ok(tagFired, 'SW_KICKBACK never fired on contact');
+  const launchSpeed = length(kickback.kick.vel);
+  assert.ok(maxSpeedSeen < launchSpeed - 0.5,
+    `contact alone reached ${maxSpeedSeen.toFixed(3)} m/s, too close to the ${launchSpeed.toFixed(3)} m/s ` +
+    'kickback launch speed — a passive collider should not, on its own, approach that; only ' +
+    'tryKickback saying yes and main.js applying kick.vel should ever produce it');
+});
+
+// --- Left outlane kickback (game-logic decision) ---
+test('kickback: kicks when lit', () => {
+  const kickback = game.createKickback();
+  assert.equal(kickback.lit, true, 'starts lit — a design choice, see game/mechanisms.js\'s KICKBACK_STARTS_LIT');
+  assert.equal(game.tryKickback(kickback), true);
+  assert.equal(kickback.usedThisBall, true, 'a successful kick marks it used');
+});
+
+test('kickback: does not kick when unlit', () => {
+  const kickback = game.createKickback();
+  kickback.lit = false;
+  assert.equal(game.tryKickback(kickback), false);
+  assert.equal(kickback.usedThisBall, false, 'an unlit contact is not a use — it never fired');
+});
+
+test('kickback: does not kick twice in one ball', () => {
+  const kickback = game.createKickback();
+  assert.equal(game.tryKickback(kickback), true, 'the first contact this ball kicks');
+  assert.equal(game.tryKickback(kickback), false, 'a second contact, same ball, does not');
+  game.resetKickbackForNewBall(kickback);
+  assert.equal(game.tryKickback(kickback), true, 'a genuinely new ball re-arms it');
 });

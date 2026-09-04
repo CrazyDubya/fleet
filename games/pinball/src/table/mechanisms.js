@@ -3,11 +3,12 @@
 // "dropped" state lives in src/game/mechanisms.js, which owns the shape objects returned
 // here and toggles their `.active` flag at runtime).
 import { Circle, Segment, Zone } from '../physics/shapes.js';
-import { E_RUBBER, E_WALL, POP_BUMPER_KICK, SLINGSHOT_KICK, BALL_RADIUS } from '../physics/constants.js';
-import { normalize } from '../physics/vec2.js';
+import { E_RUBBER, E_WALL, POP_BUMPER_KICK, SLINGSHOT_KICK, KICKBACK_SPEED, BALL_RADIUS } from '../physics/constants.js';
+import { normalize, scale } from '../physics/vec2.js';
 import {
   SW_POP_DUCK, SW_POP_HORSE, SW_POP_ROCKET,
   SW_SLING_LEFT, SW_SLING_RIGHT,
+  SW_KICKBACK,
   SW_HOPSCOTCH, SW_SAND,
   SW_TREEHOUSE,
   SW_FUN,
@@ -29,6 +30,41 @@ export function buildPopBumpers() {
     shape.kick = POP_BUMPER_KICK;
     return { ...s, shape };
   });
+}
+
+const KICKBACK_RADIUS = 0.012;
+
+/**
+ * Left outlane kickback. recess.js's own note: "Outlanes/inlanes... are not modelled yet" — the
+ * table has no separate outlane channel, only the converging apron wall (recess.js's
+ * `apron-left`) standing in for "the eventual outlane/inlane split." Placed along that wall's
+ * lower run (between APRON_MID and APRON_NECK, roughly (-0.205,0.12) to (-0.15,0.02)), near the
+ * drain end where a real kickback sits, offset clear of the wall into the field — a judgement
+ * call recorded here rather than hidden, the same way this project records every other
+ * deviation from a not-yet-built piece of geometry.
+ *
+ * Physics-level contact is PASSIVE — no `.kick`, unlike the pop bumpers/slingshots above, which
+ * fire unconditionally on every hit. A kickback's whole point is that it doesn't always fire:
+ * whether a given contact launches the ball is a lit/once-per-ball decision
+ * (game/mechanisms.js's tryKickback), so the physics layer only reports the contact (the tag);
+ * main.js applies `kick.vel` to the ball's velocity ONLY when that decision says yes. `kick` is
+ * bundled the same shape as ramps.js's `sandbox.eject` ({vel, tag}) for the same reason: one
+ * ready-to-apply vector, not direction and speed left for a caller to recombine.
+ */
+export function buildKickback() {
+  // Offset from the apron-left wall's own lower-run midpoint, along that wall's outward
+  // normal, by radius + an 8mm clearance margin — checked by hand (~20mm centre-to-wall
+  // distance, comfortably clear of KICKBACK_RADIUS) so the collider doesn't embed in the wall,
+  // the same class of problem test/drain-sweep-mechanisms.test.mjs caught for the swing-set
+  // crossbar. drain-sweep-mechanisms.test.mjs's own sweep (below) is what actually verifies
+  // this rather than the hand computation alone.
+  const centre = { x: -0.162, y: 0.084 };
+  const dir = normalize({ x: 0.35, y: 1 }); // back up into the field, away from the drain
+  return {
+    centre, radius: KICKBACK_RADIUS,
+    shape: Circle(centre, KICKBACK_RADIUS, E_RUBBER, SW_KICKBACK),
+    kick: { vel: scale(dir, KICKBACK_SPEED), tag: SW_KICKBACK },
+  };
 }
 
 /**

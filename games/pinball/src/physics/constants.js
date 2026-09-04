@@ -35,6 +35,12 @@ export const FLIPPER = {
 export const POP_BUMPER_KICK = 2.6;
 export const SLINGSHOT_KICK = 3.5;
 export const SCOOP_EJECT = 2.2;
+// Same category as the constants above it: a coil-strength velocity, not a grounded physical figure
+// (see ledger/handoffs/opus2/20260904T180000Z-true-to-physics-standard.md §3 — "real coil
+// strength varies by machine and by operator adjustment"). Whether the kickback FIRES on a
+// given contact is a game-rule decision (lit/once-per-ball, game/mechanisms.js's
+// tryKickback) — this constant is only the launch speed once that decision says yes.
+export const KICKBACK_SPEED = 3.0;
 export const PLUNGER_MAX_SPEED = 5.0;
 export const NUDGE_IMPULSE = 0.35;
 export const GATE_ONE_WAY_THRESHOLD = 0.2;

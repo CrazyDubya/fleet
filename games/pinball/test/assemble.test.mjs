@@ -23,7 +23,8 @@ test('buildTable assembles every known playfield contributor, with the right cou
     mech.buildHopscotchBank().targets.length +
     mech.buildSandBank().targets.length +
     1 + // treehouse
-    mech.buildSwingSetPosts().length;
+    mech.buildSwingSetPosts().length +
+    1; // kickback
   assert.equal(table.primitives.length, expectedPrimitiveCount);
 
   const expectedZoneCount =

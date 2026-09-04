@@ -34,6 +34,7 @@ export function buildTable() {
   const funLaneDefs = mech.buildFunLanes();
   const spinnerDefs = mech.buildSpinners();
   const swingSetPosts = mech.buildSwingSetPosts();
+  const kickback = mech.buildKickback();
 
   const slide = ramps.buildSlideRamp();
   const monkeyBars = ramps.buildMonkeyBarsRamp();
@@ -58,6 +59,7 @@ export function buildTable() {
     ...sandBank.targets.map((t) => ({ shape: t.shape })),
     { shape: treehouse.shape },
     ...swingSetPosts.map((p) => ({ shape: p.shape })),
+    { shape: kickback.shape },
   ];
 
   const zones = [
@@ -74,7 +76,7 @@ export function buildTable() {
 
   return {
     wallSegments, popBumpers, slingshots, hopscotch, sandBank, treehouse, funLaneDefs,
-    spinnerDefs, swingSetPosts, slide, monkeyBars, tunnel, sandbox, merryGoRound,
+    spinnerDefs, swingSetPosts, kickback, slide, monkeyBars, tunnel, sandbox, merryGoRound,
     ejectionSites, mgrRelease, sandboxAddABallPlacement,
     primitives, zones, captureZones, rampTracks,
   };

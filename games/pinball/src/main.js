@@ -12,6 +12,7 @@ import {
   SW_FUN, SW_TETHERBALL_SPIN, SW_PINWHEEL_SPIN,
   SW_POP_DUCK, SW_POP_HORSE, SW_POP_ROCKET,
   SW_SLING_LEFT, SW_SLING_RIGHT,
+  SW_KICKBACK,
   SW_HOPSCOTCH, SW_SAND, SW_TREEHOUSE,
   SW_SLIDE_ENTER, SW_MONKEYBARS_ENTER, SW_TUNNEL_ENTER,
   SW_SANDBOX_ENTRY, SW_SANDBOX_EJECT,
@@ -59,7 +60,7 @@ const table = buildTable();
 wireTable(world, table);
 const {
   wallSegments, popBumpers, slingshots, hopscotch, sandBank, treehouse, funLaneDefs,
-  spinnerDefs, swingSetPosts, slide, monkeyBars, tunnel, sandbox, merryGoRound,
+  spinnerDefs, swingSetPosts, kickback, slide, monkeyBars, tunnel, sandbox, merryGoRound,
   ejectionSites, mgrRelease, sandboxAddABallPlacement,
 } = table;
 
@@ -155,6 +156,7 @@ const pinwheelSpinner = game.createSpinner();
 // purity boundary; there is now exactly one scoring path.
 const rulesState = createGame({ numPlayers: 1, ballsPerPlayer: 3 });
 const scoop = game.createScoop();
+const kickbackState = game.createKickback();
 // T8: which physical ball each SW_MERRY_GO_ROUND capture event this frame belongs to,
 // consumed in tag order against the matching lock/eject/multiballStart display events
 // rules/game.js returns for those same tags — see the frame loop's display-handling pass.
@@ -258,6 +260,15 @@ function processMechanismEvents(events) {
       }
       fired.push(tag);
       if (eventLog) eventLog.log(tag);
+    } else if (tag === SW_KICKBACK) {
+      // The physics-level contact always fires this tag (passive collider, no unconditional
+      // .kick — see table/mechanisms.js's buildKickback); tryKickback is the actual lit/
+      // once-per-ball decision, and only overrides the ball's velocity when it says yes.
+      if (game.tryKickback(kickbackState)) {
+        event.ball.vel = { x: kickback.kick.vel.x, y: kickback.kick.vel.y };
+      }
+      fired.push(tag);
+      if (eventLog) eventLog.log(tag);
     } else {
       fired.push(tag);
       if (eventLog) eventLog.log(tag);
@@ -301,6 +312,21 @@ function buildPopBumperMesh(name, centre, radius) {
   return group;
 }
 for (const p of popBumpers) tiltGroup.add(buildPopBumperMesh(p.name, p.centre, p.shape.radius));
+
+// Left outlane kickback — a lit/unlit rail, not a dome (nothing to bounce off overhead, unlike
+// a pop bumper): a short cylinder drawn at the physics collision radius itself, colored by lit
+// state (checked and re-set every frame below, so a future relight mechanism needs no render
+// change).
+const kickbackLitMat = new THREE.MeshStandardMaterial({ color: 0xffcc33, metalness: 0.3, roughness: 0.4 });
+const kickbackUnlitMat = new THREE.MeshStandardMaterial({ color: 0x555555, metalness: 0.3, roughness: 0.6 });
+function buildKickbackMesh(centre, radius) {
+  const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, 0.01, 16), kickbackLitMat);
+  const p = toSceneVec(centre.x, centre.y, 0.005);
+  mesh.position.set(p.x, p.y, p.z);
+  return mesh;
+}
+const kickbackMesh = buildKickbackMesh(kickback.centre, kickback.shape.radius);
+tiltGroup.add(kickbackMesh);
 
 const slingshotMat = new THREE.MeshStandardMaterial({ color: 0xc8c8c8, metalness: 0.75, roughness: 0.3 });
 function buildSlingshotMesh(segments) {
@@ -841,13 +867,17 @@ function frame(now) {
   const display = processRules(rulesState, scoreTags, elapsedS);
   for (const d of display) {
     if (d.kind === 'ballServed' || d.kind === 'ballSaved') serveToChute();
+    // A genuinely NEW ball (not a DO-OVER 'ballSaved' — see game/mechanisms.js's
+    // resetKickbackForNewBall doc comment for why the two are treated differently) re-arms
+    // the kickback's once-per-ball use.
+    if (d.kind === 'ballServed') game.resetKickbackForNewBall(kickbackState);
     // Auto-launch the next ball on a turn change — there's no "plunge to start" menu flow
     // yet (ui/menus.js is T12), so without this the game would silently stop taking balls
     // after the first one ends. gameOver is checked instead so a real end-of-game doesn't
     // immediately re-launch a ball that has nowhere to go.
     if (d.kind === 'turnChange' && !rulesState.gameOver) {
       for (const d2 of launchBall(rulesState, elapsedS)) {
-        if (d2.kind === 'ballServed') serveToChute();
+        if (d2.kind === 'ballServed') { serveToChute(); game.resetKickbackForNewBall(kickbackState); }
       }
     }
 
@@ -915,6 +945,8 @@ function frame(now) {
   const mgrActive = activePlayer(rulesState).multiball.active;
   mgrGroup.rotation.y += (mgrActive ? MGR_SPIN_MULTIBALL : MGR_SPIN_IDLE) * dt;
   mgrGroup.userData.roofMat.color.set(activePlayer(rulesState).multiball.lockLit ? 0xffee55 : 0x4a7a3a);
+
+  kickbackMesh.material = kickbackState.lit ? kickbackLitMat : kickbackUnlitMat;
 
   for (const [tag, mesh] of hopscotchMeshes) mesh.visible = !hopscotchBankState.dropped.has(tag);
   for (const [tag, mesh] of sandMeshes) mesh.visible = !sandBankState.dropped.has(tag);

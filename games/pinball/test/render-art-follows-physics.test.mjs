@@ -17,7 +17,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildMerryGoRound, buildFunLanes, buildPopBumpers, buildTreehouseStandup } from '../src/table/mechanisms.js';
+import { buildMerryGoRound, buildFunLanes, buildPopBumpers, buildTreehouseStandup, buildKickback } from '../src/table/mechanisms.js';
 import { buildSandbox } from '../src/table/ramps.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -146,4 +146,21 @@ test('treehouse trunk mesh is a cylinder at the real physics collision radius, n
     Math.abs(treehouse.shape.radius - 0.012) < 1e-4,
     `expected treehouse physics radius 12mm, got ${treehouse.shape.radius * 1000}mm`
   );
+});
+
+test('kickback mesh reads the real physics collision geometry, not a duplicated literal', () => {
+  const src = fs.readFileSync(MAIN_JS, 'utf8');
+  const m = src.match(/function buildKickbackMesh\(centre, radius\) \{\s*\n\s*const mesh = new THREE\.Mesh\(new THREE\.CylinderGeometry\(([^,]+),\s*([^,]+),/);
+  assert.ok(m, 'expected "function buildKickbackMesh(centre, radius) { const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, ...) in main.js');
+  assert.equal(m[1].trim(), 'radius', `kickback cylinder top radius must be the passed-in physics radius, not a hardcoded literal — got "${m[1].trim()}"`);
+  assert.equal(m[2].trim(), 'radius', `kickback cylinder bottom radius must be the passed-in physics radius, not a hardcoded literal — got "${m[2].trim()}"`);
+
+  const callSiteMatch = src.match(/(?:const \w+ = )?buildKickbackMesh\((kickback\.[^,]+),\s*([^)]+)\)/);
+  assert.ok(callSiteMatch, 'expected the call site to pass centre and radius arguments to buildKickbackMesh');
+  assert.equal(callSiteMatch[1].trim(), 'kickback.centre', `call site must pass kickback.centre — got "${callSiteMatch[1].trim()}"`);
+  assert.equal(callSiteMatch[2].trim(), 'kickback.shape.radius', `call site must pass kickback.shape.radius, the real physics collision radius — got "${callSiteMatch[2].trim()}"`);
+
+  // Physics unchanged, per instructions — sanity check only.
+  const kickback = buildKickback();
+  assert.ok(Math.abs(kickback.shape.radius - 0.012) < 1e-4, `expected kickback physics radius 12mm, got ${kickback.shape.radius * 1000}mm`);
 });

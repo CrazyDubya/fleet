@@ -118,3 +118,35 @@ export function tickScoop(scoop, elapsedS) {
   }
   return false;
 }
+
+// LEFT OUTLANE KICKBACK. Whether the kickback starts lit is a game-design choice, not a
+// physics fact — a real table would tie relighting it to a mode or shot, which nothing here
+// builds (a future dispatch's call, not invented here). Starting lit is picked because a
+// player's very first ball should see it work at least once, matching this project's general
+// "make the mechanism demonstrably alive" bias (the same reason DO-OVER's own window opens
+// wider on ball 1 — rules/game.js's DO_OVER_FIRST_BALL_S).
+const KICKBACK_STARTS_LIT = true;
+
+export function createKickback() {
+  return { lit: KICKBACK_STARTS_LIT, usedThisBall: false };
+}
+
+/** Called on a genuinely NEW ball (main.js's 'ballServed' display kind) — not on a DO-OVER
+ * 'ballSaved', since a DO-OVER is explicitly the SAME ball continuing (rules/game.js's own
+ * saveBall doc comment), and "once per ball" means once per that same ball, kickback survives
+ * across its own DO-OVER exactly the way its score/mode progress does. */
+export function resetKickbackForNewBall(kickback) {
+  kickback.usedThisBall = false;
+}
+
+/** The actual save decision for one contact: true (and marks `usedThisBall`) if the kickback
+ * is lit and hasn't already fired this ball, so the caller should override the ball's
+ * velocity with the kick; false (no state change) if unlit or already used, so the ball is
+ * left to its ordinary post-collision velocity and continues toward the drain like any other
+ * passive collider contact. Pure decision only — main.js applies the actual velocity, since
+ * only physics/main.js touches ball state directly (same boundary as armScoop/tickScoop above). */
+export function tryKickback(kickback) {
+  if (!kickback.lit || kickback.usedThisBall) return false;
+  kickback.usedThisBall = true;
+  return true;
+}
