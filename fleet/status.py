@@ -31,6 +31,11 @@ class Row:
     resume_usd: float
     respawn_usd: float
     errors: int
+    # The provider refused the last turn (Claude Code isApiErrorMessage record,
+    # e.g. "rate_limit"). State is `refused`, not `idle`: the thread did not
+    # stop, it was stopped, and the operator's remedy is different.
+    provider_refused: str | None = None
+    provider_refused_text: str = ""
 
 
 def resolve_pending(entries: dict[str, Entry]) -> bool:
@@ -152,6 +157,10 @@ def rows(now: float | None = None, registry: Registry | None = None, specs=None,
             state = e.status
         elif not turns:
             state = "new"
+        elif parsed.last_api_error:
+            # Checked before busy/idle on purpose: a refusal record is the last
+            # assistant turn, so the idle branch would otherwise claim it.
+            state = "refused"
         elif parsed.last_type == "user" or turns[-1].stop_reason == "tool_use":
             state = "busy"
         else:
@@ -168,6 +177,8 @@ def rows(now: float | None = None, registry: Registry | None = None, specs=None,
             miss_reason=(miss["reason"] if miss and miss["t"] > (last_turn_ts or 0) else None),
             resume_usd=resume_usd, respawn_usd=respawn_usd,
             errors=parsed.errors,
+            provider_refused=parsed.last_api_error,
+            provider_refused_text=(turns[-1].api_error_text if turns and parsed.last_api_error else ""),
         ))
     return out
 
@@ -177,6 +188,15 @@ def render(rs: list[Row]) -> str:
     lines = [hdr]
     for r in rs:
         flags = " ".join(x for x in (
+            # The age matters as much as the refusal. `refused` derives from the last
+            # transcript record, so it is STICKY: it survives the wall lifting and only
+            # clears when the thread is poked and succeeds. On 2026-09-04 three threads
+            # read `refused` carrying a reset time already an hour past, and nothing in
+            # the flag said the state was stale. Reuse idle_minutes rather than deriving
+            # the age again, so the flag can never disagree with the column beside it.
+            (f"PROVIDER:{r.provider_refused} {r.idle_minutes}m-ago"
+             + (f' "{r.provider_refused_text}"' if r.provider_refused_text else ""))
+            if r.provider_refused else "",
             "STALE-SPEC" if r.spec_stale else "", f"miss:{r.miss_reason}" if r.miss_reason else "",
             f"handoff:{r.last_handoff}" if r.last_handoff else "", f"parse-errors:{r.errors}" if r.errors else "") if x)
         lines.append(f"{r.name:10} {r.tier:8} {r.state:7} {r.warmth:8} {r.idle_minutes:>5} {r.context:>8} {r.read:>9} "

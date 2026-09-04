@@ -223,3 +223,52 @@ class ForkedRowTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RefusedStateTests(unittest.TestCase):
+    """A thread whose last turn was a provider refusal must not read `idle`.
+    Same fixture as StatusTests plus one real rate-limit record appended, and
+    the entry is `running` (not parked) so the transcript path is exercised.
+    Motivation 2026-09-04: fleet ran all night under an account lockout and a
+    quota wall would have looked identical to a thread that simply stopped."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.cwd = Path(self.tmp.name) / "haiku-fs"
+        self.cwd.mkdir()
+        tdir = paths.transcript_path(self.cwd, "fx").parent
+        tdir.mkdir(parents=True, exist_ok=True)
+        shutil.copy(Path(__file__).parent / "fixtures" / "refused.jsonl", tdir / "fx.jsonl")
+        self.tdir = tdir
+        self.reg = Registry(Path(self.tmp.name) / "registry.json")
+        t = load_specs()["haiku-fs"]
+        self.reg.save({"haiku-fs": Entry(name="haiku-fs", session_id="fx", cwd=str(self.cwd), model=t.model,
+                                         status="running", spec_hash=spec_hash(t), spawned_at=0.0)})
+
+    def tearDown(self):
+        shutil.rmtree(self.tdir, ignore_errors=True)
+        self.tmp.cleanup()
+
+    def test_state_is_refused_not_idle(self):
+        [r] = status.rows(now=LAST_TURN_TS + 60, registry=self.reg)
+        self.assertEqual(r.state, "refused")
+        self.assertEqual(r.provider_refused, "rate_limit")
+
+    def test_render_shows_how_long_ago_the_refusal_was(self):
+        """A refusal is STICKY: `refused` derives from the last transcript record, so
+        it persists after the wall lifts until the thread is poked and succeeds.
+        Observed 2026-09-04 15:35 EDT — three threads read `refused` carrying a reset
+        time of 14:30, already an hour past, and the row gave no hint the state was
+        stale. The age is already in idle_minutes; it has to be in the flag a reader
+        is actually looking at."""
+        [r] = status.rows(now=LAST_TURN_TS + 3 * 3600, registry=self.reg)
+        text = status.render([r])
+        self.assertGreater(r.idle_minutes, 60, "fixture should be hours stale")
+        # The age in the flag must be the row's own idle_minutes, not a second
+        # derivation that can drift from the column beside it.
+        self.assertIn(f"PROVIDER:rate_limit {r.idle_minutes}m-ago", text)
+
+    def test_render_names_the_provider_refusal(self):
+        text = status.render(status.rows(now=LAST_TURN_TS + 60, registry=self.reg))
+        self.assertIn("refused", text)
+        self.assertIn("PROVIDER:rate_limit", text)
