@@ -1,5 +1,7 @@
 # E1 — LAB-2 flipper transfer function (`lab16-guard-check2`)
 
+> ⚠ **STALE — ruling pending.** Produced on pre-fix solver commit `ad5b558efccb20204266c4ee91429546f0d01b79` (before the e5ff0d7 kinematic-flipper solver fix). Regeneration at HEAD was attempted and refused: `{"ok":false,"error":"LAB-16 ranking gate: a geometry-selection metric cannot support \"top N\" selection","cradleGuard":{"ok":false,"n":3888,"distinctCount":3,"maxTieFraction":0.9979423868312757,"boundaryAmbiguity":970,"reason":"top-12 cut lands inside a 3880-way tie for 4 remaining slot(s) (970.00x, ceiling 2x) — most of the selection would be insertion order, not a ranking"},"note":"selected-geometries.json was NOT written."}` — under the fixed solver, `cradleProxy` (this corpus's geometry-selection metric) is massively degenerate. Ruling pending, see `ledger/handoffs/sonnet2/20260904T142000Z-lab-corpus-regen-blocked.md`.
+
 - **instrument commit**: `ad5b558efccb20204266c4ee91429546f0d01b79`  ·  **generated**: 2026-09-03T05:24:56.997Z
 - **Stage B trials**: 540000  ·  **flagged**: 15.63%  (IMPACTS_EXHAUSTED 4.63%, ESCAPED 0.000%, TIMEOUT 11.64%, STALLED 0.05%, NAN 0.000%)
 - **flipper contact rate**: 50.3%  ·  **geometries characterised**: 24

@@ -1,5 +1,7 @@
 # E4 — LAB-6 the pocket (`lab17-guard-check`)
 
+> ⚠ **STALE — ruling pending.** Produced on pre-fix solver commit `d96fe6efbfc8661d97987173c86277cb2331dbbc` (before the e5ff0d7 kinematic-flipper solver fix; recovered from `data/e4/stageA1-20260901/meta.json` since this writer didn't print the commit — since fixed). Regeneration at HEAD was attempted and refused at Stage A1, the first of four stages: `{"ok":false,"error":"§2.7 gate: flagged fraction (excl STALLED) 7.73% exceeds 1%","out":"data/e4/stageA1-20260904"}` — this corpus's original 7.79% flagged-excl-STALLED predates the post-LAB-11 §2.7 flag gate and no longer clears it. Ruling pending, see `ledger/handoffs/sonnet2/20260904T142000Z-lab-corpus-regen-blocked.md`.
+
 - **generated**: 2026-09-03T05:54:19.785Z
 - **grand total trials (A+B+C)**: 1000000
 

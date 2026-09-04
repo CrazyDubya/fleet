@@ -1,5 +1,7 @@
 # E1 pilot summary — run `pilot-01`
 
+> ⚠ **STALE — ruling pending.** Produced on pre-fix solver commit `9a6eb1e7fd21f657170a831edc07416585391058` (before the e5ff0d7 kinematic-flipper solver fix). Regeneration at HEAD was attempted and refused: `{"ok":false,"error":"§2.7 gate: flagged fraction 11.56% exceeds 1%","out":"data/e1/pilot-01-20260904"}` — the pilot's deliberately edge-heavy cfg set predates the post-LAB-11 §2.7 flag gate and no longer clears it. Ruling pending, see `ledger/handoffs/sonnet2/20260904T142000Z-lab-corpus-regen-blocked.md`.
+
 - **exp**: e1  ·  **instrument commit**: `9a6eb1e7fd21f657170a831edc07416585391058`  ·  **generated**: 2026-09-01T04:13:46.382Z
 - **cfgs**: 12  ·  **trials**: 10000  ·  **flagged fraction (any bit)**: 15.600%  ·  **wall-clock**: 2.8s
 - **units**: length m, speed m/s, angle deg (recorded) / rad (internal), `dt` ms, `dw` s
