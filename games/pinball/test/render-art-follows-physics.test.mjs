@@ -17,7 +17,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildMerryGoRound, buildFunLanes, buildPopBumpers } from '../src/table/mechanisms.js';
+import { buildMerryGoRound, buildFunLanes, buildPopBumpers, buildTreehouseStandup } from '../src/table/mechanisms.js';
 import { buildSandbox } from '../src/table/ramps.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -119,4 +119,31 @@ test('pop bumper skirt mesh radius reads each bumper\'s real physics collision r
       `expected pop bumper "${p.name}" physics radius 30mm, got ${p.shape.radius * 1000}mm`
     );
   }
+});
+
+// opus2's final audit on 8473654: the table is exact everywhere except one ±2.1mm shape-
+// representation mismatch — the treehouse trunk was a 20x20mm BoxGeometry drawn over a real
+// r=12mm Circle collider (square corners extend past the circle, a ball passes through them;
+// flats sit inside it, a ball bounces off air the collider isn't actually there for). The roof
+// cone is unaffected — it's overhead (see its own height-clearance comment at the mesh) and
+// stays a cone; only the trunk (the actual collider) needs to read the physics radius.
+test('treehouse trunk mesh is a cylinder at the real physics collision radius, not a box', () => {
+  const src = fs.readFileSync(MAIN_JS, 'utf8');
+  const m = src.match(/const trunk = coloredMesh\(new THREE\.CylinderGeometry\(([^,]+),\s*([^,]+),\s*0\.03,\s*\d+\)/);
+  assert.ok(m, 'expected to find "const trunk = coloredMesh(new THREE.CylinderGeometry(radius, radius, 0.03, segments)..." in main.js');
+  assert.equal(
+    m[1].trim(), 'treehouse.shape.radius',
+    `trunk cylinder top radius must read treehouse.shape.radius, not a hardcoded literal — got "${m[1].trim()}"`
+  );
+  assert.equal(
+    m[2].trim(), 'treehouse.shape.radius',
+    `trunk cylinder bottom radius must read treehouse.shape.radius, not a hardcoded literal — got "${m[2].trim()}"`
+  );
+
+  // Physics unchanged, per instructions — sanity check only.
+  const treehouse = buildTreehouseStandup();
+  assert.ok(
+    Math.abs(treehouse.shape.radius - 0.012) < 1e-4,
+    `expected treehouse physics radius 12mm, got ${treehouse.shape.radius * 1000}mm`
+  );
 });

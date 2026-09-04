@@ -330,7 +330,9 @@ const sandMeshes = buildDropBankMeshes(sandBank, 0xd9c07a);
 // TREEHOUSE standup: a little box-and-roof.
 {
   const group = new THREE.Group();
-  const trunk = coloredMesh(new THREE.BoxGeometry(0.02, 0.03, 0.02), 0x8a5a34);
+  // Cylinder at the physics collision radius (was a 20x20mm BoxGeometry over the r=12mm
+  // Circle collider — square corners extended 2.1mm past it, flats sat 2mm inside it).
+  const trunk = coloredMesh(new THREE.CylinderGeometry(treehouse.shape.radius, treehouse.shape.radius, 0.03, 12), 0x8a5a34);
   trunk.position.y = 0.015;
   group.add(trunk);
   // Roof radius (20mm) is wider than the physics trunk radius (12mm) on purpose: the roof's
