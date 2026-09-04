@@ -88,19 +88,37 @@ export function buildWalls() {
   return walls;
 }
 
-export function buildFlipperConfigs() {
+// overrides defaults to every shipped constant — a signature widening (2026-09-04, for the
+// sandbox's live constants panel), not a physics change: every call site in games/pinball
+// calls buildFlipperConfigs() with no argument and gets exactly the constants, byte-identical
+// to before this parameter existed. lowerRestAngle/lowerActiveAngle apply to both lower
+// flippers (right mirrors as 180 - value, same as the shipped geometry always did); the upper
+// flipper's angles are left fixed at their shipped values — only its upMs/downMs and the
+// shared restitution are exposed, matching the sandbox panel's own scope (E_FLIPPER, upMs for
+// lower AND upper, one restAngle/activeAngle pair).
+export function buildFlipperConfigs(overrides = {}) {
+  const o = {
+    lowerRestAngle: FLIPPER.lower.restAngle,
+    lowerActiveAngle: FLIPPER.lower.activeAngle,
+    lowerUpMs: FLIPPER.lower.upMs,
+    lowerDownMs: FLIPPER.lower.downMs,
+    upperUpMs: FLIPPER.upper.upMs,
+    upperDownMs: FLIPPER.upper.downMs,
+    eFlipper: E_FLIPPER,
+    ...overrides,
+  };
   return [
     {
-      name: 'left', pivot: LEFT_FLIPPER_PIVOT, length: FLIPPER.lower.length, upMs: FLIPPER.lower.upMs, downMs: FLIPPER.lower.downMs,
-      restAngleDeg: FLIPPER.lower.restAngle, activeAngleDeg: FLIPPER.lower.activeAngle, restitution: E_FLIPPER, tag: 'flipper-left',
+      name: 'left', pivot: LEFT_FLIPPER_PIVOT, length: FLIPPER.lower.length, upMs: o.lowerUpMs, downMs: o.lowerDownMs,
+      restAngleDeg: o.lowerRestAngle, activeAngleDeg: o.lowerActiveAngle, restitution: o.eFlipper, tag: 'flipper-left',
     },
     {
-      name: 'right', pivot: RIGHT_FLIPPER_PIVOT, length: FLIPPER.lower.length, upMs: FLIPPER.lower.upMs, downMs: FLIPPER.lower.downMs,
-      restAngleDeg: 180 - FLIPPER.lower.restAngle, activeAngleDeg: 180 - FLIPPER.lower.activeAngle, restitution: E_FLIPPER, tag: 'flipper-right',
+      name: 'right', pivot: RIGHT_FLIPPER_PIVOT, length: FLIPPER.lower.length, upMs: o.lowerUpMs, downMs: o.lowerDownMs,
+      restAngleDeg: 180 - o.lowerRestAngle, activeAngleDeg: 180 - o.lowerActiveAngle, restitution: o.eFlipper, tag: 'flipper-right',
     },
     {
-      name: 'upperLeft', pivot: UPPER_LEFT_FLIPPER_PIVOT, length: FLIPPER.upper.length, upMs: FLIPPER.upper.upMs, downMs: FLIPPER.upper.downMs,
-      restAngleDeg: FLIPPER.upper.restAngle, activeAngleDeg: FLIPPER.upper.activeAngle, restitution: E_FLIPPER, tag: 'flipper-upper-left',
+      name: 'upperLeft', pivot: UPPER_LEFT_FLIPPER_PIVOT, length: FLIPPER.upper.length, upMs: o.upperUpMs, downMs: o.upperDownMs,
+      restAngleDeg: FLIPPER.upper.restAngle, activeAngleDeg: FLIPPER.upper.activeAngle, restitution: o.eFlipper, tag: 'flipper-upper-left',
     },
   ];
 }

@@ -12,7 +12,7 @@ import * as THREE from 'three';
 import { createScene, toSceneVec } from '../../pinball/src/render/scene.js';
 import { createWorld, addBall, removeBall, addFlipper, advance } from '../../pinball/src/physics/world.js';
 import { createFlipper } from '../../pinball/src/physics/flipper.js';
-import { BALL_RADIUS, PITCH_DEG } from '../../pinball/src/physics/constants.js';
+import { BALL_RADIUS, PITCH_DEG, E_FLIPPER, FLIPPER, E_WALL, MU, K_DRAG } from '../../pinball/src/physics/constants.js';
 import * as recess from '../../pinball/src/table/recess.js';
 import * as mech from '../../pinball/src/table/mechanisms.js';
 import { buildTable, wireTable } from '../../pinball/src/table/assemble.js';
@@ -56,12 +56,11 @@ const {
   slide, monkeyBars, tunnel, sandbox, merryGoRound, mgrRelease,
 } = table;
 
+// Flippers are (re)built by rebuildFlippers() below, once the flipper mesh geometry exists —
+// the SAME object (`flippers`) is mutated in place on every rebuild (never reassigned), so
+// wireInput's closures (which read flippers.left/.right/.upperLeft live) keep working across a
+// live-panel rebuild with no re-wiring.
 const flippers = {};
-for (const cfg of recess.buildFlipperConfigs()) {
-  const flipper = createFlipper(cfg);
-  addFlipper(world, flipper);
-  flippers[cfg.name] = flipper;
-}
 
 // SANDBOX scoop: capture-and-release timer only (game/mechanisms.js's createScoop/armScoop/
 // tickScoop) — the mechanical part, not a rules decision. Eject math mirrors main.js exactly
@@ -124,15 +123,43 @@ for (const p of popBumpers) addCircleMesh(p.shape);
 addCircleMesh(treehouse.shape);
 
 const flipperMat = new THREE.MeshLambertMaterial({ color: 0xcc3333 });
-for (const flipper of Object.values(flippers)) {
+function buildFlipperMesh(flipper) {
   const geo = new THREE.BoxGeometry(flipper.length, 0.012, flipper.radius * 2);
   geo.translate(flipper.length / 2, 0, 0);
   const mesh = new THREE.Mesh(geo, flipperMat);
   const p = toSceneVec(flipper.pivot.x, flipper.pivot.y, 0.02);
   mesh.position.set(p.x, p.y, p.z);
   tiltGroup.add(mesh);
-  flipper._mesh = mesh;
+  return mesh;
 }
+
+/**
+ * (Re)builds every flipper via recess.buildFlipperConfigs(overrides) + createFlipper — the
+ * live constants panel's flipper controls (E_FLIPPER, upMs lower/upper, restAngle,
+ * activeAngle) all go through this. `overrides` uses buildFlipperConfigs' own override shape
+ * (lowerRestAngle/lowerActiveAngle/lowerUpMs/lowerDownMs/upperUpMs/upperDownMs/eFlipper) — a
+ * signature buildFlipperConfigs gained specifically for this (games/pinball, a default-
+ * preserving widening, not a physics change: recess.buildFlipperConfigs() with no argument is
+ * byte-identical to before that parameter existed — see test/builder-overrides.test.mjs).
+ * Reused rather than reimplemented because the right flipper's angles mirror the left's
+ * (180 - value); recomputing that here would be a copy of physics logic, not a reuse of it.
+ *
+ * world.flippers is replaced wholesale (no removeFlipper in physics/world.js — an empty array
+ * plus re-adding is the whole API surface, and flippers are cheap, stateless-between-rebuilds
+ * kinematic objects). Existing meshes are reused by name (geometry/position never change —
+ * only length/radius could move a mesh, and neither is panel-tunable), so a rebuild never
+ * touches the scene graph once the three meshes exist.
+ */
+function rebuildFlippers(overrides) {
+  world.flippers = [];
+  for (const cfg of recess.buildFlipperConfigs(overrides)) {
+    const flipper = createFlipper(cfg);
+    addFlipper(world, flipper);
+    flipper._mesh = flippers[cfg.name]?._mesh ?? buildFlipperMesh(flipper);
+    flippers[cfg.name] = flipper;
+  }
+}
+rebuildFlippers();
 
 // Ramps: a generic tube-per-segment renderer walking each ramp's own real `points` (the
 // physics track itself), one call per ramp with a different colour for legibility. Not a copy
@@ -240,6 +267,7 @@ function despawnBall(entry) {
   // A merry-go-round-mounted ball's mesh is parented under mgrGroup, not tiltGroup.
   if (entry.mgrMounted) mgrGroup.remove(entry.mesh);
   else tiltGroup.remove(entry.mesh);
+  clearTrail(entry);
   balls = balls.filter((b) => b !== entry);
   if (mostRecentBall === entry) mostRecentBall = balls[balls.length - 1] ?? null;
   if (mgrMounted && mgrMounted.entry === entry) mgrMounted = null;
@@ -280,12 +308,234 @@ function releaseFromMergeGoRound(entry, speed) {
   entry.phys.vel = { x: mgrRelease.heading.x * speed, y: mgrRelease.heading.y * speed };
 }
 
-// --- Input: flippers (reused verbatim), Clear key, click/drag ball placement ----------------
-wireInput(canvas, { flippers });
+// --- Feel readout: tip-launch speed per flip, against the design doc's 4.5-6.0 m/s band ------
+// (opus2 measured 6.31 m/s shipped, 5.47 m/s at upMs 16 — this is what makes that a live,
+// watchable number instead of a report). wireInput's onFlipperEdge fires once per activation
+// edge (press, not hold) for 'left'/'right' — the upper flipper shares the left key and isn't
+// separately edge-tracked, matching ui/input.js's own binding. On each edge, the nearest ball
+// within tip reach is tracked for FLIP_WINDOW_S; the peak speed it reaches in that window is
+// reported as the launch speed (the true peak — the instant of separation from the flipper —
+// happens within a few physics steps of the flip, so a short window after the edge captures
+// it without needing to detect the exact separation instant).
+const FLIP_BAND = { min: 4.5, max: 6.0 };
+const FLIP_WINDOW_S = 0.5;
+const flipReadoutEl = document.getElementById('flipReadout');
+let flipTracking = []; // { side, ball, startS, peak }
+let lastFlipResult = null; // { side, speed, atS }
+
+function onFlipperEdge(side) {
+  const flipper = flippers[side];
+  if (!flipper) return;
+  const reach = flipper.length + flipper.radius + BALL_RADIUS + 0.03;
+  let nearest = null, nearestDist = Infinity;
+  for (const entry of balls) {
+    if (entry.phys.captured || entry.mgrMounted) continue;
+    const d = Math.hypot(entry.phys.pos.x - flipper.pivot.x, entry.phys.pos.y - flipper.pivot.y);
+    if (d <= reach && d < nearestDist) { nearest = entry; nearestDist = d; }
+  }
+  if (!nearest) return;
+  flipTracking.push({ side, ball: nearest, startS: elapsedS, peak: Math.hypot(nearest.phys.vel.x, nearest.phys.vel.y) });
+}
+
+function tickFlipTracking() {
+  const stillTracking = [];
+  for (const t of flipTracking) {
+    if (!balls.includes(t.ball)) continue; // drained/cleared mid-window
+    t.peak = Math.max(t.peak, Math.hypot(t.ball.phys.vel.x, t.ball.phys.vel.y));
+    if (elapsedS - t.startS < FLIP_WINDOW_S) {
+      stillTracking.push(t);
+    } else {
+      lastFlipResult = { side: t.side, speed: t.peak, atS: elapsedS };
+    }
+  }
+  flipTracking = stillTracking;
+}
+
+function drawFlipReadout() {
+  if (!lastFlipResult) {
+    flipReadoutEl.textContent = 'no flip yet';
+    flipReadoutEl.style.color = '#d8e8ff';
+    return;
+  }
+  const { side, speed } = lastFlipResult;
+  const inBand = speed >= FLIP_BAND.min && speed <= FLIP_BAND.max;
+  flipReadoutEl.style.color = inBand ? '#7fe08a' : '#ff8f6b';
+  flipReadoutEl.textContent =
+    `${side} flip: ${speed.toFixed(2)} m/s\n` +
+    `doc band: ${FLIP_BAND.min.toFixed(1)}-${FLIP_BAND.max.toFixed(1)} m/s ` +
+    `[${inBand ? 'in band' : speed > FLIP_BAND.max ? 'over' : 'under'}]`;
+}
+
+// --- Trajectory trails: [T] toggles ----------------------------------------------------------
+let trailsVisible = false;
+const TRAIL_MAX_POINTS = 50;
+const trailMat = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.9 });
+
+function updateTrail(entry) {
+  if (!entry.trail) entry.trail = [];
+  entry.trail.push(entry.mesh.position.clone());
+  if (entry.trail.length > TRAIL_MAX_POINTS) entry.trail.shift();
+  if (!trailsVisible || entry.trail.length < 2) {
+    if (entry.trailLine) entry.trailLine.visible = false;
+    return;
+  }
+  const n = entry.trail.length;
+  const colors = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    const age = i / (n - 1); // 0 = oldest, 1 = newest
+    colors[i * 3] = 1.0;
+    colors[i * 3 + 1] = 0.55 + 0.35 * age;
+    colors[i * 3 + 2] = 0.15 * age;
+    // fades toward the background colour, not just dim red -> bright yellow, so an old trail
+    // segment reads as "fading out" rather than "a different, still-solid colour".
+    const fade = 0.15 + 0.85 * age;
+    colors[i * 3] *= fade;
+    colors[i * 3 + 1] *= fade;
+    colors[i * 3 + 2] *= fade;
+  }
+  const geo = new THREE.BufferGeometry().setFromPoints(entry.trail);
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  if (entry.trailLine) {
+    tiltGroup.remove(entry.trailLine);
+    entry.trailLine.geometry.dispose();
+  }
+  entry.trailLine = new THREE.Line(geo, trailMat);
+  entry.trailLine.visible = true;
+  tiltGroup.add(entry.trailLine);
+}
+
+function clearTrail(entry) {
+  if (entry.trailLine) {
+    tiltGroup.remove(entry.trailLine);
+    entry.trailLine.geometry.dispose();
+    entry.trailLine = null;
+  }
+  entry.trail = [];
+}
+
+// --- Input: flippers (reused verbatim), Clear key, trail toggle, click/drag ball placement ---
+wireInput(canvas, { flippers, onFlipperEdge });
 
 window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyC') clearAllBalls();
+  if (e.code === 'KeyT') {
+    trailsVisible = !trailsVisible;
+    if (!trailsVisible) for (const entry of balls) clearTrail(entry);
+  }
 });
+
+// --- Live constants panel -------------------------------------------------------------------
+// Every default is read FROM physics/constants.js (imported above), never restated: the panel
+// literally cannot drift from the shipped values, because it has no second copy of them to
+// drift from. Applying a change never reloads the page:
+//   - flipper fields (E_FLIPPER, upMs lower/upper, restAngle, activeAngle) -> rebuildFlippers()
+//   - E_WALL -> mutated in place on the real wall Segment shapes already sitting in
+//     world.layers.get('playfield') (the same objects wireTable() wired in — table.wallSegments
+//     IS that data, not a copy of it), so the very next collision reads the new value; no
+//     rebuild, no risk of stale references to sandbox/merryGoRound/etc. from a full re-assembly
+//   - MU, K_DRAG -> mutated in place on world.tuning, which physics/solver.js already reads
+//     live every substep (world.js:176) — the "tuning object" the dispatch asked for
+const live = {
+  eFlipper: E_FLIPPER,
+  lowerUpMs: FLIPPER.lower.upMs,
+  upperUpMs: FLIPPER.upper.upMs,
+  lowerRestAngle: FLIPPER.lower.restAngle,
+  lowerActiveAngle: FLIPPER.lower.activeAngle,
+  eWall: E_WALL,
+  mu: MU,
+  kDrag: K_DRAG,
+};
+
+function applyEWall(value) {
+  for (const seg of wallSegments) seg.restitution = value;
+}
+
+function applyTuning() {
+  world.tuning.mu = live.mu;
+  world.tuning.kDrag = live.kDrag;
+}
+
+function applyFlippers() {
+  rebuildFlippers({
+    lowerRestAngle: live.lowerRestAngle,
+    lowerActiveAngle: live.lowerActiveAngle,
+    lowerUpMs: live.lowerUpMs,
+    upperUpMs: live.upperUpMs,
+    eFlipper: live.eFlipper,
+  });
+}
+
+const PANEL_FIELDS = [
+  { key: 'eFlipper', label: 'E_FLIPPER', min: 0.3, max: 1.0, step: 0.01, apply: applyFlippers },
+  { key: 'lowerUpMs', label: 'upMs (lower)', min: 8, max: 30, step: 1, apply: applyFlippers },
+  { key: 'upperUpMs', label: 'upMs (upper)', min: 8, max: 30, step: 1, apply: applyFlippers },
+  { key: 'lowerRestAngle', label: 'restAngle', min: -70, max: -20, step: 1, apply: applyFlippers },
+  { key: 'lowerActiveAngle', label: 'activeAngle', min: 15, max: 50, step: 1, apply: applyFlippers },
+  { key: 'eWall', label: 'E_WALL', min: 0.1, max: 0.9, step: 0.01, apply: () => applyEWall(live.eWall) },
+  { key: 'mu', label: 'MU', min: 0, max: 0.3, step: 0.005, apply: applyTuning },
+  { key: 'kDrag', label: 'K_DRAG', min: 0, max: 0.5, step: 0.01, apply: applyTuning },
+];
+
+const panelEl = document.getElementById('panel');
+const sliderEls = {};
+function buildPanel() {
+  panelEl.innerHTML = '';
+  const h = document.createElement('h1');
+  h.textContent = 'live constants';
+  panelEl.appendChild(h);
+  for (const field of PANEL_FIELDS) {
+    const row = document.createElement('div');
+    row.className = 'row';
+    const label = document.createElement('label');
+    const name = document.createElement('span');
+    name.textContent = field.label;
+    const val = document.createElement('span');
+    val.className = 'val';
+    label.appendChild(name);
+    label.appendChild(val);
+    const input = document.createElement('input');
+    input.type = 'range';
+    input.min = String(field.min);
+    input.max = String(field.max);
+    input.step = String(field.step);
+    input.value = String(live[field.key]);
+    val.textContent = live[field.key];
+    input.addEventListener('input', () => {
+      live[field.key] = Number(input.value);
+      val.textContent = live[field.key];
+      field.apply();
+    });
+    sliderEls[field.key] = { input, val };
+    row.appendChild(label);
+    row.appendChild(input);
+    panelEl.appendChild(row);
+  }
+  const resetBtn = document.createElement('button');
+  resetBtn.textContent = 'Reset to shipped values';
+  resetBtn.addEventListener('click', () => {
+    live.eFlipper = E_FLIPPER;
+    live.lowerUpMs = FLIPPER.lower.upMs;
+    live.upperUpMs = FLIPPER.upper.upMs;
+    live.lowerRestAngle = FLIPPER.lower.restAngle;
+    live.lowerActiveAngle = FLIPPER.lower.activeAngle;
+    live.eWall = E_WALL;
+    live.mu = MU;
+    live.kDrag = K_DRAG;
+    for (const field of PANEL_FIELDS) {
+      sliderEls[field.key].input.value = String(live[field.key]);
+      sliderEls[field.key].val.textContent = live[field.key];
+    }
+    applyFlippers();
+    applyEWall(live.eWall);
+    applyTuning();
+  });
+  panelEl.appendChild(resetBtn);
+  const hint = document.createElement('div');
+  hint.className = 'hint';
+  hint.textContent = 'applies immediately, no reload — [T] toggles trails, [C] clears balls';
+  panelEl.appendChild(hint);
+}
+buildPanel();
 
 // Picking: an analytic plane at tiltGroup-local y = 0 (the playfield plane — see
 // render/scene.js's toSceneVec doc comment: "local y = 0 (playfield plane)"), transformed into
@@ -449,10 +699,14 @@ function frame(now) {
     entry.peakSpeed = Math.max(entry.peakSpeed, speed);
     const p = toSceneVec(entry.phys.pos.x, entry.phys.pos.y, entry.phys.radius + (entry.phys.z || 0));
     entry.mesh.position.set(p.x, p.y, p.z);
+    updateTrail(entry);
   }
   for (const flipper of Object.values(flippers)) {
     flipper._mesh.rotation.y = flipper.angle;
   }
+
+  tickFlipTracking();
+  drawFlipReadout();
 
   const holdLines = [];
   if (scoopHeldSinceS !== null) holdLines.push(`hold: sandbox ${(elapsedS - scoopHeldSinceS).toFixed(2)}s`);
@@ -468,12 +722,12 @@ function frame(now) {
       `peak:  ${mostRecentBall.peakSpeed.toFixed(3)} m/s\n` +
       holdText +
       (dragReadout ? `${dragReadout}\n` : '') +
-      `[C] clear all balls`;
+      `[C] clear all balls  [T] trails: ${trailsVisible ? 'on' : 'off'}`;
   } else {
     readoutEl.textContent =
       holdText +
       (dragReadout ? `${dragReadout}\n` : 'no ball placed yet — click the playfield\n') +
-      `[C] clear all balls`;
+      `[C] clear all balls  [T] trails: ${trailsVisible ? 'on' : 'off'}`;
   }
 
   renderer.render(scene, camera);
