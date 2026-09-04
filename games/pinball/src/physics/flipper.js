@@ -8,6 +8,29 @@ import { perp, sub } from './vec2.js';
 
 const DEG = Math.PI / 180;
 
+// True-to-physics fix (ledger/handoffs/opus2/20260904T180000Z-true-to-physics-standard.md §5,
+// Experiment A'-3): at the world's normal STEP_DT=1/240s, the lower flipper's 82-degree, 14ms
+// stroke moves its tip ~31.9mm per substep — 1.18 ball diameters — so a resting ball cannot get
+// out of the way between substeps and is swept through and re-struck repeatedly (13 contacts
+// measured at the tip; peak exit speed non-monotonic in E_FLIPPER as a result — a re-strike-
+// count artifact, not restitution behaving strangely). The fix is resolution, not retuning:
+// while a flipper is actually moving (angle != its current target), both world.js's real
+// simulation loop and any test that hand-rolls a flip must integrate at STEP_DT/FLIPPER_SUBSTEPS
+// instead of STEP_DT, so the flipper and ball-vs-flipper collision are resolved finely enough
+// that the ball can separate between contacts. STEP_DT itself, upMs, every angle and every
+// restitution are unchanged — this constant only ever subdivides the same STEP_DT-sized span,
+// never lengthens or shortens it. Exported so world.js and every test measuring flip behaviour
+// share one source instead of duplicating the multiplier.
+export const FLIPPER_SUBSTEPS = 4; // STEP_DT/4 = 1/960s -> ~7.98mm tip travel/substep, < 13.5mm (one ball radius)
+
+/** True while `flipper` is mid-stroke (its angle hasn't yet reached whichever of rest/active is
+ * its current target) — the condition both world.js and any hand-rolled test loop use to decide
+ * whether this tick needs FLIPPER_SUBSTEPS subdivisions or can take the ordinary single step. */
+export function isFlipperMoving(flipper) {
+  const target = flipper.active ? flipper.activeAngle : flipper.restAngle;
+  return flipper.angle !== target;
+}
+
 export function createFlipper({ pivot, length, radius = 0.012, restAngleDeg, activeAngleDeg, upMs, downMs, side = 1, restitution, tag = 'flipper', layer = 'playfield' }) {
   const restAngle = restAngleDeg * DEG;
   const activeAngle = activeAngleDeg * DEG;

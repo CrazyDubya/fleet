@@ -4,7 +4,7 @@
 import { stepBall } from './solver.js';
 import { dot, distance } from './vec2.js';
 import { STEP_DT, gravityForPitch, tuning as defaultTuning } from './constants.js';
-import { updateFlipper, flipperEntry } from './flipper.js';
+import { updateFlipper, flipperEntry, isFlipperMoving, FLIPPER_SUBSTEPS } from './flipper.js';
 import { stepRampBall, entryTangent } from './ramp.js';
 
 export function createWorld({ pitchDeg, tuning } = {}) {
@@ -147,42 +147,61 @@ export function addFlipper(world, flipper) {
   return flipper;
 }
 
+function isAnyFlipperMoving(world) {
+  return world.flippers.some(isFlipperMoving);
+}
+
 /** Advance the world by `dtSeconds` of wall-clock time, at a fixed STEP_DT internally. */
 export function advance(world, dtSeconds) {
   world.accumulator += dtSeconds;
   const events = [];
 
   while (world.accumulator >= STEP_DT) {
-    for (const flipper of world.flippers) updateFlipper(flipper, STEP_DT);
-    const flipperEntriesByLayer = new Map();
-    for (const flipper of world.flippers) {
-      const list = flipperEntriesByLayer.get(flipper.layer) ?? [];
-      list.push(flipperEntry(flipper));
-      flipperEntriesByLayer.set(flipper.layer, list);
+    // Checked once per STEP_DT, not per substep: if a stroke completes partway through this
+    // span, the remaining substeps just resolve a stationary flipper at finer resolution than
+    // strictly needed — harmless, and simpler than re-deciding the substep count mid-span.
+    const substeps = isAnyFlipperMoving(world) ? FLIPPER_SUBSTEPS : 1;
+    const subDt = STEP_DT / substeps;
+
+    for (let s = 0; s < substeps; s++) {
+      for (const flipper of world.flippers) updateFlipper(flipper, subDt);
+      const flipperEntriesByLayer = new Map();
+      for (const flipper of world.flippers) {
+        const list = flipperEntriesByLayer.get(flipper.layer) ?? [];
+        list.push(flipperEntry(flipper));
+        flipperEntriesByLayer.set(flipper.layer, list);
+      }
+
+      for (const ball of world.balls) {
+        if (!ball.active) continue;
+        if (ball.captured) continue; // pinned in a scoop/lock until the game layer ejects it
+        if (world.ramps.has(ball.layer)) continue; // ramp balls: stepped once below, unaffected
+        // by flipper sub-stepping — stepRampLayerBall integrates on its own 1D track, not
+        // against flipper capsules, so it has nothing to gain from a finer dt here and
+        // stepRampBall's own internal STEP_DT use would double-count time if called per substep.
+
+        const prevPos = { x: ball.pos.x, y: ball.pos.y };
+        const primitives = (world.layers.get(ball.layer) ?? []).concat(flipperEntriesByLayer.get(ball.layer) ?? []);
+        const evs = stepBall(ball, world.gravity, primitives, subDt, world.tuning);
+        for (const e of evs) events.push({ ...e, ball });
+
+        for (const e of checkZoneCrossings(world, ball, prevPos)) {
+          const gateEvent = tryEnterGate(world, e);
+          events.push(gateEvent ?? e);
+        }
+
+        for (const e of checkCaptures(world, ball)) events.push(e);
+      }
     }
 
+    // Ramp balls: exactly one step of the full STEP_DT, same as before sub-stepping existed.
     for (const ball of world.balls) {
-      if (!ball.active) continue;
-      if (ball.captured) continue; // pinned in a scoop/lock until the game layer ejects it
-
-      if (world.ramps.has(ball.layer)) {
-        const exitEvent = stepRampLayerBall(world, ball);
-        if (exitEvent) events.push(exitEvent);
-        continue;
-      }
-
-      const prevPos = { x: ball.pos.x, y: ball.pos.y };
-      const primitives = (world.layers.get(ball.layer) ?? []).concat(flipperEntriesByLayer.get(ball.layer) ?? []);
-      const evs = stepBall(ball, world.gravity, primitives, STEP_DT, world.tuning);
-      for (const e of evs) events.push({ ...e, ball });
-
-      for (const e of checkZoneCrossings(world, ball, prevPos)) {
-        const gateEvent = tryEnterGate(world, e);
-        events.push(gateEvent ?? e);
-      }
-
-      for (const e of checkCaptures(world, ball)) events.push(e);
+      if (!ball.active || ball.captured) continue;
+      if (!world.ramps.has(ball.layer)) continue;
+      const exitEvent = stepRampLayerBall(world, ball);
+      if (exitEvent) events.push(exitEvent);
     }
+
     world.accumulator -= STEP_DT;
   }
 
