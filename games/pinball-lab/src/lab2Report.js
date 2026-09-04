@@ -22,6 +22,37 @@ const AI_BINS = 8, AI_MAX = 360; // deg
 const SENSITIVITY_CEILING = 1.5; // deg/ms — §3.6's Pareto ranking gate
 const CRADLE_SETTLE_WINDOW_S = 1.5; // §3.5: "reaches |v|<0.05 ... within 1.5 s"
 
+/** Pure per-geometry summary over one cradle cfg's full record set — pulled out of the
+ * streaming loop below so it can be unit-tested with a synthetic record array instead of a
+ * real run. `records`: every trial's raw record for one geometry's cradle cfg (`{cr, st, bn,
+ * cs}`, the fields `instrument.js`'s runE1Trial writes on cradle-family trials).
+ * `csMedianMps` (ledger/handoffs/opus2/20260904T150000Z-three-gate-rulings.md §(a), pilot
+ * confirmed in ledger/handoffs/sonnet2/20260904T160000Z-cradle-continuous-stat-pilot.md):
+ * median of `cs` (min ball speed while touching a flipper) across every CONTACTING trial, not
+ * just settled ones — cradleRate's own denominator is `trials`, not `settled`, and this column
+ * is reported alongside it, not used to select anything (Stage A selection is unchanged; see
+ * that pilot handoff). `cs === null` on any trial that never contacted a flipper. */
+export function cradleRowStats(records) {
+  let trials = 0, settled = 0;
+  const settleTimes = [], bounces = [], csVals = [];
+  for (const r of records) {
+    trials += 1;
+    if (r.cs !== null && r.cs !== undefined) csVals.push(r.cs);
+    if (r.cr === 1 && r.st !== null && r.st <= CRADLE_SETTLE_WINDOW_S) {
+      settled += 1;
+      settleTimes.push(r.st);
+      bounces.push(r.bn);
+    }
+  }
+  return {
+    trials, settled,
+    cradleRate: trials > 0 ? settled / trials : 0,
+    settleTimeMeanS: settleTimes.length ? mean(settleTimes) : null,
+    bouncesMean: bounces.length ? mean(bounces) : null,
+    csMedianMps: csVals.length ? percentile(csVals, 50) : null,
+  };
+}
+
 function geometryOf(cfg) {
   const g = {};
   for (const k of GEOMETRY_KEYS) g[k] = cfg[k];
@@ -179,21 +210,9 @@ async function main() {
   for (const cfgMeta of cradleMeta.cfgs) {
     const cfg = cfgMeta.cfg;
     const gKey = hashCfg(geometryOf(cfg));
-    let settled = 0, trials = 0, settleTimes = [], bounces = [];
-    for await (const r of streamShards(cradleDir, cfgMeta)) {
-      trials += 1;
-      if (r.cr === 1 && r.st !== null && r.st <= CRADLE_SETTLE_WINDOW_S) {
-        settled += 1;
-        settleTimes.push(r.st);
-        bounces.push(r.bn);
-      }
-    }
-    cradleResults.push({
-      geometryKey: gKey, geometry: geometryOf(cfg), trials, settled,
-      cradleRate: trials > 0 ? settled / trials : 0,
-      settleTimeMeanS: settleTimes.length ? mean(settleTimes) : null,
-      bouncesMean: bounces.length ? mean(bounces) : null,
-    });
+    const records = [];
+    for await (const r of streamShards(cradleDir, cfgMeta)) records.push(r);
+    cradleResults.push({ geometryKey: gKey, geometry: geometryOf(cfg), ...cradleRowStats(records) });
   }
   const cradleByGeom = new Map(cradleResults.map((c) => [c.geometryKey, c]));
   for (const g of geometryResults) {
@@ -201,6 +220,7 @@ async function main() {
     g.cradleRate = c?.cradleRate ?? null;
     g.cradleSettleTimeMeanS = c?.settleTimeMeanS ?? null;
     g.cradleBouncesMean = c?.bouncesMean ?? null;
+    g.cradleMinContactSpeedMedianMps = c?.csMedianMps ?? null;
   }
 
   // --- Pareto front: maximise fanWidth, minimise timingSensitivity ---
@@ -306,17 +326,24 @@ function toMarkdown(summary, best) {
 
   lines.push('## Fan width / timing sensitivity / cradle, per geometry');
   lines.push('');
-  lines.push('| geom | rest° | active° | upMs | ω | r | e | fan(xa)° | sens(°/ms) | cradle% | vo/vi grad | pareto |');
-  lines.push('|---|---|---|---|---|---|---|---|---|---|---|---|');
+  lines.push('| geom | rest° | active° | upMs | ω | r | e | fan(xa)° | sens(°/ms) | cradle% | minCs(m/s) | vo/vi grad | pareto |');
+  lines.push('|---|---|---|---|---|---|---|---|---|---|---|---|---|');
   for (const g of summary.geometries) {
     const onPareto = summary.paretoFront.includes(g.geometryKey) ? '✓' : '';
     lines.push(
       `| ${g.geometryKey} | ${g.geometry.restAngleDeg} | ${g.geometry.activeAngleDeg} | ${g.geometry.upMs} | ` +
       `${g.geometry.omegaProfile} | ${g.geometry.radius} | ${g.geometry.restitution} | ` +
       `${fmt(g.fanWidthXaDeg, 1)} | ${fmt(g.timingSensitivityDegPerMs, 3)} | ${fmt((g.cradleRate ?? 0) * 100, 1)} | ` +
-      `${fmt(g.voViGradientPerHs, 3)} | ${onPareto} |`
+      `${fmt(g.cradleMinContactSpeedMedianMps, 3)} | ${fmt(g.voViGradientPerHs, 3)} | ${onPareto} |`
     );
   }
+  lines.push('');
+  lines.push('> `minCs(m/s)`: median of the minimum ball speed while touching a flipper, across every' +
+    ' CONTACTING cradle trial for that geometry (not just settled ones) — reported alongside' +
+    ' `cradle%`, not used to select anything here. Pilot' +
+    ' (ledger/handoffs/sonnet2/20260904T160000Z-cradle-continuous-stat-pilot.md) found it' +
+    ' separates all 24 geometries cleanly where `cradle%`/`cradleProxy` are degenerate; Stage A' +
+    ' selection is unchanged pending the ranking-validity guard fix.');
   lines.push('');
 
   lines.push(`## Ranked under the sensitivity ceiling (≤ ${summary.sensitivityCeilingDegPerMs}°/ms)`);
