@@ -10,7 +10,7 @@
 // ensemble of trials in a cfg is actually diverse (see seed.js for why that second part
 // isn't automatic).
 import { advance } from '../../pinball/src/physics/world.js';
-import { STEP_DT, MAX_IMPACTS, BALL_RADIUS } from '../../pinball/src/physics/constants.js';
+import { STEP_DT, BALL_RADIUS } from '../../pinball/src/physics/constants.js';
 import { range } from '../../pinball/src/physics/rng.js';
 import { seededRng } from './seed.js';
 import { buildE1World, SHOT_LINE_Y, INJECTION, CRADLE_INJECTION } from './arenas/e1_flippers.js';
@@ -191,7 +191,14 @@ function runE1Trial(cfg, seed, opts) {
       break;
     }
 
-    if (events.length >= MAX_IMPACTS) flags |= FLAGS.IMPACTS_EXHAUSTED;
+    // LAB-23: set from the solver's own unconsumed-time budget, not from the event count.
+    // `events.length >= MAX_IMPACTS` compared a whole-step, all-ball, all-sub-step,
+    // all-primitive total against a per-ball per-sub-step cap — a unit error whose size is
+    // FLIPPER_SUBSTEPS, and one that fires on any ball resting against two surfaces
+    // (surfaces x solver.js's ZERO_T_ESCAPE_AFTER = 2 x 4 = 8 = the cap). Measured on E4
+    // Stage A2: 57.73% of trials flagged, 0.49% actually stranding time, 5 real cases in
+    // 89,192 flagged steps. `remaining > 0` is the property the flag is named for.
+    if (events.remaining > 0) flags |= FLAGS.IMPACTS_EXHAUSTED;
 
     const flipperEvents = events.filter((e) => e.primitive?.flipper);
 
@@ -367,7 +374,7 @@ function runE2Trial(cfg, seed, opts) {
       break;
     }
 
-    if (events.length >= MAX_IMPACTS) flags |= FLAGS.IMPACTS_EXHAUSTED;
+    if (events.remaining > 0) flags |= FLAGS.IMPACTS_EXHAUSTED; // LAB-23, see the note at the first site
 
     const bumperEvents = events.filter((e) => e.primitive?.bumper);
 
@@ -559,7 +566,7 @@ function runE4Trial(cfg, seed, opts) {
       break;
     }
 
-    if (stepEvents.length >= MAX_IMPACTS) flags |= FLAGS.IMPACTS_EXHAUSTED;
+    if (stepEvents.remaining > 0) flags |= FLAGS.IMPACTS_EXHAUSTED; // LAB-23, see the note at the first site
 
     const flipperEvents = stepEvents.filter((e) => e.primitive?.flipper);
     const guideEvents = stepEvents.filter((e) => e.primitive?.guide);
@@ -795,7 +802,7 @@ function runE3Trial(cfg, seed, opts) {
       break;
     }
 
-    if (events.length >= MAX_IMPACTS) flags |= FLAGS.IMPACTS_EXHAUSTED;
+    if (events.remaining > 0) flags |= FLAGS.IMPACTS_EXHAUSTED; // LAB-23, see the note at the first site
 
     // LAB-19 instrumentation: this substep's raw contact events, for probes that need to see
     // which primitive a ball actually touched (e.g. confirming the apron-right graze

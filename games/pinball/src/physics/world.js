@@ -155,6 +155,15 @@ function isAnyFlipperMoving(world) {
 export function advance(world, dtSeconds) {
   world.accumulator += dtSeconds;
   const events = [];
+  // Seconds of sub-step that the impact loop could not consume, summed over every ball and
+  // every sub-step in this call. `stepBall` reports it per call and its own comment explains
+  // why it exists: "no unconsumed time" is the property that actually means the impact budget
+  // was exhausted, and the older `events.length === maxImpacts` proxy stopped working once one
+  // iteration could emit an event per simultaneously-overlapping primitive. Flattening the
+  // per-ball arrays here dropped it, so callers were left reading the count — which compares a
+  // whole-step, all-ball, all-sub-step total against a per-ball per-sub-step budget. Carrying
+  // it through costs one addition and lets a caller ask the real question.
+  let remaining = 0;
 
   while (world.accumulator >= STEP_DT) {
     // Checked once per STEP_DT, not per substep: if a stroke completes partway through this
@@ -183,6 +192,7 @@ export function advance(world, dtSeconds) {
         const prevPos = { x: ball.pos.x, y: ball.pos.y };
         const primitives = (world.layers.get(ball.layer) ?? []).concat(flipperEntriesByLayer.get(ball.layer) ?? []);
         const evs = stepBall(ball, world.gravity, primitives, subDt, world.tuning);
+        remaining += evs.remaining;
         for (const e of evs) events.push({ ...e, ball });
 
         for (const e of checkZoneCrossings(world, ball, prevPos)) {
@@ -205,6 +215,9 @@ export function advance(world, dtSeconds) {
     world.accumulator -= STEP_DT;
   }
 
+  // Exposed as a property on the returned array, exactly as stepBall does it — existing
+  // callers iterating or reading .length are unaffected.
+  events.remaining = remaining;
   world.events = events;
   return events;
 }
