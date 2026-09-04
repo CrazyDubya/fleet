@@ -1,6 +1,26 @@
 {
   "permissions": {
+    "allow": [
+      "mcp__playwright__browser_snapshot",
+      "mcp__playwright__browser_take_screenshot",
+      "mcp__playwright__browser_console_messages",
+      "mcp__playwright__browser_network_requests",
+      "mcp__playwright__browser_evaluate",
+      "mcp__playwright__browser_press_key",
+      "mcp__playwright__browser_click",
+      "mcp__playwright__browser_type",
+      "mcp__playwright__browser_hover",
+      "mcp__playwright__browser_select_option",
+      "mcp__playwright__browser_wait_for",
+      "mcp__playwright__browser_resize",
+      "mcp__playwright__browser_tabs",
+      "mcp__playwright__browser_close",
+      "mcp__playwright__browser_find"
+    ],
     "deny": ["Bash(git push *)", "Bash(ssh *)", "Bash(scp *)", "Bash(sudo *)",
+             "mcp__playwright__browser_run_code_unsafe",
+             "mcp__playwright__browser_file_upload",
+             "mcp__playwright__browser_network_request",
              "Bash(git reset --hard*)", "Bash(git clean -f*)",
              "Bash(curl -X POST*)", "Bash(curl -X PUT*)", "Bash(curl --data*)",
              "Read(//Users/pup/.ssh/**)", "Read(//Users/pup/.aws/**)", "Read(**/.env)",
@@ -8,6 +28,8 @@
   },
   "hooks": {
     "PreToolUse": [{"matcher": "SendMessage|Bash", "hooks": [{"type": "command", "command": "/Users/pup/fleet/hooks/v2/gate.sh", "timeout": 3}]}],
-    "Stop": [{"hooks": [{"type": "command", "command": "/Users/pup/fleet/hooks/v2/hold.sh", "timeout": 3}]}]
+    "Stop": [{"hooks": [{"type": "command", "command": "/Users/pup/fleet/hooks/v2/hold.sh", "timeout": 3}]}],
+    "PermissionRequest": [{"matcher": "Bash|mcp__playwright__browser_navigate",
+      "hooks": [{"type": "command", "command": "/Users/pup/fleet/hooks/v2/perm.sh", "timeout": 300}]}]
   }
 }

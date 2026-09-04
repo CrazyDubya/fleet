@@ -31,3 +31,22 @@ class TranscriptTests(unittest.TestCase):
         p = transcript.parse(real[-1])
         self.assertGreaterEqual(len(p.turns), 1)
         self.assertEqual(len({t.msg_id for t in p.turns}), len(p.turns))
+
+
+class ApiErrorTests(unittest.TestCase):
+    """A provider refusal is a record, not an absence: Claude Code writes an
+    assistant record with isApiErrorMessage=true and error="rate_limit" (real
+    shape captured 2026-09-04 from a live transcript). Before this test the
+    parser dropped that distinction and a quota wall read as an ordinary idle
+    turn - a broken-looking thread with no handoff and no reason."""
+
+    def test_last_turn_carries_the_api_error(self):
+        p = transcript.parse(Path(__file__).parent / "fixtures" / "refused.jsonl")
+        self.assertEqual(p.turns[-1].api_error, "rate_limit")
+        self.assertIn("session limit", p.turns[-1].api_error_text)
+        self.assertEqual(p.last_api_error, "rate_limit")
+
+    def test_ordinary_turns_carry_no_api_error(self):
+        p = transcript.parse(Path(__file__).parent / "fixtures" / "small.jsonl")
+        self.assertTrue(all(t.api_error is None for t in p.turns))
+        self.assertIsNone(p.last_api_error)

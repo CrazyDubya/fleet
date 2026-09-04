@@ -16,6 +16,14 @@ class Turn:
     output: int
     thinking: int
     stop_reason: str | None
+    # Provider refusal, distinct from a model reply. Claude Code writes an
+    # assistant record with isApiErrorMessage=true and error="rate_limit" (or
+    # another API error string) and zero usage. Without this a quota wall
+    # parsed as an ordinary end-of-turn and the thread read as idle - a broken-
+    # looking thread with no handoff and no reason. Captured from a live
+    # transcript 2026-09-04.
+    api_error: str | None = None
+    api_error_text: str = ""
 
 
 @dataclass
@@ -24,6 +32,9 @@ class Parsed:
     last_type: str | None = None
     last_ts: float | None = None
     errors: int = 0
+    # The api_error of the most recent assistant turn, or None. Status keys the
+    # `refused` state off this rather than re-deriving it from turns[-1].
+    last_api_error: str | None = None
 
 
 def _ts(s: str | None) -> float | None:
@@ -61,6 +72,17 @@ def parse(path: Path) -> Parsed:
             seen.add(mid)
             u = m.get("usage") or {}
             cc = u.get("cache_creation") or {}
+            api_error = r.get("error") if r.get("isApiErrorMessage") else None
+            api_error_text = ""
+            if api_error:
+                c = m.get("content")
+                if isinstance(c, list):
+                    api_error_text = " ".join(
+                        x.get("text", "") for x in c if isinstance(x, dict) and x.get("type") == "text"
+                    ).strip()
+                elif isinstance(c, str):
+                    api_error_text = c.strip()
+            out.last_api_error = api_error
             out.turns.append(Turn(
                 ts=ts or 0.0, model=m.get("model", "?"), msg_id=mid,
                 input=u.get("input_tokens", 0), cache_read=u.get("cache_read_input_tokens", 0),
@@ -68,5 +90,6 @@ def parse(path: Path) -> Parsed:
                 output=u.get("output_tokens", 0),
                 thinking=(u.get("output_tokens_details") or {}).get("thinking_tokens", 0),
                 stop_reason=m.get("stop_reason"),
+                api_error=api_error, api_error_text=api_error_text,
             ))
     return out
