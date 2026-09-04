@@ -275,9 +275,12 @@ function coloredMesh(geo, color) {
 const bumperDomeMat = new THREE.MeshStandardMaterial({ color: 0xb8362c, metalness: 0.1, roughness: 0.6 });
 const bumperRingMat = new THREE.MeshLambertMaterial({ color: 0xc23c30 });
 const bumperStarMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, metalness: 0.5, roughness: 0.4 });
-function buildPopBumperMesh(name, centre) {
+function buildPopBumperMesh(name, centre, radius) {
   const group = new THREE.Group();
-  const skirt = coloredMesh(new THREE.CylinderGeometry(0.032, 0.032, 0.006, 16), 0x8a8a8a);
+  // Base cylinder drawn at the physics collision radius itself, so the visible edge IS the
+  // collision surface — was a hardcoded 0.032 vs the physics 0.030 (POP_SKIRT_RADIUS), with no
+  // mesh at the true radius at all (cap sphere 0.028, decorative ring rOut 0.044).
+  const skirt = coloredMesh(new THREE.CylinderGeometry(radius, radius, 0.006, 16), 0x8a8a8a);
   skirt.position.y = 0.003;
   group.add(skirt);
   const ring = new THREE.Mesh(new THREE.RingGeometry(0.036, 0.044, 24), bumperRingMat);
@@ -295,7 +298,7 @@ function buildPopBumperMesh(name, centre) {
   group.position.set(p.x, p.y, p.z);
   return group;
 }
-for (const p of popBumpers) tiltGroup.add(buildPopBumperMesh(p.name, p.centre));
+for (const p of popBumpers) tiltGroup.add(buildPopBumperMesh(p.name, p.centre, p.shape.radius));
 
 const slingshotMat = new THREE.MeshStandardMaterial({ color: 0xc8c8c8, metalness: 0.75, roughness: 0.3 });
 function buildSlingshotMesh(segments) {
@@ -371,7 +374,11 @@ const sandMeshes = buildDropBankMeshes(sandBank, 0xd9c07a);
 // lit until the set completes.
 const funMeshes = funLaneDefs.map((f) => {
   const mat = new THREE.MeshLambertMaterial({ color: 0x555555 });
-  const bar = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.01, 0.006), mat);
+  // Width read directly off the zone's own span (same idiom as the wall/slingshot/drop-target
+  // segments: the real endpoints, not a duplicated width literal) — was a hardcoded 0.03
+  // against the physics zone's actual 0.036, the same 30-vs-36 mm pairing the drop targets had.
+  const width = Math.hypot(f.zone.b.x - f.zone.a.x, f.zone.b.y - f.zone.a.y);
+  const bar = new THREE.Mesh(new THREE.BoxGeometry(width, 0.01, 0.006), mat);
   const mid = { x: (f.zone.a.x + f.zone.b.x) / 2, y: (f.zone.a.y + f.zone.b.y) / 2 };
   const p = toSceneVec(mid.x, mid.y, 0.005);
   bar.position.set(p.x, p.y, p.z);
@@ -466,14 +473,19 @@ tiltGroup.add(buildSlideMesh(slide.ramp.points));
 tiltGroup.add(buildMonkeyBarsMesh(monkeyBars.ramp.points));
 tiltGroup.add(buildTunnelMesh(tunnel.ramp.points));
 
-// THE SANDBOX: a shallow tan pit with a darker rim, at the scoop's capture radius.
+// THE SANDBOX: a shallow tan pit with a darker rim, drawn at the scoop's actual capture
+// radius (not a multiple of it) — true to physics, per the operator's standard: the sand a
+// ball visibly sits on IS the region that gets scooped, not a visual overstatement of it.
+// SANDBOX_RIM_LIP is rendering-only (how wide the decorative rim reads past the pit edge),
+// not a physics quantity, so it stays a local literal rather than a shared constant.
+const SANDBOX_RIM_LIP = 0.006;
 {
   const group = new THREE.Group();
-  const pit = coloredMesh(new THREE.CircleGeometry(sandbox.captureZone.radius * 1.6, 20), 0xd9c07a);
+  const pit = coloredMesh(new THREE.CircleGeometry(sandbox.captureZone.radius, 20), 0xd9c07a);
   pit.rotation.x = -Math.PI / 2;
   pit.position.y = 0.001;
   group.add(pit);
-  const rim = coloredMesh(new THREE.RingGeometry(sandbox.captureZone.radius * 1.5, sandbox.captureZone.radius * 1.9, 20), 0x8a6339);
+  const rim = coloredMesh(new THREE.RingGeometry(sandbox.captureZone.radius, sandbox.captureZone.radius + SANDBOX_RIM_LIP, 20), 0x8a6339);
   rim.rotation.x = -Math.PI / 2;
   rim.position.y = 0.0015;
   group.add(rim);
@@ -490,7 +502,7 @@ tiltGroup.add(buildTunnelMesh(tunnel.ramp.points));
 const mgrGroup = new THREE.Group();
 {
   const baseMat = new THREE.MeshStandardMaterial({ color: 0xe0a832, metalness: 0.2, roughness: 0.5 });
-  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.06, 0.012, 20), baseMat);
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(merryGoRound.radius, merryGoRound.radius, 0.012, 20), baseMat);
   base.position.y = 0.006;
   mgrGroup.add(base);
   const pole = coloredMesh(new THREE.CylinderGeometry(0.006, 0.006, 0.09, 8), 0xb8b8b8);
