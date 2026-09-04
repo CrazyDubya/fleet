@@ -50,6 +50,7 @@ test('main.js imports pinball physics/table modules by relative path, not a copy
     '../../pinball/src/physics/constants.js',
     '../../pinball/src/table/recess.js',
     '../../pinball/src/table/mechanisms.js',
+    '../../pinball/src/table/assemble.js',
     '../../pinball/src/ui/input.js',
   ];
   const missing = required.filter((spec) => !src.includes(spec));

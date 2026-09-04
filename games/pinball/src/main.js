@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import { createScene, toSceneVec } from './render/scene.js';
-import { createWorld, setLayerPrimitives, setLayerZones, addRamp, setCaptureZones, addBall, removeBall, addFlipper, advance } from './physics/world.js';
+import { createWorld, addBall, removeBall, addFlipper, advance } from './physics/world.js';
 import { createFlipper } from './physics/flipper.js';
 import { BALL_RADIUS, PLUNGER_MAX_SPEED, NUDGE_IMPULSE, PITCH_DEG } from './physics/constants.js';
 import * as recess from './table/recess.js';
 import * as mech from './table/mechanisms.js';
-import * as ramps from './table/ramps.js';
+import { buildTable, wireTable } from './table/assemble.js';
 import {
   SW_SOFT_PLUNGE,
   SW_FUN, SW_TETHERBALL_SPIN, SW_PINWHEEL_SPIN,
@@ -50,7 +50,17 @@ new THREE.TextureLoader().load('./assets/textures/playfield.jpg', (tex) => {
 
 // --- World, walls, flippers ---
 const world = createWorld();
-const wallSegments = recess.buildWalls();
+// Every playfield primitive/zone/capture-zone/ramp comes from table/assemble.js's
+// buildTable()/wireTable() — the single source of truth the sandbox project's own main.js
+// calls too, so neither can silently fall behind the other's builder list (see
+// table/assemble.js's header comment for why this exists).
+const table = buildTable();
+wireTable(world, table);
+const {
+  wallSegments, popBumpers, slingshots, hopscotch, sandBank, treehouse, funLaneDefs,
+  spinnerDefs, swingSetPosts, slide, monkeyBars, tunnel, sandbox, merryGoRound,
+  ejectionSites, mgrRelease, sandboxAddABallPlacement,
+} = table;
 
 // Wood-tone side rails + chrome lane/apron guides, sampled from the reference photo's
 // worn pine border and chrome slingshot/corner plates (was flat gold/blue placeholder).
@@ -124,55 +134,11 @@ function updateFlipperMesh(flipper) {
   mesh.rotation.y = flipper.angle;
 }
 
-// --- T4 scoring mechanisms: physics data + runtime state -----------------------------
-const popBumpers = mech.buildPopBumpers();
-const slingshots = mech.buildSlingshots();
-const hopscotch = mech.buildHopscotchBank();
-const sandBank = mech.buildSandBank();
-const treehouse = mech.buildTreehouseStandup();
-const funLaneDefs = mech.buildFunLanes();
-const spinnerDefs = mech.buildSpinners();
-const swingSetPosts = mech.buildSwingSetPosts();
-
-setLayerPrimitives(world, 'playfield', [
-  ...wallSegments.map((shape) => ({ shape })),
-  ...popBumpers.map((p) => ({ shape: p.shape })),
-  ...slingshots.left.map((shape) => ({ shape })),
-  ...slingshots.right.map((shape) => ({ shape })),
-  ...hopscotch.targets.map((t) => ({ shape: t.shape })),
-  ...sandBank.targets.map((t) => ({ shape: t.shape })),
-  { shape: treehouse.shape },
-  ...swingSetPosts.map((p) => ({ shape: p.shape })),
-]);
-
-// --- T5 ramps, orbits and the SANDBOX scoop ---------------------------------------------
-const slide = ramps.buildSlideRamp();
-const monkeyBars = ramps.buildMonkeyBarsRamp();
-const tunnel = ramps.buildTunnelRamp();
-const sandbox = ramps.buildSandbox();
-const merryGoRound = mech.buildMerryGoRound();
-
-// Every mechanism-leaving landing point (merry-go-round release/eject, SANDBOX add-a-ball)
-// computed against the real table layout up front — see computeEjectPlacement's doc comment
-// in table/mechanisms.js for why this exists (the P0 jackpot-runaway bug, and the SANDBOX
-// add-a-ball's own instance of the same class of bug).
-const ejectionSites = new Map(mech.buildEjectionSites(sandbox).map((s) => [s.name, s]));
-const mgrRelease = ejectionSites.get('merry_go_round_release').placement;
-const sandboxAddABallPlacement = ejectionSites.get('sandbox_add_a_ball').placement;
-
-addRamp(world, slide.ramp);
-addRamp(world, monkeyBars.ramp);
-addRamp(world, tunnel.ramp);
-
-setLayerZones(world, 'playfield', [
-  ...funLaneDefs.map((f) => f.zone),
-  spinnerDefs.tetherball,
-  spinnerDefs.pinwheel,
-  slide.gate,
-  monkeyBars.gate,
-  tunnel.gate,
-]);
-setCaptureZones(world, 'playfield', [sandbox.captureZone, merryGoRound.captureZone]);
+// --- T4 scoring mechanisms + T5 ramps/orbits/SANDBOX scoop -----------------------------
+// popBumpers, slingshots, hopscotch, sandBank, treehouse, funLaneDefs, spinnerDefs,
+// swingSetPosts, slide, monkeyBars, tunnel, sandbox, merryGoRound, ejectionSites,
+// mgrRelease, sandboxAddABallPlacement are already destructured from `table` above, and
+// every primitive/zone/capture-zone/ramp they contribute was already wired by wireTable().
 
 const hopscotchBankState = game.createHopscotchBank(hopscotch.targets);
 const sandBankState = game.createSandBank(sandBank.targets);

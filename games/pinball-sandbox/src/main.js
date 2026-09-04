@@ -10,15 +10,12 @@
 // games/pinball/src/physics or /table is duplicated locally here.
 import * as THREE from 'three';
 import { createScene, toSceneVec } from '../../pinball/src/render/scene.js';
-import {
-  createWorld, setLayerPrimitives, setLayerZones, addRamp, setCaptureZones,
-  addBall, removeBall, addFlipper, advance,
-} from '../../pinball/src/physics/world.js';
+import { createWorld, addBall, removeBall, addFlipper, advance } from '../../pinball/src/physics/world.js';
 import { createFlipper } from '../../pinball/src/physics/flipper.js';
 import { BALL_RADIUS, PITCH_DEG } from '../../pinball/src/physics/constants.js';
 import * as recess from '../../pinball/src/table/recess.js';
 import * as mech from '../../pinball/src/table/mechanisms.js';
-import * as ramps from '../../pinball/src/table/ramps.js';
+import { buildTable, wireTable } from '../../pinball/src/table/assemble.js';
 import * as game from '../../pinball/src/game/mechanisms.js';
 import { wireInput } from '../../pinball/src/ui/input.js';
 
@@ -45,27 +42,19 @@ floor.position.set(0, 0, -recess.HEIGHT / 2);
 tiltGroup.add(floor);
 
 // --- World + real table geometry -----------------------------------------------------------
-// Same table the game plays on: walls, flippers, pop bumpers, slingshots, both drop-target
-// banks (still and un-droppable here — there's no rules layer to ever drop or reset them, so
-// they simply sit at their physics geometry as fixed colliders), all three ramps, the SANDBOX
-// scoop and the merry-go-round.
+// Every playfield primitive/zone/capture-zone/ramp comes from table/assemble.js's
+// buildTable()/wireTable() — the exact same shared module games/pinball/src/main.js calls.
+// Before this, the sandbox re-listed builders by hand and fell behind: it never called
+// mech.buildSwingSetPosts() or mech.buildSpinners() at all (found by grep, not by the old
+// parity test — see test/table-parity.test.mjs). One source of truth now; a builder added to
+// the game's assembly is on the sandbox's table on the next load, nothing to re-list.
 const world = createWorld();
-const wallSegments = recess.buildWalls();
-const popBumpers = mech.buildPopBumpers();
-const slingshots = mech.buildSlingshots();
-const hopscotch = mech.buildHopscotchBank();
-const sandBank = mech.buildSandBank();
-const treehouse = mech.buildTreehouseStandup();
-
-setLayerPrimitives(world, 'playfield', [
-  ...wallSegments.map((shape) => ({ shape })),
-  ...popBumpers.map((p) => ({ shape: p.shape })),
-  ...slingshots.left.map((shape) => ({ shape })),
-  ...slingshots.right.map((shape) => ({ shape })),
-  ...hopscotch.targets.map((t) => ({ shape: t.shape })),
-  ...sandBank.targets.map((t) => ({ shape: t.shape })),
-  { shape: treehouse.shape },
-]);
+const table = buildTable();
+wireTable(world, table);
+const {
+  wallSegments, popBumpers, slingshots, hopscotch, sandBank, treehouse,
+  slide, monkeyBars, tunnel, sandbox, merryGoRound, mgrRelease,
+} = table;
 
 const flippers = {};
 for (const cfg of recess.buildFlipperConfigs()) {
@@ -73,31 +62,6 @@ for (const cfg of recess.buildFlipperConfigs()) {
   addFlipper(world, flipper);
   flippers[cfg.name] = flipper;
 }
-
-// --- Ramps, the SANDBOX scoop, and the merry-go-round --------------------------------------
-// Same builders and same wiring calls as games/pinball/src/main.js (setLayerZones/addRamp/
-// setCaptureZones with the identical [sandbox.captureZone, merryGoRound.captureZone] list and
-// the same three ramp gates) — test/capture-zone-parity.test.mjs source-text-checks both
-// main.js files register the exact same expressions, so this cannot silently drift from the
-// game.
-const slide = ramps.buildSlideRamp();
-const monkeyBars = ramps.buildMonkeyBarsRamp();
-const tunnel = ramps.buildTunnelRamp();
-const sandbox = ramps.buildSandbox();
-const merryGoRound = mech.buildMerryGoRound();
-
-// The merry-go-round's release landing point, computed the same way main.js does — via
-// mech.buildEjectionSites, which is what actually calls computeMergeGoRoundRelease
-// (table/mechanisms.js) under the hood. Not reimplemented here.
-const ejectionSites = new Map(mech.buildEjectionSites(sandbox).map((s) => [s.name, s]));
-const mgrRelease = ejectionSites.get('merry_go_round_release').placement;
-
-addRamp(world, slide.ramp);
-addRamp(world, monkeyBars.ramp);
-addRamp(world, tunnel.ramp);
-
-setLayerZones(world, 'playfield', [slide.gate, monkeyBars.gate, tunnel.gate]);
-setCaptureZones(world, 'playfield', [sandbox.captureZone, merryGoRound.captureZone]);
 
 // SANDBOX scoop: capture-and-release timer only (game/mechanisms.js's createScoop/armScoop/
 // tickScoop) — the mechanical part, not a rules decision. Eject math mirrors main.js exactly
