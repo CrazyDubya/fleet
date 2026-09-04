@@ -129,26 +129,31 @@ test('the TREEHOUSE standup registers a hit without dropping (fixed post)', () =
   assert.equal(treehouse.shape.active, undefined, 'standup never sets active=false');
 });
 
-test('merry-go-round release/eject clears every other mechanism skirt in the real table layout', () => {
-  const merryGoRound = mech.buildMerryGoRound();
-  const popBumpers = mech.buildPopBumpers();
-  const treehouse = mech.buildTreehouseStandup();
+test('every ejection site (merry-go-round release, SANDBOX add-a-ball) clears its own zone and every other mechanism skirt by at least SAFETY_M', () => {
   const sandbox = ramps.buildSandbox();
+  const sites = mech.buildEjectionSites(sandbox);
+  assert.ok(sites.length >= 2, 'expected at least the merry-go-round and sandbox sites — a registry regression would silently drop coverage');
 
-  const obstacles = [
-    ...popBumpers.map((b) => ({ centre: b.centre, radius: b.shape.radius, name: b.name })),
-    { centre: treehouse.shape.centre, radius: treehouse.shape.radius, name: 'treehouse' },
-    { centre: sandbox.captureZone.centre, radius: sandbox.captureZone.radius, name: 'sandbox' },
-  ];
+  for (const site of sites) {
+    const { zone, obstacles, placement } = site;
 
-  const release = mech.computeMergeGoRoundRelease(merryGoRound, obstacles);
-
-  for (const o of obstacles) {
-    const dist = Math.hypot(release.pos.x - o.centre.x, release.pos.y - o.centre.y);
+    // Never re-captured by the zone it just left.
+    const ownDist = Math.hypot(placement.pos.x - zone.centre.x, placement.pos.y - zone.centre.y);
     assert.ok(
-      dist >= o.radius + BALL_RADIUS,
-      `release point (${release.pos.x.toFixed(4)}, ${release.pos.y.toFixed(4)}) is ` +
-      `${(o.radius + BALL_RADIUS - dist).toFixed(5)}m inside ${o.name}'s skirt+ball margin`
+      ownDist > zone.radius + mech.SAFETY_M,
+      `${site.name}: landing point is only ${ownDist.toFixed(5)}m from its own zone centre ` +
+      `(radius ${zone.radius}, needs > ${(zone.radius + mech.SAFETY_M).toFixed(5)} with SAFETY_M)`
     );
+
+    // Never spawned inside another mechanism's skirt.
+    for (const o of obstacles) {
+      const dist = Math.hypot(placement.pos.x - o.centre.x, placement.pos.y - o.centre.y);
+      const needed = o.radius + BALL_RADIUS + mech.SAFETY_M;
+      assert.ok(
+        dist >= needed,
+        `${site.name}: landing point (${placement.pos.x.toFixed(4)}, ${placement.pos.y.toFixed(4)}) ` +
+        `is ${(needed - dist).toFixed(5)}m inside an obstacle's skirt+ball+safety margin`
+      );
+    }
   }
 });

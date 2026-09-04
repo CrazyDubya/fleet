@@ -143,48 +143,63 @@ export function buildMerryGoRound() {
 // starting point so an unobstructed table still gets the intended-looking release.
 const MGR_RELEASE_PREFERRED_HEADING = normalize({ x: -0.15, y: -1 });
 
+// Minimum clearance a computeEjectPlacement landing point must keep past every obstacle's
+// (and its own zone's) radius+ball-radius boundary, on top of `margin`. 5mm is comfortably
+// larger than the sweep's own 1-degree angular step at these radii — small enough that a
+// tighter number couldn't move the chosen heading by more than a fraction of a degree, large
+// enough that a real layout nudge can't quietly eat it. Without a named floor here, a
+// landing point that grazes a skirt by half a millimetre (as the first version of this sweep
+// did against the horse bumper) reads as "clears" just as validly as one with centimetres to
+// spare — the property can't tell "fixed" from "barely not broken".
+export const SAFETY_M = 0.005;
+
 /**
- * Where a ball leaves the merry-go-round — a genuine 3-lock release, a re-lock ejection
- * during active multiball, or an unlit pass-through. Derived from the current table layout
- * instead of a hardcoded constant, so a future mechanism-layout change can't silently
- * reintroduce a ball landing back inside another mechanism's collision skirt.
+ * Where a ball leaves a capture zone under its own power — a merry-go-round release/eject, a
+ * SANDBOX add-a-ball, or any future mechanism with the same shape of problem. Derived from
+ * the zone's own geometry and the surrounding table layout instead of a hardcoded heading, so
+ * a future mechanism-layout change can't silently reintroduce a ball landing back inside its
+ * own zone or another mechanism's collision skirt.
  *
- * This exists because of a real bug: the previous hardcoded (-0.15, -1) heading was chosen
- * only to clear the merry-go-round's own capture radius (a 1.05x margin) and was never
- * checked against anything else. It landed 7.85mm inside the horse spring-rider's 30mm
- * skirt — every release/relock ball spawned already overlapping the pop bumper, which
- * re-kicked it back into the merry-go-round's capture zone, which re-doubled an uncapped
- * jackpot, forever (500,000 -> 1.757e+165 in ~5s, confirmed live). See the 2026-09-01 P0
- * handoff for the full trace.
+ * This exists because of a real bug: the merry-go-round's original hardcoded (-0.15, -1)
+ * release heading was chosen only to clear its own capture radius (an arbitrary 1.05x
+ * margin) and was never checked against anything else. It landed 7.85mm inside the horse
+ * spring-rider's 30mm skirt — every release/relock ball spawned already overlapping the pop
+ * bumper, which re-kicked it back into the merry-go-round's capture zone, which re-doubled an
+ * uncapped jackpot, forever (500,000 -> 1.757e+165 in ~5s, confirmed live). A second instance
+ * of the same class of bug was found in the SANDBOX add-a-ball spawn, which placed the ball at
+ * literally its own capture zone's centre (0.00000m clearance) — re-captured on the very next
+ * physics step, discarding the launch and orphaning whatever ball the scoop was already
+ * holding. See the 2026-09-01 and 2026-09-04 handoffs for the full traces.
  *
- * `obstacles` is every other circular mechanism skirt the landing point must clear —
- * `{ centre, radius }` pairs — e.g. the pop bumpers' skirts, the TREEHOUSE standup, the
- * SANDBOX scoop's capture zone. `margin` on top of each obstacle's own radius accounts for
- * the ball's own footprint (defaults to BALL_RADIUS) so the ball doesn't spawn edge-touching
- * a skirt either.
+ * `zone` is `{ centre, radius }` — the capture zone the ball is leaving; the landing point
+ * must clear this too, not just the obstacles list, so the zone doesn't immediately
+ * re-capture its own ejected ball. `preferredHeading` is the design's intended direction
+ * (any nonzero vector — normalized internally). `obstacles` is every other circular
+ * mechanism skirt the landing point must clear — `{ centre, radius }` pairs. `margin` on top
+ * of each radius accounts for the ball's own footprint (defaults to BALL_RADIUS); `safety` is
+ * an additional flat clearance floor on top of that (defaults to SAFETY_M).
  *
- * Starts from the design doc's preferred heading; if that lands inside some obstacle's
- * skirt+margin, sweeps outward from it in 1-degree steps (alternating either side) to the
- * nearest heading that clears every obstacle. Throws if literally nothing within 180 degrees
- * clears — that would mean the merry-go-round is boxed in by the layout itself, a table-design
- * problem no release heading can paper over.
+ * Starts from the preferred heading; if that lands inside some obstacle's (or the zone's own)
+ * radius+margin+safety, sweeps outward from it in 1-degree steps (alternating either side) to
+ * the nearest heading that clears everything. Throws if literally nothing within 180 degrees
+ * clears — that would mean the zone is boxed in by the layout itself, a table-design problem
+ * no placement heading can paper over.
  */
-export function computeMergeGoRoundRelease(mgr, obstacles, margin = BALL_RADIUS) {
-  const clear = mgr.radius * 1.05;
+export function computeEjectPlacement(zone, preferredHeading, obstacles, { margin = BALL_RADIUS, safety = SAFETY_M } = {}) {
+  const preferred = normalize(preferredHeading);
+  const clear = zone.radius + margin + safety;
   const landingFor = (heading) => ({
-    x: mgr.centre.x + heading.x * clear,
-    y: mgr.centre.y + heading.y * clear,
+    x: zone.centre.x + heading.x * clear,
+    y: zone.centre.y + heading.y * clear,
   });
   const clearsAll = (heading) => {
     const p = landingFor(heading);
-    return obstacles.every((o) => Math.hypot(p.x - o.centre.x, p.y - o.centre.y) >= o.radius + margin);
+    return obstacles.every((o) => Math.hypot(p.x - o.centre.x, p.y - o.centre.y) >= o.radius + margin + safety);
   };
 
-  if (clearsAll(MGR_RELEASE_PREFERRED_HEADING)) {
-    return { heading: MGR_RELEASE_PREFERRED_HEADING, pos: landingFor(MGR_RELEASE_PREFERRED_HEADING) };
-  }
+  if (clearsAll(preferred)) return { heading: preferred, pos: landingFor(preferred) };
 
-  const baseAngle = Math.atan2(MGR_RELEASE_PREFERRED_HEADING.y, MGR_RELEASE_PREFERRED_HEADING.x);
+  const baseAngle = Math.atan2(preferred.y, preferred.x);
   for (let deg = 1; deg <= 180; deg++) {
     for (const sign of [1, -1]) {
       const angle = baseAngle + (sign * deg * Math.PI) / 180;
@@ -192,5 +207,47 @@ export function computeMergeGoRoundRelease(mgr, obstacles, margin = BALL_RADIUS)
       if (clearsAll(heading)) return { heading, pos: landingFor(heading) };
     }
   }
-  throw new Error('computeMergeGoRoundRelease: no heading within 180 degrees clears every mechanism skirt');
+  throw new Error('computeEjectPlacement: no heading within 180 degrees clears every obstacle with the required safety margin');
+}
+
+/** Thin wrapper kept for the merry-go-round's own call sites/tests: its zone is itself
+ * (`{ centre, radius }`, already the shape buildMerryGoRound returns at the top level) and
+ * its preferred heading is the design doc's release direction. */
+export function computeMergeGoRoundRelease(mgr, obstacles, opts) {
+  return computeEjectPlacement({ centre: mgr.centre, radius: mgr.radius }, MGR_RELEASE_PREFERRED_HEADING, obstacles, opts);
+}
+
+/**
+ * Every real ejection site in the current table layout, each with its landing point already
+ * computed via computeEjectPlacement — the registry test/mechanisms.test.mjs's ejection-site
+ * property runs over, so a future mechanism added here is covered with no new test. Takes
+ * `sandbox` (from table/ramps.js's buildSandbox — mechanisms.js doesn't import ramps.js to
+ * avoid a layer that doesn't need it depending on one that does; callers already have both).
+ */
+export function buildEjectionSites(sandbox) {
+  const popBumpers = buildPopBumpers();
+  const treehouse = buildTreehouseStandup();
+  const merryGoRound = buildMerryGoRound();
+
+  const bumperObstacles = popBumpers.map((b) => ({ centre: b.centre, radius: b.shape.radius }));
+  const treehouseObstacle = { centre: treehouse.shape.centre, radius: treehouse.shape.radius };
+  const sandboxObstacle = { centre: sandbox.captureZone.centre, radius: sandbox.captureZone.radius };
+  const mgrObstacle = { centre: merryGoRound.centre, radius: merryGoRound.radius };
+
+  const sites = [
+    {
+      name: 'merry_go_round_release',
+      zone: { centre: merryGoRound.centre, radius: merryGoRound.radius },
+      preferredHeading: MGR_RELEASE_PREFERRED_HEADING,
+      obstacles: [...bumperObstacles, treehouseObstacle, sandboxObstacle],
+    },
+    {
+      name: 'sandbox_add_a_ball',
+      zone: { centre: sandbox.captureZone.centre, radius: sandbox.captureZone.radius },
+      preferredHeading: sandbox.eject.vel,
+      obstacles: [...bumperObstacles, treehouseObstacle, mgrObstacle],
+    },
+  ];
+
+  return sites.map((s) => ({ ...s, placement: computeEjectPlacement(s.zone, s.preferredHeading, s.obstacles) }));
 }

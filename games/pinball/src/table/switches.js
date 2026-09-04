@@ -53,3 +53,37 @@ export const SW_SANDBOX_EJECT = 'sandbox_eject';
 export const SW_MERRY_GO_ROUND = 'merry_go_round';
 export const SW_BALL_ADDED = 'ball_added';
 export const SW_BALL_LOST = 'ball_lost';
+
+/** Which drain switch a ball's removal fires: the last live ball ends the ball (SW_DRAIN),
+ * any earlier one just costs multiball a sibling (SW_BALL_LOST) — rules/multiball.js's
+ * onBallLost is what actually ends multiball once back down to one. Moved here (rather than
+ * left as a bare ternary in main.js) because it's a game-behaviour decision, not glue, and
+ * a glue-layer ternary referencing a switch constant is exactly the shape of the
+ * SW_BALL_LOST-import bug this function exists to make impossible to repeat unnoticed. */
+export function drainTagFor({ liveBallsRemaining }) {
+  return liveBallsRemaining > 0 ? SW_BALL_LOST : SW_DRAIN;
+}
+
+/** Every physics-event tag that's a genuine T4/T5/T8 scoring switch — anything else (plain
+ * walls, the launch-lane floor, the flipper capsules) is plumbing and must not reach
+ * rules/game.js or the event log. Moved here from main.js (a game-behaviour allowlist, not
+ * glue) so it lives next to the switch constants it's built from instead of only being
+ * cross-checked against rules/scoring.js by hand. `slide`/`monkeyBars`/`tunnel` supply each
+ * ramp's exit/rollback tag family, derived from that ramp's own id (table/ramps.js) rather
+ * than a switches.js export, since "did the shot make it" isn't itself scored — see
+ * physics/world.js's stepRampLayerBall/tryEnterGate. */
+export function mechanismTags({ slide, monkeyBars, tunnel }) {
+  return new Set([
+    SW_POP_DUCK, SW_POP_HORSE, SW_POP_ROCKET,
+    SW_SLING_LEFT, SW_SLING_RIGHT,
+    ...SW_HOPSCOTCH, ...SW_SAND,
+    SW_TREEHOUSE,
+    ...SW_FUN,
+    SW_TETHERBALL_SPIN, SW_PINWHEEL_SPIN,
+    SW_SLIDE_ENTER, SW_MONKEYBARS_ENTER, SW_TUNNEL_ENTER,
+    `${slide}_exit`, `${monkeyBars}_exit`, `${tunnel}_exit`,
+    `${slide}_rollback`, `${monkeyBars}_rollback`, `${tunnel}_rollback`,
+    SW_SANDBOX_ENTRY, SW_SANDBOX_EJECT,
+    SW_MERRY_GO_ROUND,
+  ]);
+}

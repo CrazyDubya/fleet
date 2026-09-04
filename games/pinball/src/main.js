@@ -2,12 +2,12 @@ import * as THREE from 'three';
 import { createScene, toSceneVec } from './render/scene.js';
 import { createWorld, setLayerPrimitives, setLayerZones, addRamp, setCaptureZones, addBall, removeBall, addFlipper, advance } from './physics/world.js';
 import { createFlipper } from './physics/flipper.js';
-import { BALL_RADIUS, PLUNGER_MAX_SPEED } from './physics/constants.js';
+import { BALL_RADIUS, PLUNGER_MAX_SPEED, NUDGE_IMPULSE } from './physics/constants.js';
 import * as recess from './table/recess.js';
 import * as mech from './table/mechanisms.js';
 import * as ramps from './table/ramps.js';
 import {
-  SW_DRAIN, SW_SOFT_PLUNGE,
+  SW_SOFT_PLUNGE,
   SW_FUN, SW_TETHERBALL_SPIN, SW_PINWHEEL_SPIN,
   SW_POP_DUCK, SW_POP_HORSE, SW_POP_ROCKET,
   SW_SLING_LEFT, SW_SLING_RIGHT,
@@ -15,6 +15,7 @@ import {
   SW_SLIDE_ENTER, SW_MONKEYBARS_ENTER, SW_TUNNEL_ENTER,
   SW_SANDBOX_ENTRY, SW_SANDBOX_EJECT,
   SW_MERRY_GO_ROUND, SW_BALL_ADDED,
+  drainTagFor, mechanismTags,
 } from './table/switches.js';
 import * as game from './game/mechanisms.js';
 import { createGame, launchBall, processEvents as processRules, activePlayer } from './rules/game.js';
@@ -149,13 +150,13 @@ const tunnel = ramps.buildTunnelRamp();
 const sandbox = ramps.buildSandbox();
 const merryGoRound = mech.buildMerryGoRound();
 
-// Every other circular mechanism skirt a merry-go-round release/eject must clear — see
-// computeMergeGoRoundRelease's doc comment for why this exists (the P0 jackpot-runaway bug).
-const mgrRelease = mech.computeMergeGoRoundRelease(merryGoRound, [
-  ...popBumpers.map((b) => ({ centre: b.centre, radius: b.shape.radius })),
-  { centre: treehouse.shape.centre, radius: treehouse.shape.radius },
-  { centre: sandbox.captureZone.centre, radius: sandbox.captureZone.radius },
-]);
+// Every mechanism-leaving landing point (merry-go-round release/eject, SANDBOX add-a-ball)
+// computed against the real table layout up front — see computeEjectPlacement's doc comment
+// in table/mechanisms.js for why this exists (the P0 jackpot-runaway bug, and the SANDBOX
+// add-a-ball's own instance of the same class of bug).
+const ejectionSites = new Map(mech.buildEjectionSites(sandbox).map((s) => [s.name, s]));
+const mgrRelease = ejectionSites.get('merry_go_round_release').placement;
+const sandboxAddABallPlacement = ejectionSites.get('sandbox_add_a_ball').placement;
 
 addRamp(world, slide.ramp);
 addRamp(world, monkeyBars.ramp);
@@ -195,22 +196,9 @@ launchBall(rulesState, elapsedS);
 
 // Only these tags are T4/T5 scoring mechanisms; every other collision (plain walls, the
 // launch-lane floor, the flipper capsules themselves) is plumbing, not a switch, and must
-// not reach rules/event log. Ramp exit/rollback tags are derived from the ramp ids
-// themselves (see physics/world.js's stepRampLayerBall/tryEnterGate) rather than a
-// switches.js export for the rollback case, since "did the shot make it" isn't scored.
-const MECHANISM_TAGS = new Set([
-  SW_POP_DUCK, SW_POP_HORSE, SW_POP_ROCKET,
-  SW_SLING_LEFT, SW_SLING_RIGHT,
-  ...SW_HOPSCOTCH, ...SW_SAND,
-  SW_TREEHOUSE,
-  ...SW_FUN,
-  SW_TETHERBALL_SPIN, SW_PINWHEEL_SPIN,
-  SW_SLIDE_ENTER, SW_MONKEYBARS_ENTER, SW_TUNNEL_ENTER,
-  `${slide.ramp.id}_exit`, `${monkeyBars.ramp.id}_exit`, `${tunnel.ramp.id}_exit`,
-  `${slide.ramp.id}_rollback`, `${monkeyBars.ramp.id}_rollback`, `${tunnel.ramp.id}_rollback`,
-  SW_SANDBOX_ENTRY, SW_SANDBOX_EJECT,
-  SW_MERRY_GO_ROUND,
-]);
+// not reach rules/event log. See switches.js's mechanismTags for why the allowlist itself
+// lives there and not here.
+const MECHANISM_TAGS = mechanismTags({ slide: slide.ramp.id, monkeyBars: monkeyBars.ramp.id, tunnel: tunnel.ramp.id });
 
 function tagOf(event) {
   return event.tag ?? event.primitive?.shape?.tag;
@@ -668,10 +656,9 @@ wireInput(canvas, {
   },
   onNudge: ({ x, y }) => {
     const len = Math.hypot(x, y) || 1;
-    const impulse = 0.35;
     for (const b of balls) {
       if (b.phys.captured) continue;
-      b.phys.vel = { x: b.phys.vel.x + (x / len) * impulse, y: b.phys.vel.y + (y / len) * impulse };
+      b.phys.vel = { x: b.phys.vel.x + (x / len) * NUDGE_IMPULSE, y: b.phys.vel.y + (y / len) * NUDGE_IMPULSE };
     }
   },
   onFlipperEdge: () => game.advanceFunPointer(funLamps),
@@ -758,8 +745,8 @@ function frame(now) {
     if (entry.phys.captured || !recess.isDrained(entry.phys)) continue;
     if (entry === chuteBall) chuteBall = null;
     despawnBall(entry);
-    const stillLive = balls.some((b) => !b.phys.captured);
-    scoreTags.push(stillLive ? SW_BALL_LOST : SW_DRAIN);
+    const liveBallsRemaining = balls.filter((b) => !b.phys.captured).length;
+    scoreTags.push(drainTagFor({ liveBallsRemaining }));
   }
 
   if (pendingSoftPlunge) {
@@ -803,12 +790,13 @@ function frame(now) {
     } else if (d.kind === 'addABall') {
       // The SANDBOX shot that triggered this is a *separate* ball from whichever one the
       // scoop is already timing an ordinary eject for (armed above) — this spawns another.
-      const evel = sandbox.eject.vel;
-      const evLen = Math.hypot(evel.x, evel.y) || 1;
-      spawnBall(
-        { x: sandbox.captureZone.centre.x, y: sandbox.captureZone.centre.y },
-        { x: (evel.x / evLen) * 1.8, y: (evel.y / evLen) * 1.8 }
-      );
+      // Spawned at sandboxAddABallPlacement (computeEjectPlacement, table/mechanisms.js),
+      // not the zone's own centre — spawning at the centre re-captures the ball on the very
+      // next physics step, discarding the launch and orphaning the scoop's already-held ball.
+      spawnBall(sandboxAddABallPlacement.pos, {
+        x: sandboxAddABallPlacement.heading.x * 1.8,
+        y: sandboxAddABallPlacement.heading.y * 1.8,
+      });
       pendingNextFrameTags.push(SW_BALL_ADDED); // see its declaration below
     } else if (d.kind === 'multiballForceEnd') {
       // A ball ended outright mid-multiball (tilt) — nothing should keep riding the carousel
