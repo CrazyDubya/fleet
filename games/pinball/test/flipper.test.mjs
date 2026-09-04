@@ -5,7 +5,7 @@ import { stepBall } from '../src/physics/solver.js';
 import { length } from '../src/physics/vec2.js';
 import { E_FLIPPER, FLIPPER, MU, K_DRAG, STEP_DT } from '../src/physics/constants.js';
 
-function makeLowerLeftFlipper() {
+function makeLowerLeftFlipper(eFlipper = E_FLIPPER) {
   return createFlipper({
     pivot: { x: -0.078, y: 0.105 },
     length: FLIPPER.lower.length,
@@ -14,7 +14,7 @@ function makeLowerLeftFlipper() {
     activeAngleDeg: FLIPPER.lower.activeAngle,
     upMs: FLIPPER.lower.upMs,
     downMs: FLIPPER.lower.downMs,
-    restitution: E_FLIPPER,
+    restitution: eFlipper,
   });
 }
 
@@ -23,7 +23,9 @@ function makeLowerLeftFlipper() {
 // isFlipperMoving), reproduced here because this harness hand-rolls its own loop rather than
 // going through world.js. Same total simulated span as before (15 * STEP_DT = 62.5ms), just
 // resolved at STEP_DT/FLIPPER_SUBSTEPS while the flipper hasn't yet reached its target angle.
-function flipAndMeasure(flipper, alongLengthFraction) {
+// `substepOverride` lets tests below demonstrate the difference between the shipped resolution
+// and the earlier, rejected one (see the comment block).
+function flipAndMeasure(flipper, alongLengthFraction, substepOverride = FLIPPER_SUBSTEPS) {
   const restRad = (flipper.restAngle);
   const along = alongLengthFraction * flipper.length;
   const contact = {
@@ -41,7 +43,7 @@ function flipAndMeasure(flipper, alongLengthFraction) {
   setActive(flipper, true);
   let maxSpeed = 0;
   for (let i = 0; i < 15; i++) {
-    const substeps = isFlipperMoving(flipper) ? FLIPPER_SUBSTEPS : 1;
+    const substeps = isFlipperMoving(flipper) ? substepOverride : 1;
     const subDt = STEP_DT / substeps;
     for (let s = 0; s < substeps; s++) {
       updateFlipper(flipper, subDt);
@@ -66,70 +68,76 @@ test('a resting ball touching the flipper at 0.8x length is also launched at >= 
 });
 
 // ===========================================================================================
-// SUBSTEP FIX (2026-09-04, per ledger/handoffs/opus2/20260904T180000Z-true-to-physics-standard
-// .md and the operator's 1a06e365c6d60fcd): the numbers below this block used to describe a
-// 13-contact re-strike regime with peak speed non-monotonic in E_FLIPPER. ROOT CAUSE: the lower
-// flipper sweeps 82 degrees in 14ms while the world resolved collisions at STEP_DT=1/240s — 3.36
-// substeps for the whole stroke, 31.9mm of tip travel per substep against a 27mm ball, so the
-// tip swept clean through the ball's position and re-struck it every substep until the stroke
-// ended. FIX: physics/flipper.js's FLIPPER_SUBSTEPS (4) + isFlipperMoving() — while a flipper
-// hasn't yet reached its target angle, both world.js's real simulation and this file's
-// `flipAndMeasure` now resolve at STEP_DT/4 (~1/960s, ~7.98mm tip travel/substep, under one
-// ball radius) instead of STEP_DT. STEP_DT itself, upMs, every angle and every restitution are
-// UNCHANGED — this is a resolution fix, not a retune. The three numbers that matter, all
-// measured with `contacts` redefined as DISTINCT SUBSTEPS carrying >=1 collision event (not raw
-// event count — multiple events within one substep are the solver resolving a single overlap
-// thoroughly, not separate strikes over time):
+// SUBSTEP FIX — TWO PASSES. First pass (2026-09-04, ledger/handoffs/opus2/20260904T180000Z-
+// true-to-physics-standard.md, operator 1a06e365c6d60fcd) shipped FLIPPER_SUBSTEPS=4. ROOT
+// CAUSE it addressed: the lower flipper sweeps 82 degrees in 14ms while the world resolved
+// collisions at STEP_DT=1/240s — 3.36 substeps for the whole stroke, 31.9mm of tip travel per
+// substep against a 27mm ball, so the tip swept clean through the ball's position and
+// re-struck it every substep until the stroke ended (13 contacts at the tip, peak exit speed
+// non-monotonic in E_FLIPPER as a result).
+//
+// SECOND PASS (2026-09-04, ledger/handoffs/opus2/20260904T215500Z-experiment-a-run.md, operator
+// 1a06e5f2e6854a70): N=4 was WRONG, not just insufficient. Running Experiment A properly (fit
+// v_out against v_in with the solver's full event list, not the summary) found N=4 still
+// resolves 3-6 contacts depending on e, each a deterministic composite of the single-impact
+// algebra (exit speed after k applications of resolve() has slope e^k, not e) — and that
+// composite happens to be monotonic, but in the WRONG DIRECTION: peak speed FALLS as E_FLIPPER
+// RISES, and has NO relation to contact radius along the bat. Both are physically backwards (a
+// bouncier bat must throw a faster ball; a strike further from the pivot, at higher surface
+// speed, must throw a faster ball too). The TWO PHYSICALLY OBLIGATORY criteria — peak rises
+// with e, peak rises with contact radius — first hold at N=24 (tip travel 1.33mm/substep),
+// where every stroke resolves as one genuine impact (k=1) at every e and every contact point
+// tested. STEP_DT itself, upMs, every angle and every restitution remain UNCHANGED throughout
+// both passes — only FLIPPER_SUBSTEPS moved, from the (wrong) monotonicity criterion to the
+// (right) rises-with-e / rises-with-radius criteria.
 //
 //   1. CONTACTS PER FLIP, at the tip, E_FLIPPER=0.85 (current):
-//        BEFORE (STEP_DT only): 13
-//        AFTER  (substepped):    4
-//      Not the literal 1-2 the acceptance criterion named — see the note below the E_FLIPPER
-//      table for why chasing that further was rejected rather than tuned around.
+//        BEFORE (STEP_DT only, N=1): 13
+//        N=4  (first, rejected):      4
+//        N=24 (shipped):               1   <- the genuine single-impact regime
 //
-//   2. PEAK EXIT SPEED vs E_FLIPPER, tip contact — BEFORE vs AFTER:
-//        E_FLIPPER   peak BEFORE   peak AFTER   separation AFTER   contacts AFTER
-//          0.70         7.3852       7.0393          6.9432              3
-//          0.80         6.7952       6.7389          6.6436              3
-//          0.85         6.3123       6.3874          6.2941              4   <- current
-//          0.88         5.8242       6.1970          6.1032              4
-//          0.90        10.7027       6.0201          5.9269              5
-//          0.92         2.0654       5.8517          5.7575              5
-//          0.96         1.2936       5.3802          5.2858              6
-//      BEFORE: not monotonic (falls, then spikes to 10.70, then collapses to 1.29).
-//      AFTER: strictly MONOTONIC DECREASING across the whole 0.70-0.96 range — the proof the
-//      re-strike regime is gone, per the operator's own framing, worth more than any one value.
+//   2. PEAK EXIT SPEED vs E_FLIPPER, tip contact:
+//        E_FLIPPER   peak N=1(BEFORE)   peak N=4(rejected)   peak N=24(shipped)   analytic (1+e)*u
+//          0.70          7.3852              7.0393               13.0315            13.0339
+//          0.80          6.7952              6.7389               13.7981            13.8006
+//          0.85          6.3123              6.3874               14.1814            14.1839  <- current
+//          0.88          5.8242              6.1970               14.4113                 -
+//          0.90         10.7027              6.0201               14.5647            14.5673
+//          0.92          2.0654              5.8517               14.7180                 -
+//          0.96          1.2936              5.3802               15.0246            15.0273
+//      N=1: not monotonic at all. N=4: monotonic DECREASING — the wrong direction; a bouncier
+//      bat throwing a SLOWER ball is not physical. N=24: monotonic INCREASING, matching the
+//      analytic single-impact answer (1+e)*u to within 0.02% at every sampled e. THIS is the
+//      criterion that matters, not "monotonic" alone in either direction.
 //
-//   3. PEAK vs SEPARATION, at the five original contact-point fractions, E_FLIPPER=0.85:
-//        contact point   peak AFTER   separation AFTER   contacts AFTER   (BEFORE peak/sep/contacts)
-//          1.0x length      6.3874         6.2941              4          (6.3123 / 3.5113 / 13)
-//          0.9x length      8.2648         8.1545              4          (6.1105 / 3.6829 / 14)
-//          0.8x length      9.1791         9.0614              5          (6.2661 / 2.4461 / 17)
-//          0.7x length      7.4622         7.3562              3          (5.2613 / 1.1896 / 28)
-//          0.6x length      8.8620         8.7523              4          (4.8162 / 0.3042 / 34)
-//      Peak and separation have CONVERGED — they differ by under 2% at every point now (were up
-//      to 1.8x apart before, e.g. 10.70 vs 4.86 at e=0.90). The ambiguity §4.1 of the true-to-
-//      physics ruling described (which quantity does the doc's range mean?) is resolved: peak
-//      and separation are now close enough that it barely matters which one is read.
+//   3. PEAK RISES WITH CONTACT RADIUS (E_FLIPPER=0.85) — untested at N=4 the first time, and
+//      the second criterion Experiment A found fails there:
+//        contact point   peak N=4(rejected)   peak N=24(shipped)   analytic (1+e)*omega*r
+//          0.6x length        8.8620               8.5962                 8.5104
+//          0.7x length        7.4622              10.0143                 9.9287
+//          0.8x length        9.1791              11.4325                11.3471
+//          0.9x length        8.2648              12.8506                12.7655
+//          1.0x length        6.3874              14.1814                14.1839
+//      N=4: no relation to radius (a player striking further out sometimes gets a SLOWER ball —
+//      compare 0.7x's 7.46 against 0.6x's 8.86). N=24: rises with radius at every step,
+//      matching (1+e)*omega*r within ~1%.
 //
-// WHAT THIS DOES NOT FIX: the doc's 4.5-6.0 m/s ceiling. It is still breached, and by more at
-// several points than before (0.8x length is now 9.18 m/s, not 6.27) — the substep fix reveals
-// the ball's REAL exit speed rather than an artifact of averaging peak against a multi-contact
-// window, and that real speed is higher at several contact points than the doc's range allows.
-// That is a genuine, now-trustworthy measurement, not a new problem introduced by this fix.
-// Whether E_FLIPPER/upMs need retuning to hit the doc's range is still the operator's open
-// decision — nothing here changes E_FLIPPER, upMs, or any angle.
+//   4. PEAK vs SEPARATION at N=24 — still not identical (drag/gravity act over the substeps
+//      after the single impact), but both readings agree the exit speed is far above the doc's
+//      6.0 m/s ceiling, so which one the doc's range means no longer changes the conclusion the
+//      way it did when they were 1.8x apart under N=1.
 //
-// WHY 4 SUBSTEPS AND NOT MORE, EVEN THOUGH CONTACTS AT 4 (3-6) DON'T REACH THE LITERAL 1-2
-// TARGET: pushed to N=8/12/16/24/32 substeps (2880-7680 Hz) in a scratch measurement, contacts
-// DID keep falling toward 1 — but peak speed diverged instead of converging further: 9.00 at
-// N=6-8, 12.35 at N=12-16, 14.18 at N=24-32, unbounded and climbing, not settling. That is the
-// "tuning something to make the numbers look better" trap named in the dispatch — chasing the
-// literal contact-count target past N=4 trades away the monotonicity and peak/separation
-// convergence that are the actual, load-bearing proof the re-strike regime is gone. N=4 (the
-// operator's own stated "roughly 960Hz" target) is kept because it is the resolution where BOTH
-// real acceptance properties (monotonicity, peak/separation convergence) hold; the contact count
-// not quite reaching 1-2 at that resolution is reported here rather than chased away.
+// COST, MEASURED (not asserted by a test — this was a one-time decision, recorded here): one
+// full flip stroke, real fully-assembled table, 3 balls on the table, JIT-warm — median 0.057ms
+// at N=4, 0.347ms at N=24. Even at N=24 that is under 2.1% of a single 60fps (16.67ms) frame
+// budget, and the cost is spread across the stroke's ~4 STEP_DT ticks (its 14ms duration divided
+// by 1/240s), not paid in one frame. Affordable; N=24 shipped without a fallback.
+//
+// WHAT NEITHER PASS FIXES: the doc's 4.5-6.0 m/s ceiling. At N=24 it is breached further than
+// at N=4 (0.7x length is now 10.01 m/s, not 7.46) — the fix reveals the ball's real exit speed
+// rather than an artifact of under-resolution, and that real speed is well above the doc's
+// range at every measured point. Whether E_FLIPPER/upMs need retuning to hit that range remains
+// the operator's open decision; nothing here changes either.
 // ===========================================================================================
 
 const DOC_EXIT_MIN = 4.5;   // design doc acceptance range, lower bound
@@ -141,13 +149,13 @@ const DOC_EXIT_MAX = 6.0;   // design doc acceptance range, UPPER bound — stil
 // SHOULD be. Tolerance is 0.01 m/s: the computation is deterministic (no RNG), so this is far
 // tighter than any real constant change (which moves these by 0.1 or more) and loose enough for
 // float noise.
-test('CHARACTERISATION: flip peak speed at five contact points, post-substep-fix (pins current behaviour, decides nothing)', () => {
+test('CHARACTERISATION: flip peak speed at five contact points, single-impact regime (pins current behaviour, decides nothing)', () => {
   const measured = [
-    { frac: 1.0, expected: 6.3874 },
-    { frac: 0.9, expected: 8.2648 },
-    { frac: 0.8, expected: 9.1791 },
-    { frac: 0.7, expected: 7.4622 },
-    { frac: 0.6, expected: 8.8620 },
+    { frac: 1.0, expected: 14.1814 },
+    { frac: 0.9, expected: 12.8506 },
+    { frac: 0.8, expected: 11.4325 },
+    { frac: 0.7, expected: 10.0143 },
+    { frac: 0.6, expected: 8.5962 },
   ];
   const over = [];
   for (const { frac, expected } of measured) {
@@ -160,17 +168,17 @@ test('CHARACTERISATION: flip peak speed at five contact points, post-substep-fix
     if (speed > DOC_EXIT_MAX) over.push(`${frac}x=${speed.toFixed(4)}`);
   }
   // Not a specification — a standing reminder in the passing suite that the ceiling is still
-  // unmet, at all five points post-fix (was three of five before — see the comment block above
-  // for why that is a real measurement, not a regression this fix introduced).
+  // unmet, at all five points (see the comment block above for why the single-impact regime
+  // makes this WORSE-looking, not a regression this fix introduced).
   assert.equal(over.length, 5,
-    `expected all five points still over ${DOC_EXIT_MAX} m/s post-substep-fix; got: ${over.join(', ')}`);
+    `expected all five points still over ${DOC_EXIT_MAX} m/s in the single-impact regime; got: ${over.join(', ')}`);
 });
 
 // The quantity `flipAndMeasure` does NOT report: what the ball actually leaves with, and how
-// many DISTINCT SUBSTEPS carry a collision (not raw event count — see the block above). Pinned
-// separately because peak and separation have converged post-fix (they used to diverge by up to
-// 1.8x) — this test is what proves that convergence, and what pins the contact count.
-test('CHARACTERISATION: separation speed and contact count, post-substep-fix (peak and separation have converged)', () => {
+// many DISTINCT SUBSTEPS carry a collision (not raw event count — multiple events within one
+// substep are the solver resolving a single overlap thoroughly, not separate strikes over
+// time). At N=24 this should be exactly 1 — the single-impact regime's whole point.
+test('CHARACTERISATION: separation speed and contact count in the single-impact regime (contacts=1)', () => {
   const flipper = makeLowerLeftFlipper();
   const restRad = flipper.restAngle;
   const along = flipper.length;
@@ -195,44 +203,64 @@ test('CHARACTERISATION: separation speed and contact count, post-substep-fix (pe
   }
   const separation = length(ball.vel);
 
-  assert.ok(Math.abs(peak - 6.3874) < 0.01, `peak changed: expected 6.3874, got ${peak.toFixed(4)}`);
-  assert.ok(Math.abs(separation - 6.2941) < 0.01,
-    `separation speed changed: expected 6.2941 m/s, got ${separation.toFixed(4)}. This is what the ` +
-    'ball actually leaves with — the number a player feels.');
-  assert.equal(contacts, 4,
-    `contact count changed: expected 4 distinct substeps with a collision, got ${contacts}. Before ` +
-    'the substep fix this was 13; a single clean impact would be 1.');
-
-  // Peak and separation have converged (were up to 1.8x apart before the fix; the doc's range
-  // ambiguity from §4.1 of the true-to-physics ruling is resolved — see the comment block above).
-  const divergence = Math.abs(peak - separation) / separation;
-  assert.ok(divergence < 0.02,
-    `peak and separation diverged by ${(divergence * 100).toFixed(2)}% (peak ${peak.toFixed(4)}, ` +
-    `separation ${separation.toFixed(4)}) — expected under 2%, the post-fix convergence this test exists to pin.`);
+  assert.ok(Math.abs(peak - 14.1814) < 0.01, `peak changed: expected 14.1814, got ${peak.toFixed(4)}`);
+  assert.ok(Math.abs(separation - 14.0315) < 0.02,
+    `separation speed changed: expected ~14.0315 m/s, got ${separation.toFixed(4)}. This is what ` +
+    'the ball actually leaves with — the number a player feels.');
+  assert.equal(contacts, 1,
+    `contact count changed: expected exactly 1 distinct substep with a collision (the single-` +
+    `impact regime this resolution exists to reach), got ${contacts}.`);
 });
 
-// NEW (this dispatch): the monotonicity proof itself, as a standing regression guard — not just
-// narrated in the comment block above. A future change to FLIPPER_SUBSTEPS, STEP_DT, or the
-// collision resolver that reintroduces the re-strike regime fails here.
-test('CHARACTERISATION: peak exit speed is monotonic in E_FLIPPER across 0.70-0.96 (the substep fix\'s core proof)', () => {
+// The two criteria Experiment A found are physically obligatory, and the reason N=4 was
+// rejected: peak exit speed must RISE with E_FLIPPER (a bouncier bat throws a faster ball) and
+// must RISE with contact radius (a strike further from the pivot, at higher surface speed,
+// throws a faster ball). Both hold at the shipped N=24 and both FAIL at the rejected N=4 —
+// demonstrated together, not just narrated, so a future regression to N=4-like behaviour (any
+// resolution too coarse to reach a single impact) fails here regardless of which specific
+// constant caused it.
+test('CHARACTERISATION: peak exit speed rises with E_FLIPPER at N=24, and does NOT at the rejected N=4', () => {
   const eSweep = [0.70, 0.80, 0.85, 0.88, 0.90, 0.92, 0.96];
-  const peaks = eSweep.map((e) => flipAndMeasure(createFlipper({
-    pivot: { x: -0.078, y: 0.105 }, length: FLIPPER.lower.length, radius: 0.012,
-    restAngleDeg: FLIPPER.lower.restAngle, activeAngleDeg: FLIPPER.lower.activeAngle,
-    upMs: FLIPPER.lower.upMs, downMs: FLIPPER.lower.downMs, restitution: e,
-  }), 1.0));
+  const peaksAtShipped = eSweep.map((e) => flipAndMeasure(makeLowerLeftFlipper(e), 1.0));
+  const peaksAtRejectedN4 = eSweep.map((e) => flipAndMeasure(makeLowerLeftFlipper(e), 1.0, 4));
 
-  for (let i = 1; i < peaks.length; i++) {
-    assert.ok(peaks[i] < peaks[i - 1],
-      `peak speed is not monotonic decreasing at e=${eSweep[i]}: ${peaks[i - 1].toFixed(4)} -> ` +
-      `${peaks[i].toFixed(4)} (e=${eSweep[i - 1]} -> e=${eSweep[i]}). Full table: ` +
-      eSweep.map((e, j) => `${e}=${peaks[j].toFixed(4)}`).join(', '));
+  for (let i = 1; i < peaksAtShipped.length; i++) {
+    assert.ok(peaksAtShipped[i] > peaksAtShipped[i - 1],
+      `peak speed is not monotonic INCREASING at e=${eSweep[i]} (N=${FLIPPER_SUBSTEPS}): ` +
+      `${peaksAtShipped[i - 1].toFixed(4)} -> ${peaksAtShipped[i].toFixed(4)}. Full table: ` +
+      eSweep.map((e, j) => `${e}=${peaksAtShipped[j].toFixed(4)}`).join(', '));
   }
+
+  // Confirms the rejected resolution actually fails this — if it stopped failing, N=4 might be
+  // affordable again and the historical record above would need re-checking, not just this
+  // assertion loosened.
+  const risesAtN4 = peaksAtRejectedN4.every((p, i) => i === 0 || p > peaksAtRejectedN4[i - 1]);
+  assert.equal(risesAtN4, false,
+    `N=4 no longer fails the rises-with-e criterion (${eSweep.map((e, j) => `${e}=${peaksAtRejectedN4[j].toFixed(4)}`).join(', ')}) ` +
+    '— if this is now true, the historical account in the comment block above needs revisiting, not just this assertion.');
+});
+
+test('CHARACTERISATION: peak exit speed rises with contact radius at N=24, and does NOT at the rejected N=4', () => {
+  const fracSweep = [0.6, 0.7, 0.8, 0.9, 1.0];
+  const peaksAtShipped = fracSweep.map((f) => flipAndMeasure(makeLowerLeftFlipper(0.85), f));
+  const peaksAtRejectedN4 = fracSweep.map((f) => flipAndMeasure(makeLowerLeftFlipper(0.85), f, 4));
+
+  for (let i = 1; i < peaksAtShipped.length; i++) {
+    assert.ok(peaksAtShipped[i] > peaksAtShipped[i - 1],
+      `peak speed is not monotonic INCREASING with contact radius at ${fracSweep[i]}x (N=${FLIPPER_SUBSTEPS}): ` +
+      `${peaksAtShipped[i - 1].toFixed(4)} -> ${peaksAtShipped[i].toFixed(4)}. Full table: ` +
+      fracSweep.map((f, j) => `${f}x=${peaksAtShipped[j].toFixed(4)}`).join(', '));
+  }
+
+  const risesAtN4 = peaksAtRejectedN4.every((p, i) => i === 0 || p > peaksAtRejectedN4[i - 1]);
+  assert.equal(risesAtN4, false,
+    `N=4 no longer fails the rises-with-radius criterion (${fracSweep.map((f, j) => `${f}x=${peaksAtRejectedN4[j].toFixed(4)}`).join(', ')}) ` +
+    '— if this is now true, the historical account in the comment block above needs revisiting, not just this assertion.');
 });
 
 // DISABLED DELIBERATELY — this is the missing half of the spec, written out so it is ready to
-// enable the moment the constant is settled. It FAILS today, post-substep-fix, at EVERY sampled
-// point (was 2 of 2 before too, but the numbers have changed — see the block above).
+// enable the moment the constant is settled. It FAILS today, in the single-impact regime, at
+// EVERY sampled point, by more than it did under either earlier resolution — see the block above.
 //
 // It is skipped rather than left unwritten because the breach was invisible precisely because
 // nobody had written the other half down. It is skipped rather than `todo` because a failing
@@ -242,8 +270,9 @@ test('CHARACTERISATION: peak exit speed is monotonic in E_FLIPPER across 0.70-0.
 // TO ENABLE: delete the `{ skip: … }` option. Do that as part of whatever change settles
 // E_FLIPPER / upMs — not before, and not by widening DOC_EXIT_MAX to make it pass.
 test('a flipped ball leaves within the design doc\'s 4.5-6.0 m/s range (BOTH bounds)',
-  { skip: 'FAILS TODAY (post-substep-fix): 6.3874 m/s at 1.0x and 9.1791 m/s at 0.8x exceed the ' +
-          'doc ceiling of 6.0. E_FLIPPER/upMs are an open decision pending browser play — enable ' +
+  { skip: 'FAILS TODAY (single-impact regime, N=24): 14.1814 m/s at 1.0x and 11.4325 m/s at 0.8x ' +
+          'exceed the doc ceiling of 6.0 — well over the ceiling than under the earlier, rejected ' +
+          'N=4 resolution. E_FLIPPER/upMs are an open decision pending browser play — enable ' +
           'this when they are settled.' },
   () => {
     const flipper = makeLowerLeftFlipper();

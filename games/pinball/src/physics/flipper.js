@@ -9,19 +9,38 @@ import { perp, sub } from './vec2.js';
 const DEG = Math.PI / 180;
 
 // True-to-physics fix (ledger/handoffs/opus2/20260904T180000Z-true-to-physics-standard.md §5,
-// Experiment A'-3): at the world's normal STEP_DT=1/240s, the lower flipper's 82-degree, 14ms
-// stroke moves its tip ~31.9mm per substep — 1.18 ball diameters — so a resting ball cannot get
-// out of the way between substeps and is swept through and re-struck repeatedly (13 contacts
-// measured at the tip; peak exit speed non-monotonic in E_FLIPPER as a result — a re-strike-
-// count artifact, not restitution behaving strangely). The fix is resolution, not retuning:
-// while a flipper is actually moving (angle != its current target), both world.js's real
-// simulation loop and any test that hand-rolls a flip must integrate at STEP_DT/FLIPPER_SUBSTEPS
-// instead of STEP_DT, so the flipper and ball-vs-flipper collision are resolved finely enough
-// that the ball can separate between contacts. STEP_DT itself, upMs, every angle and every
-// restitution are unchanged — this constant only ever subdivides the same STEP_DT-sized span,
-// never lengthens or shortens it. Exported so world.js and every test measuring flip behaviour
-// share one source instead of duplicating the multiplier.
-export const FLIPPER_SUBSTEPS = 4; // STEP_DT/4 = 1/960s -> ~7.98mm tip travel/substep, < 13.5mm (one ball radius)
+// Experiment A'-3; corrected to its final value by
+// ledger/handoffs/opus2/20260904T215500Z-experiment-a-run.md after Experiment A was actually
+// run): at the world's normal STEP_DT=1/240s, the lower flipper's 82-degree, 14ms stroke moves
+// its tip ~31.9mm per substep — 1.18 ball diameters — so a resting ball cannot get out of the
+// way between substeps and is swept through and re-struck repeatedly (13 contacts measured at
+// the tip; peak exit speed non-monotonic in E_FLIPPER as a result — a re-strike-count artifact,
+// not restitution behaving strangely). The fix is resolution, not retuning: while a flipper is
+// actually moving (angle != its current target), both world.js's real simulation loop and any
+// test that hand-rolls a flip must integrate at STEP_DT/FLIPPER_SUBSTEPS instead of STEP_DT, so
+// the flipper and ball-vs-flipper collision are resolved finely enough that the ball can
+// separate between contacts. STEP_DT itself, upMs, every angle and every restitution are
+// unchanged — this constant only ever subdivides the same STEP_DT-sized span, never lengthens
+// or shortens it. Exported so world.js and every test measuring flip behaviour share one source
+// instead of duplicating the multiplier.
+//
+// FIRST SHIPPED AT 4 (960Hz), THEN CORRECTED TO 24 (5760Hz). N=4 was chosen because peak exit
+// speed became "monotonic" there — but Experiment A (run properly, see the handoff above)
+// showed that monotonicity ran in the WRONG DIRECTION: at N=4, peak speed FALLS as E_FLIPPER
+// rises, and has no relation to contact radius along the bat — both physically backwards (a
+// bouncier bat must throw a faster ball; a strike further from the pivot, at higher surface
+// speed, must throw a faster ball too). N=4 was still resolving multiple contacts per stroke
+// (k=3-6 depending on e), just few enough and evenly enough spaced to look monotonic by
+// coincidence — every resolution below a true single-impact regime is a different, deterministic
+// multi-contact composite (exit speed step k gives slope e^k, not e), and N=4's composite
+// happened to be monotonic in the wrong direction. The two criteria that are physically
+// obligatory — peak RISES with e, peak RISES with contact radius — first hold at N=24, where
+// tip travel per substep (1.33mm) is small enough that every stroke resolves as one genuine
+// impact (k=1) at every e and every contact point tested. Measured cost of N=24 vs N=4 (full
+// real table, 3 balls, one full stroke): median 0.347ms vs 0.057ms — under 2.1% of a single
+// 60fps (16.67ms) frame budget even at the higher count, and that cost is spread across the
+// stroke's ~4 STEP_DT ticks, not paid in one frame. Affordable; shipped.
+export const FLIPPER_SUBSTEPS = 24; // STEP_DT/24 = 1/5760s -> ~1.33mm tip travel/substep; the single-impact regime (k=1 at every e, every contact point)
 
 /** True while `flipper` is mid-stroke (its angle hasn't yet reached whichever of rest/active is
  * its current target) — the condition both world.js and any hand-rolled test loop use to decide
