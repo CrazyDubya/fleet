@@ -63,9 +63,35 @@ export const RANKING_MAX_BOUNDARY_AMBIGUITY = 2;
  * no boundary to check, so the guard falls back to the population-wide distinct-value/tie-block
  * test, which is the right question for "is displaying this as an order misleading" rather than
  * "is this cut arbitrary." */
-export function rankingValidityResult(values, { topN = null, minDistinct = RANKING_MIN_DISTINCT, maxTieBlockFraction = RANKING_MAX_TIE_BLOCK_FRACTION, maxBoundaryAmbiguity = RANKING_MAX_BOUNDARY_AMBIGUITY } = {}) {
+// LAB-21: a rate needs enough raw events behind it before it can order anything. The floor and
+// ceiling above catch a metric with no SPREAD; neither can catch one with spread but no SUPPORT —
+// 3,888 rows, plenty of distinct values, every one of them estimated from a single event. E1's
+// September `cradleProxy` was exactly that: its whole nonzero population was 16 rows at k=1 and
+// one at k=2. `0.010101` on its own cannot be told from 10/990, so the denominator has to come
+// from the caller.
+//
+// 5 is the conventional Poisson floor: relative standard error 1/sqrt(k), so k=5 is ~45% and k=1
+// is 100% — at k=1 the "rate" carries no information about which row is larger.
+export const RANKING_MIN_EVENT_SUPPORT = 5;
+
+/**
+ * `support` is an OPTIONAL per-row denominator array, same length and order as `values`, holding
+ * whatever each rate was divided by (trials for cradleProxy/cp, reachedCount for E3's
+ * inBandFraction). Chosen over the two alternatives considered:
+ *   - a scalar `trials`: cannot express heterogeneous denominators, and cradleProxy's real
+ *     population mixes 99 and 108, so a scalar would have mis-stated k on most rows;
+ *   - numerator/denominator arrays replacing `values`: forces every call site to restructure,
+ *     including the ones that have no k at all.
+ * A parallel array is additive — sites that cannot supply one simply omit it and get exactly
+ * today's behaviour, with `minSelectedSupport: null` recording that no support verdict was made.
+ * That distinction matters: "not checked" must never read as "passed".
+ */
+export function rankingValidityResult(values, { topN = null, support = null, minDistinct = RANKING_MIN_DISTINCT, maxTieBlockFraction = RANKING_MAX_TIE_BLOCK_FRACTION, maxBoundaryAmbiguity = RANKING_MAX_BOUNDARY_AMBIGUITY, minEventSupport = RANKING_MIN_EVENT_SUPPORT } = {}) {
   const n = values.length;
-  if (n === 0) return { ok: true, n: 0, distinctCount: 0, maxTieFraction: 0, boundaryAmbiguity: null, reason: null };
+  if (support != null && support.length !== n) {
+    throw new Error(`rankingValidityResult: support has ${support.length} entries for ${n} values — a wiring error, not a metric problem`);
+  }
+  if (n === 0) return { ok: true, n: 0, distinctCount: 0, maxTieFraction: 0, boundaryAmbiguity: null, minSelectedSupport: null, reason: null };
   const counts = new Map();
   for (const v of values) counts.set(v, (counts.get(v) ?? 0) + 1);
   const distinctCount = counts.size;
@@ -98,13 +124,29 @@ export function rankingValidityResult(values, { topN = null, minDistinct = RANKI
         `top-${topN} cut lands inside a ${tieBlockSize}-way tie for ${slotsRemaining} remaining slot(s) ` +
         `(${boundaryAmbiguity.toFixed(2)}x, ceiling ${maxBoundaryAmbiguity}x) — most of the selection would be insertion order, not a ranking`);
     }
+
+    // LAB-21: raw-event support, checked only over the rows a top-N would actually SELECT — the
+    // population's weakly-supported tail is not the caller's problem if it never gets picked.
+    let minSelectedSupport = null;
+    if (support != null) {
+      const selected = values
+        .map((v, i) => ({ v, k: Math.round(v * support[i]) }))
+        .sort((a, b) => b.v - a.v)
+        .slice(0, topN);
+      minSelectedSupport = Math.min(...selected.map((r) => r.k));
+      if (minSelectedSupport < minEventSupport) {
+        reasons.push(
+          `the top-${topN} selection rests on as few as ${minSelectedSupport} raw event(s) per row ` +
+          `(floor ${minEventSupport}) — at that count the rate carries no information about which row ranks higher`);
+      }
+    }
     return {
-      ok: reasons.length === 0, n, distinctCount, maxTieFraction, boundaryAmbiguity,
+      ok: reasons.length === 0, n, distinctCount, maxTieFraction, boundaryAmbiguity, minSelectedSupport,
       reason: reasons.length ? reasons.join('; ') : null,
     };
   }
 
-  return { ok: reasons.length === 0, n, distinctCount, maxTieFraction, boundaryAmbiguity: null, reason: reasons.length ? reasons.join('; ') : null };
+  return { ok: reasons.length === 0, n, distinctCount, maxTieFraction, boundaryAmbiguity: null, minSelectedSupport: null, reason: reasons.length ? reasons.join('; ') : null };
 }
 
 export const STALLED_BIT = 8;

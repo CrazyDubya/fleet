@@ -81,6 +81,72 @@ test('rankingValidityResult: a well-resolved metric still passes with topN (no f
   assert.equal(r.reason, null);
 });
 
+// --- LAB-21: raw-event support ----------------------------------------------------------
+// The restored floor/ceiling catch a metric with no spread. They cannot catch a metric that has
+// spread but no SUPPORT: 3,888 rows with plenty of distinct values, every one of them a rate
+// estimated from one or two raw events. `0.010101` alone is unreadable — it could be 1/99 or
+// 10/990 — so the check needs the denominator, supplied as an optional per-row `support` array.
+//
+// The September cradleProxy is exactly this case once the tie mass is set aside: its entire
+// nonzero population is 16 rows at k=1 and one at k=2, over ~99-108 trials each. Reuses the
+// LAB-20 fixture above; this is the per-row denominator that goes with it, in the same order.
+function septemberSupport() {
+  return [...Array(3871).fill(108), ...Array(12).fill(99), ...Array(4).fill(108), 108];
+}
+
+test('LAB-21: a top-N whose selected rows rest on 1-2 raw events fails on support', () => {
+  const values = septemberCradleProxy();
+  const support = septemberSupport();
+  const r = rankingValidityResult(values, { topN: 12, support });
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /raw event/i);
+  assert.equal(r.minSelectedSupport, 1, 'the weakest selected row rests on a single event');
+});
+
+test('LAB-21: the same array WITHOUT support degrades to today\'s behaviour, never silently passes', () => {
+  const values = septemberCradleProxy();
+  const withSupport = rankingValidityResult(values, { topN: 12, support: septemberSupport() });
+  const without = rankingValidityResult(values, { topN: 12 });
+  // both must fail here (the tie ceiling alone already condemns this array), but the point is
+  // that omitting `support` must not INVENT a pass, and must not claim a support verdict.
+  assert.equal(without.ok, false);
+  assert.equal(without.minSelectedSupport, null, 'no support supplied -> no support verdict');
+  assert.doesNotMatch(without.reason, /raw event/i);
+  assert.match(withSupport.reason, /raw event/i);
+});
+
+test('LAB-21: a well-supported top-N passes (no false positive on real rates)', () => {
+  // E4 Stage B's shape: rates near 1.0 measured over ~730 trials each.
+  const values = Array.from({ length: 540 }, (_, i) => 1 - i / 2000);
+  const support = Array(540).fill(730);
+  const r = rankingValidityResult(values, { topN: 20, support });
+  assert.equal(r.ok, true);
+  assert.ok(r.minSelectedSupport >= 700, 'selected rows rest on hundreds of events');
+});
+
+// This is the test that justifies the condition existing at all. On today's data the support
+// check changes no verdict anywhere — `cradleProxy`, the case it was designed for, is already
+// failed by the restored tie ceiling (99.6% > 50%). So the condition is only worth its weight if
+// it catches something the other three cannot. It does, and this is that shape: good spread
+// (200 distinct values), low tie mass (well under 50%), an unambiguous cut — and every selected
+// row resting on a single raw event. All of LAB-16/17/20 pass it; only support fails it.
+test('LAB-21: catches spread-without-support, which no other condition sees', () => {
+  // 200 distinct rates, each 1/n for a different n — no ties at the cut, no tie mass.
+  const values = Array.from({ length: 200 }, (_, i) => 1 / (300 + i));
+  const support = Array.from({ length: 200 }, (_, i) => 300 + i);   // every row is k=1
+  const withoutSupport = rankingValidityResult(values, { topN: 12 });
+  assert.equal(withoutSupport.ok, true, 'passes every pre-LAB-21 check: spread, low ties, clean cut');
+  const withSupport = rankingValidityResult(values, { topN: 12, support });
+  assert.equal(withSupport.ok, false, 'but every selected row rests on one event');
+  assert.equal(withSupport.minSelectedSupport, 1);
+  assert.match(withSupport.reason, /raw event/i);
+});
+
+test('LAB-21: support of the wrong length is a wiring error, not a silent skip', () => {
+  assert.throws(() => rankingValidityResult([0.1, 0.2, 0.3], { topN: 2, support: [10, 10] }),
+    /support/i);
+});
+
 test('rankingValidityResult: a ceiling-saturated top-N still fails on boundary ambiguity', () => {
   // E4 Stage B's shape: good resolution across the population, but the selection region is
   // saturated — 101 rows tied at the maximum, 20 slots. Distinct from cradleProxy's floor

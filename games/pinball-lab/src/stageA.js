@@ -652,7 +652,12 @@ async function main() {
   // geometries ever get looked at again. So this one blocks, matching §2.7's own precedent for a
   // gate that invalidates a downstream artifact rather than just a display table.
   const fanWidthGuard = rankingValidityResult(geometries.filter((g) => g.fanWidthXa !== null).map((g) => g.fanWidthXa), { topN: TOP_N });
-  const cradleGuard = rankingValidityResult(geometries.map((g) => g.cradleProxy), { topN: TOP_N });
+  // LAB-21: `cradleProxy` is stallWithContact/trials, so it can hand the guard its denominators
+  // and get the raw-event check. `fanWidthXa` above is a P95-P5 percentile difference — there is
+  // no k behind it, so it supplies no `support` and keeps exactly its pre-LAB-21 behaviour.
+  const cradleGuard = rankingValidityResult(geometries.map((g) => g.cradleProxy), {
+    topN: TOP_N, support: geometries.map((g) => g.trials),
+  });
   if (!fanWidthGuard.ok || !cradleGuard.ok) {
     console.error(JSON.stringify({
       ok: false,
