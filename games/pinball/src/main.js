@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { createScene, toSceneVec } from './render/scene.js';
+import { startTween, tweenPosition } from './render/presentationTween.js';
 import { createWorld, addBall, removeBall, addFlipper, advance } from './physics/world.js';
 import { createFlipper } from './physics/flipper.js';
 import { BALL_RADIUS, PLUNGER_MAX_SPEED, NUDGE_IMPULSE, PITCH_DEG } from './physics/constants.js';
@@ -168,6 +169,12 @@ launchBall(rulesState, elapsedS);
 // lives there and not here.
 const MECHANISM_TAGS = mechanismTags({ slide: slide.ramp.id, monkeyBars: monkeyBars.ramp.id, tunnel: tunnel.ramp.id });
 
+// Looked up by a ramp's own id (the same id its `_exit`/`_rollback` tags are built from, per
+// switches.js's mechanismTags) so the presentation tween below can read that ramp's own real
+// `points`/`exit` — never a duplicated coordinate. `[ramp.id]: ramp` keys off the SAME `.ramp`
+// object main.js already renders from (buildSlideMesh(slide.ramp.points) etc, per fs2's audit).
+const RAMPS_BY_ID = { [slide.ramp.id]: slide.ramp, [monkeyBars.ramp.id]: monkeyBars.ramp, [tunnel.ramp.id]: tunnel.ramp };
+
 function tagOf(event) {
   return event.tag ?? event.primitive?.shape?.tag;
 }
@@ -218,10 +225,37 @@ function processMechanismEvents(events) {
       }
     } else if (tag === SW_SANDBOX_ENTRY) {
       game.armScoop(scoop, elapsedS, event.ball);
+      // Presentation tween, capture: `checkCaptures` (physics/world.js) has already snapped
+      // event.ball.pos to the zone centre by the time this event reaches here — the ball's
+      // last REAL position before that snap is `entry.prevPos`, captured at the top of frame()
+      // before advance() ran this tick. Both endpoints are real physics numbers; nothing here
+      // is invented.
+      const capturedEntry = findBallEntry(event.ball);
+      if (capturedEntry) capturedEntry.presentationTween = startTween(capturedEntry.prevPos ?? event.ball.pos, event.ball.pos, elapsedS);
       fired.push(tag);
       if (eventLog) eventLog.log(tag);
     } else if (tag === SW_MERRY_GO_ROUND) {
       mergeGoRoundQueue.push(event.ball);
+      fired.push(tag);
+      if (eventLog) eventLog.log(tag);
+    } else if (event.rampExit) {
+      // Presentation tween, ramp exit ('top', made the shot) / rollback ('bottom', didn't):
+      // physics/ramp.js's own doc comment records this hand-off as instantaneous by design —
+      // "the habitrail's/wireform's/orbit's actual downhill return... collapses into a single
+      // deterministic hand-off" — so there is no intermediate physics position to draw. `from`
+      // is the ramp's own tracked endpoint (`ramp.points`, the SAME array main.js already
+      // renders the ramp mesh from — see render-art-follows-physics.test.mjs's sibling checks);
+      // `to` is `event.ball.pos`, which physics/world.js's stepRampLayerBall has already set to
+      // exactly the real hand-off target (`ramp.exit.pos` on a made shot, the computed rollback
+      // landing point otherwise) — read back here rather than recomputed, so it can never drift
+      // from what physics actually used.
+      const rampId = tag.slice(0, tag.lastIndexOf('_'));
+      const ramp = RAMPS_BY_ID[rampId];
+      const rampEntry = findBallEntry(event.ball);
+      if (ramp && rampEntry) {
+        const from = event.rampExit === 'top' ? ramp.points[ramp.points.length - 1] : ramp.points[0];
+        rampEntry.presentationTween = startTween(from, event.ball.pos, elapsedS);
+      }
       fired.push(tag);
       if (eventLog) eventLog.log(tag);
     } else {
@@ -708,6 +742,12 @@ function frame(now) {
   last = now;
   elapsedS += dt;
 
+  // Snapshot each ball's real physics position BEFORE this tick's advance() can teleport it
+  // (a ramp exit/rollback, a scoop capture) — the presentation tweens below use this as the
+  // real "from" endpoint, never an invented one. Captured every tick (cheap: a plain object
+  // copy per ball) because a teleport can land in any tick, not just ones a caller expects.
+  for (const entry of balls) entry.prevPos = { x: entry.phys.pos.x, y: entry.phys.pos.y, z: entry.phys.z || 0 };
+
   const events = advance(world, dt);
   const scoreTags = [...pendingNextFrameTags, ...processMechanismEvents(events)];
   pendingNextFrameTags = [];
@@ -730,6 +770,13 @@ function frame(now) {
       };
       scoop.ball.vel = { x: evel.x, y: evel.y };
       scoop.ball.captured = false;
+      // Presentation tween, eject: `from` is the capture zone's own real centre (where the
+      // ball has sat, motionless, for the whole hold — the same `sandbox.captureZone.centre`
+      // physics/world.js's checkCaptures snapped it to on capture); `to` is `scoop.ball.pos`
+      // above, the exact point physics just computed for the eject — read back, not
+      // recomputed, so this can never drift from what physics used.
+      const ejectedEntry = findBallEntry(scoop.ball);
+      if (ejectedEntry) ejectedEntry.presentationTween = startTween(sandbox.captureZone.centre, scoop.ball.pos, elapsedS);
     }
     scoreTags.push(sandbox.eject.tag);
     if (eventLog) eventLog.log(sandbox.eject.tag);
@@ -829,7 +876,18 @@ function frame(now) {
 
   for (const entry of balls) {
     if (entry.mgrMounted) continue; // carried by mgrGroup's own rotation instead
-    const p = toSceneVec(entry.phys.pos.x, entry.phys.pos.y, entry.phys.radius + (entry.phys.z || 0));
+    // Mid-tween (a ramp exit/rollback or scoop capture/eject fired recently): draw the
+    // presentation-only interpolated point instead of snapping straight to entry.phys.pos —
+    // physics is already fully at its new position; only the mesh is still catching up.
+    let x, y, z;
+    if (entry.presentationTween) {
+      const tp = tweenPosition(entry.presentationTween, elapsedS);
+      x = tp.x; y = tp.y; z = tp.z;
+      if (tp.done) entry.presentationTween = null;
+    } else {
+      x = entry.phys.pos.x; y = entry.phys.pos.y; z = entry.phys.z || 0;
+    }
+    const p = toSceneVec(x, y, entry.phys.radius + z);
     entry.mesh.position.set(p.x, p.y, p.z);
   }
   for (const flipper of Object.values(flippers)) updateFlipperMesh(flipper);
