@@ -461,7 +461,13 @@ async function runE3Stage(args) {
   const rankingGuardFallback = {};
   for (const family of Object.keys(familyMetrics)) {
     const rows = perCfgRanked.filter((r) => r.family === family);
-    rankingGuard[family] = rankingValidityResult(rows.map((r) => r.inBandFraction), { topN: 10 });
+    // LAB-21: inBandFraction is inBandSpeed/reachedCount, so it can supply its denominators.
+    // Measured before wiring (full E3 stage, 1M trials, in a scratch tree): no family's verdict
+    // changes — rankingGuardFailures stays empty. `bandCenterCloseness` below is a continuous
+    // proximity proxy with no k, so it supplies none and keeps its pre-LAB-21 behaviour.
+    rankingGuard[family] = rankingValidityResult(rows.map((r) => r.inBandFraction), {
+      topN: 10, support: rows.map((r) => r.reachedCount),
+    });
     if (!rankingGuard[family].ok) {
       const withCloseness = rows.filter((r) => r.bandCenterCloseness !== null);
       rankingGuardFallback[family] = rankingValidityResult(withCloseness.map((r) => r.bandCenterCloseness), { topN: 10 });
