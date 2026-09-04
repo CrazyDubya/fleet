@@ -1,32 +1,32 @@
 {
   "exp": "e3",
-  "out": "/Users/pup/fleet/games/pinball-lab/data/e3/lab5-20260903T050221Z",
-  "instrumentCommitSha": "575fb105b37fe5f95ac7093f1aea60378ada245a",
-  "generatedAt": "2026-09-03T05:06:01.916Z",
-  "cfgCount": 1388,
+  "out": "data/e3/lab19-20260904T000752Z",
+  "instrumentCommitSha": "bd32113e8dbe3a71eadc483b497314ee053c1c5c",
+  "generatedAt": "2026-09-04T00:10:36.032Z",
+  "cfgCount": 1303,
   "trialCount": 1000000,
-  "flaggedFraction": 0.100398,
+  "flaggedFraction": 0.172193,
   "perFamilyTrials": 200000,
   "familyMetrics": {
     "P1": {
       "trials": 200000,
-      "flaggedFraction": 0.061625,
-      "impactsExhaustedFraction": 0.00512,
+      "flaggedFraction": 0.4206,
+      "impactsExhaustedFraction": 0.00859,
       "flaggedFractionExclArtifacts": 0,
-      "returnRate": 0.94279,
-      "inBandFraction": 0.8828954486152801,
+      "returnRate": 0.58466,
+      "inBandFraction": 0.8936732459891219,
       "feedFractions": {
-        "centre": 0.132905,
-        "rightInlane": 0.09802,
-        "leftInlane": 0.079165,
-        "directDrain": 0.445855,
-        "leftOutlane": 0.019685,
-        "rightOutlane": 0.16716
+        "directDrain": 0.03592,
+        "leftOutlane": 0.101135,
+        "leftInlane": 0.18093,
+        "centre": 0.15493,
+        "rightInlane": 0.109355,
+        "rightOutlane": 0.00239
       },
-      "stallRate": 0.05721,
-      "returnXVariety": 0.7093148403795541,
-      "timeToReturnMedianS": 2.012499999999995,
-      "cfgs": 288
+      "stallRate": 0.41534,
+      "returnXVariety": 0.4637744092495392,
+      "timeToReturnMedianS": 1.7874999999999952,
+      "cfgs": 203
     },
     "P2": {
       "trials": 200000,
@@ -44,8 +44,8 @@
         "rightInlane": 0.11959
       },
       "stallRate": 0.253235,
-      "returnXVariety": 0.9121230346190071,
-      "timeToReturnMedianS": 0.9749999999999978,
+      "returnXVariety": 0.9099675701542551,
+      "timeToReturnMedianS": 1.0374999999999976,
       "cfgs": 300
     },
     "P3": {
@@ -63,8 +63,8 @@
         "rightOutlane": 0.074135
       },
       "stallRate": 0.011035,
-      "returnXVariety": 0.897055282633733,
-      "timeToReturnMedianS": 0.7374999999999986,
+      "returnXVariety": 0.8748701478383204,
+      "timeToReturnMedianS": 0.7541666666666652,
       "cfgs": 100
     },
     "P4": {
@@ -82,8 +82,8 @@
         "rightOutlane": 0.15179
       },
       "stallRate": 0.000005,
-      "returnXVariety": 0.9093063489635831,
-      "timeToReturnMedianS": 0.912499999999998,
+      "returnXVariety": 0.9094115672597498,
+      "timeToReturnMedianS": 0.9854166666666644,
       "cfgs": 100
     },
     "P5": {
@@ -101,2831 +101,2908 @@
         "rightOutlane": 0.10525
       },
       "stallRate": 0,
-      "returnXVariety": 0.9033453587542646,
-      "timeToReturnMedianS": 0.20416666666666689,
+      "returnXVariety": 0.8876691745087563,
+      "timeToReturnMedianS": 0.05833333333333333,
       "cfgs": 600
     }
   },
-  "secs": 0,
+  "secs": 163.398255167,
+  "rankingGuardFailures": [],
+  "rankingGuardFallback": {
+    "P1": {
+      "ok": true,
+      "n": 131,
+      "distinctCount": 131,
+      "maxTieFraction": 0.007633587786259542,
+      "boundaryAmbiguity": 1,
+      "reason": null
+    },
+    "P5": {
+      "ok": true,
+      "n": 600,
+      "distinctCount": 600,
+      "maxTieFraction": 0.0016666666666666668,
+      "boundaryAmbiguity": 1,
+      "reason": null
+    }
+  },
   "shards": [
     {
-      "note": "LAB-15 patch run: P2/P4/P5 and 1288 unchanged P1/P3 cfgs' trials are unchanged from lab4-20260902T031944Z's shards, minus the 100 fouled cfgIds listed in removed-cfg-ids.json."
+      "path": "shard-0.jsonl.gz"
     },
     {
-      "path": "new-records-p1.jsonl.gz (72 replaced P1 cfgs, 50040 trials)"
+      "path": "shard-1.jsonl.gz"
     },
     {
-      "path": "new-records-p3.jsonl.gz (28 replaced P3 cfgs, 56000 trials)"
+      "path": "shard-2.jsonl.gz"
+    },
+    {
+      "path": "shard-3.jsonl.gz"
+    },
+    {
+      "path": "shard-4.jsonl.gz"
+    },
+    {
+      "path": "shard-5.jsonl.gz"
+    },
+    {
+      "path": "shard-6.jsonl.gz"
+    },
+    {
+      "path": "shard-7.jsonl.gz"
+    },
+    {
+      "path": "shard-8.jsonl.gz"
+    },
+    {
+      "path": "shard-9.jsonl.gz"
+    },
+    {
+      "path": "shard-10.jsonl.gz"
     }
   ],
   "cfgs": [
     {
-      "cfgId": "10e0f65f",
+      "cfgId": "44cfd712",
       "cfg": {
-        "cfgId": "10e0f65f",
+        "cfgId": "44cfd712",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 1
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "588882e8",
-      "cfg": {
-        "cfgId": "588882e8",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 1.8
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "54e4f028",
-      "cfg": {
-        "cfgId": "54e4f028",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 2.6
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "b1d09a8b",
-      "cfg": {
-        "cfgId": "b1d09a8b",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 3.4
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "604228dc",
-      "cfg": {
-        "cfgId": "604228dc",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 4.2
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "5d6e50e8",
-      "cfg": {
-        "cfgId": "5d6e50e8",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 5
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "f4da6191",
-      "cfg": {
-        "cfgId": "f4da6191",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 1
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "c2456572",
-      "cfg": {
-        "cfgId": "c2456572",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 1.8
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "a131dedd",
-      "cfg": {
-        "cfgId": "a131dedd",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 2.6
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "3b15a6a7",
-      "cfg": {
-        "cfgId": "3b15a6a7",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 3.4
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "4ea48878",
-      "cfg": {
-        "cfgId": "4ea48878",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 4.2
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "4e78815d",
-      "cfg": {
-        "cfgId": "4e78815d",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 5
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "5733fdca",
-      "cfg": {
-        "cfgId": "5733fdca",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 1
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "082c870c",
-      "cfg": {
-        "cfgId": "082c870c",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 1.8
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "d8e73f52",
-      "cfg": {
-        "cfgId": "d8e73f52",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 2.6
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "cf524b67",
-      "cfg": {
-        "cfgId": "cf524b67",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 3.4
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "2b9ceb7d",
-      "cfg": {
-        "cfgId": "2b9ceb7d",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 4.2
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "7aff8c0d",
-      "cfg": {
-        "cfgId": "7aff8c0d",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 5
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "8c7b8d0d",
-      "cfg": {
-        "cfgId": "8c7b8d0d",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
+        "arm": "main",
         "deflectorAngleDeg": 28,
+        "plungerSpeed": 1,
         "gateThresholdFrac": 0.35,
-        "plungerSpeed": 1
+        "laneWidth": 0.0291
       },
-      "trials": 695
+      "trials": 986
     },
     {
-      "cfgId": "dad33713",
+      "cfgId": "68bbfc1c",
       "cfg": {
-        "cfgId": "dad33713",
+        "cfgId": "68bbfc1c",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.034,
+        "arm": "main",
         "deflectorAngleDeg": 28,
+        "plungerSpeed": 1,
         "gateThresholdFrac": 0.35,
-        "plungerSpeed": 1.8
+        "laneWidth": 0.034
       },
-      "trials": 695
+      "trials": 986
     },
     {
-      "cfgId": "bf811de8",
+      "cfgId": "43c72e32",
       "cfg": {
-        "cfgId": "bf811de8",
+        "cfgId": "43c72e32",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.034,
+        "arm": "main",
         "deflectorAngleDeg": 28,
+        "plungerSpeed": 1,
         "gateThresholdFrac": 0.35,
-        "plungerSpeed": 2.6
+        "laneWidth": 0.04
       },
-      "trials": 695
+      "trials": 986
     },
     {
-      "cfgId": "8b930dc7",
+      "cfgId": "bd9e300b",
       "cfg": {
-        "cfgId": "8b930dc7",
+        "cfgId": "bd9e300b",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.034,
+        "arm": "main",
         "deflectorAngleDeg": 28,
+        "plungerSpeed": 1,
         "gateThresholdFrac": 0.35,
-        "plungerSpeed": 3.4
+        "laneWidth": 0.045
       },
-      "trials": 695
+      "trials": 986
     },
     {
-      "cfgId": "373548a9",
+      "cfgId": "9b3b9a04",
       "cfg": {
-        "cfgId": "373548a9",
+        "cfgId": "9b3b9a04",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.034,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 4.2
+        "plungerSpeed": 1,
+        "gateThresholdFrac": 0.3917,
+        "laneWidth": 0.0291
       },
-      "trials": 695
+      "trials": 986
     },
     {
-      "cfgId": "1fc39e7a",
+      "cfgId": "0f274aa5",
       "cfg": {
-        "cfgId": "1fc39e7a",
+        "cfgId": "0f274aa5",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.034,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 5
+        "plungerSpeed": 1,
+        "gateThresholdFrac": 0.3917,
+        "laneWidth": 0.034
       },
-      "trials": 695
+      "trials": 986
     },
     {
-      "cfgId": "f8340dec",
+      "cfgId": "8a0d1484",
       "cfg": {
-        "cfgId": "f8340dec",
+        "cfgId": "8a0d1484",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.034,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 1
+        "plungerSpeed": 1,
+        "gateThresholdFrac": 0.3917,
+        "laneWidth": 0.04
       },
-      "trials": 695
+      "trials": 986
     },
     {
-      "cfgId": "86b571c4",
+      "cfgId": "5c3592dd",
       "cfg": {
-        "cfgId": "86b571c4",
+        "cfgId": "5c3592dd",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.034,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 1.8
+        "plungerSpeed": 1,
+        "gateThresholdFrac": 0.3917,
+        "laneWidth": 0.045
       },
-      "trials": 695
+      "trials": 986
     },
     {
-      "cfgId": "f9c6feb6",
+      "cfgId": "24fe38c2",
       "cfg": {
-        "cfgId": "f9c6feb6",
+        "cfgId": "24fe38c2",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.034,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 2.6
+        "plungerSpeed": 1,
+        "gateThresholdFrac": 0.4333,
+        "laneWidth": 0.0291
       },
-      "trials": 695
+      "trials": 986
     },
     {
-      "cfgId": "faabd0b7",
+      "cfgId": "5759d558",
       "cfg": {
-        "cfgId": "faabd0b7",
+        "cfgId": "5759d558",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.034,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 3.4
+        "plungerSpeed": 1,
+        "gateThresholdFrac": 0.4333,
+        "laneWidth": 0.034
       },
-      "trials": 695
+      "trials": 986
     },
     {
-      "cfgId": "190aa3fa",
+      "cfgId": "e00c151f",
       "cfg": {
-        "cfgId": "190aa3fa",
+        "cfgId": "e00c151f",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.034,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 4.2
+        "plungerSpeed": 1,
+        "gateThresholdFrac": 0.4333,
+        "laneWidth": 0.04
       },
-      "trials": 695
+      "trials": 986
     },
     {
-      "cfgId": "54504416",
+      "cfgId": "d49e1f63",
       "cfg": {
-        "cfgId": "54504416",
+        "cfgId": "d49e1f63",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.034,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 5
+        "plungerSpeed": 1,
+        "gateThresholdFrac": 0.4333,
+        "laneWidth": 0.045
       },
-      "trials": 695
+      "trials": 986
     },
     {
-      "cfgId": "86908a87",
+      "cfgId": "5812cb67",
       "cfg": {
-        "cfgId": "86908a87",
+        "cfgId": "5812cb67",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.034,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 1
+        "plungerSpeed": 1,
+        "gateThresholdFrac": 0.475,
+        "laneWidth": 0.0291
       },
-      "trials": 695
+      "trials": 986
     },
     {
-      "cfgId": "46c1bf49",
+      "cfgId": "ee678bcb",
       "cfg": {
-        "cfgId": "46c1bf49",
+        "cfgId": "ee678bcb",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.034,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 1.8
+        "plungerSpeed": 1,
+        "gateThresholdFrac": 0.475,
+        "laneWidth": 0.034
       },
-      "trials": 695
+      "trials": 986
     },
     {
-      "cfgId": "ef54fed2",
+      "cfgId": "d297971b",
       "cfg": {
-        "cfgId": "ef54fed2",
+        "cfgId": "d297971b",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.034,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 2.6
+        "plungerSpeed": 1,
+        "gateThresholdFrac": 0.475,
+        "laneWidth": 0.04
       },
-      "trials": 695
+      "trials": 986
     },
     {
-      "cfgId": "2bd58269",
+      "cfgId": "c7af01dc",
       "cfg": {
-        "cfgId": "2bd58269",
+        "cfgId": "c7af01dc",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.034,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 3.4
+        "plungerSpeed": 1,
+        "gateThresholdFrac": 0.475,
+        "laneWidth": 0.045
       },
-      "trials": 695
+      "trials": 986
     },
     {
-      "cfgId": "aa5c674d",
+      "cfgId": "32035986",
       "cfg": {
-        "cfgId": "aa5c674d",
+        "cfgId": "32035986",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.034,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 4.2
+        "plungerSpeed": 1,
+        "gateThresholdFrac": 0.5167,
+        "laneWidth": 0.0291
       },
-      "trials": 695
+      "trials": 986
     },
     {
-      "cfgId": "d6caaab7",
+      "cfgId": "f4532c2e",
       "cfg": {
-        "cfgId": "d6caaab7",
+        "cfgId": "f4532c2e",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.034,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 5
+        "plungerSpeed": 1,
+        "gateThresholdFrac": 0.5167,
+        "laneWidth": 0.034
       },
-      "trials": 695
+      "trials": 986
     },
     {
-      "cfgId": "b5b32b5a",
+      "cfgId": "b912ccec",
       "cfg": {
-        "cfgId": "b5b32b5a",
+        "cfgId": "b912ccec",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 1
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "a5b22160",
-      "cfg": {
-        "cfgId": "a5b22160",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 1.8
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "4f11950f",
-      "cfg": {
-        "cfgId": "4f11950f",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 2.6
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "8f46f79b",
-      "cfg": {
-        "cfgId": "8f46f79b",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 3.4
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "513133f2",
-      "cfg": {
-        "cfgId": "513133f2",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 4.2
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "4736656a",
-      "cfg": {
-        "cfgId": "4736656a",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 5
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "d221de67",
-      "cfg": {
-        "cfgId": "d221de67",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 1
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "8b56befc",
-      "cfg": {
-        "cfgId": "8b56befc",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 1.8
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "a4ef8c3b",
-      "cfg": {
-        "cfgId": "a4ef8c3b",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 2.6
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "a303097f",
-      "cfg": {
-        "cfgId": "a303097f",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 3.4
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "3968eb4f",
-      "cfg": {
-        "cfgId": "3968eb4f",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 4.2
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "f2f576a4",
-      "cfg": {
-        "cfgId": "f2f576a4",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 5
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "74baa8f4",
-      "cfg": {
-        "cfgId": "74baa8f4",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 1
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "83d39cf5",
-      "cfg": {
-        "cfgId": "83d39cf5",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 1.8
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "fb314ed3",
-      "cfg": {
-        "cfgId": "fb314ed3",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 2.6
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "0d9f83e4",
-      "cfg": {
-        "cfgId": "0d9f83e4",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 3.4
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "88016a61",
-      "cfg": {
-        "cfgId": "88016a61",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 4.2
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "0a456cc9",
-      "cfg": {
-        "cfgId": "0a456cc9",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 5
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "9b05fbaf",
-      "cfg": {
-        "cfgId": "9b05fbaf",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 1
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "581e201e",
-      "cfg": {
-        "cfgId": "581e201e",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 1.8
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "383f49e8",
-      "cfg": {
-        "cfgId": "383f49e8",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 2.6
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "a9f4a0e0",
-      "cfg": {
-        "cfgId": "a9f4a0e0",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 3.4
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "e1640e54",
-      "cfg": {
-        "cfgId": "e1640e54",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 4.2
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "f5f7499f",
-      "cfg": {
-        "cfgId": "f5f7499f",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 5
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "7cff5ed4",
-      "cfg": {
-        "cfgId": "7cff5ed4",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 1
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "f38a36bd",
-      "cfg": {
-        "cfgId": "f38a36bd",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 1.8
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "c60dd3c9",
-      "cfg": {
-        "cfgId": "c60dd3c9",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 2.6
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "0e241be5",
-      "cfg": {
-        "cfgId": "0e241be5",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 3.4
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "ba6407f3",
-      "cfg": {
-        "cfgId": "ba6407f3",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 4.2
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "c10483dc",
-      "cfg": {
-        "cfgId": "c10483dc",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 5
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "579371bf",
-      "cfg": {
-        "cfgId": "579371bf",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 1
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "13f30117",
-      "cfg": {
-        "cfgId": "13f30117",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 1.8
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "f779fd31",
-      "cfg": {
-        "cfgId": "f779fd31",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 2.6
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "1b9f442d",
-      "cfg": {
-        "cfgId": "1b9f442d",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 3.4
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "31ce74f7",
-      "cfg": {
-        "cfgId": "31ce74f7",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 4.2
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "b01aff44",
-      "cfg": {
-        "cfgId": "b01aff44",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.034,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 5
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "b0e2e844",
-      "cfg": {
-        "cfgId": "b0e2e844",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 1
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "ba8428ba",
-      "cfg": {
-        "cfgId": "ba8428ba",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 1.8
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "1d7084e1",
-      "cfg": {
-        "cfgId": "1d7084e1",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 2.6
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "7b8a7cd9",
-      "cfg": {
-        "cfgId": "7b8a7cd9",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 3.4
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "dd7d8376",
-      "cfg": {
-        "cfgId": "dd7d8376",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 4.2
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "2a5308e7",
-      "cfg": {
-        "cfgId": "2a5308e7",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 5
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "3c3e3d0b",
-      "cfg": {
-        "cfgId": "3c3e3d0b",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 1
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "7e5b2195",
-      "cfg": {
-        "cfgId": "7e5b2195",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 1.8
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "8be2f1dc",
-      "cfg": {
-        "cfgId": "8be2f1dc",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 2.6
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "fb95849f",
-      "cfg": {
-        "cfgId": "fb95849f",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 3.4
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "27eacfe1",
-      "cfg": {
-        "cfgId": "27eacfe1",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 4.2
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "7b508383",
-      "cfg": {
-        "cfgId": "7b508383",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 5
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "4bee79b9",
-      "cfg": {
-        "cfgId": "4bee79b9",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 1
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "b05d71c2",
-      "cfg": {
-        "cfgId": "b05d71c2",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 1.8
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "37899d37",
-      "cfg": {
-        "cfgId": "37899d37",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 2.6
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "53267739",
-      "cfg": {
-        "cfgId": "53267739",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 3.4
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "a82d45cf",
-      "cfg": {
-        "cfgId": "a82d45cf",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 4.2
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "00c05154",
-      "cfg": {
-        "cfgId": "00c05154",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 5
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "0601a26d",
-      "cfg": {
-        "cfgId": "0601a26d",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 1
+        "plungerSpeed": 1,
+        "gateThresholdFrac": 0.5167,
+        "laneWidth": 0.04
       },
-      "trials": 694
+      "trials": 986
     },
     {
-      "cfgId": "d654cf07",
+      "cfgId": "93061fbe",
       "cfg": {
-        "cfgId": "d654cf07",
+        "cfgId": "93061fbe",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.04,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 1.8
+        "plungerSpeed": 1,
+        "gateThresholdFrac": 0.5167,
+        "laneWidth": 0.045
       },
-      "trials": 694
+      "trials": 986
     },
     {
-      "cfgId": "9efb61c7",
+      "cfgId": "fdd4c62b",
       "cfg": {
-        "cfgId": "9efb61c7",
+        "cfgId": "fdd4c62b",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.04,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 2.6
+        "plungerSpeed": 1,
+        "gateThresholdFrac": 0.5583,
+        "laneWidth": 0.0291
       },
-      "trials": 694
+      "trials": 986
     },
     {
-      "cfgId": "2ab2ffa4",
+      "cfgId": "fbbbcd2a",
       "cfg": {
-        "cfgId": "2ab2ffa4",
+        "cfgId": "fbbbcd2a",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.04,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 3.4
+        "plungerSpeed": 1,
+        "gateThresholdFrac": 0.5583,
+        "laneWidth": 0.034
       },
-      "trials": 694
+      "trials": 986
     },
     {
-      "cfgId": "3c93d309",
+      "cfgId": "b84aad3a",
       "cfg": {
-        "cfgId": "3c93d309",
+        "cfgId": "b84aad3a",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.04,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 4.2
+        "plungerSpeed": 1,
+        "gateThresholdFrac": 0.5583,
+        "laneWidth": 0.04
       },
-      "trials": 694
+      "trials": 986
     },
     {
-      "cfgId": "cb759d1d",
+      "cfgId": "648762a9",
       "cfg": {
-        "cfgId": "cb759d1d",
+        "cfgId": "648762a9",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.04,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 5
+        "plungerSpeed": 1,
+        "gateThresholdFrac": 0.5583,
+        "laneWidth": 0.045
       },
-      "trials": 694
+      "trials": 986
     },
     {
-      "cfgId": "ccabe7c1",
+      "cfgId": "c9a4904c",
       "cfg": {
-        "cfgId": "ccabe7c1",
+        "cfgId": "c9a4904c",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.04,
+        "arm": "main",
         "deflectorAngleDeg": 28,
+        "plungerSpeed": 1,
         "gateThresholdFrac": 0.6,
-        "plungerSpeed": 1
+        "laneWidth": 0.0291
       },
-      "trials": 694
+      "trials": 986
     },
     {
-      "cfgId": "44874312",
+      "cfgId": "fe35f70b",
       "cfg": {
-        "cfgId": "44874312",
+        "cfgId": "fe35f70b",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.04,
+        "arm": "main",
         "deflectorAngleDeg": 28,
+        "plungerSpeed": 1,
         "gateThresholdFrac": 0.6,
-        "plungerSpeed": 1.8
+        "laneWidth": 0.034
       },
-      "trials": 694
+      "trials": 986
     },
     {
-      "cfgId": "56306764",
+      "cfgId": "14c92dec",
       "cfg": {
-        "cfgId": "56306764",
+        "cfgId": "14c92dec",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.04,
+        "arm": "main",
         "deflectorAngleDeg": 28,
+        "plungerSpeed": 1,
         "gateThresholdFrac": 0.6,
-        "plungerSpeed": 2.6
+        "laneWidth": 0.04
       },
-      "trials": 694
+      "trials": 986
     },
     {
-      "cfgId": "16beb0bc",
+      "cfgId": "18cf9477",
       "cfg": {
-        "cfgId": "16beb0bc",
+        "cfgId": "18cf9477",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.04,
+        "arm": "main",
         "deflectorAngleDeg": 28,
+        "plungerSpeed": 1,
         "gateThresholdFrac": 0.6,
-        "plungerSpeed": 3.4
+        "laneWidth": 0.045
       },
-      "trials": 694
+      "trials": 986
     },
     {
-      "cfgId": "ba77a0e3",
+      "cfgId": "6c5e9b4b",
       "cfg": {
-        "cfgId": "ba77a0e3",
+        "cfgId": "6c5e9b4b",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.04,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 4.2
+        "plungerSpeed": 1.1333,
+        "gateThresholdFrac": 0.35,
+        "laneWidth": 0.0291
       },
-      "trials": 694
+      "trials": 986
     },
     {
-      "cfgId": "6307e334",
+      "cfgId": "b7a85d3c",
       "cfg": {
-        "cfgId": "6307e334",
+        "cfgId": "b7a85d3c",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.04,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 5
+        "plungerSpeed": 1.1333,
+        "gateThresholdFrac": 0.35,
+        "laneWidth": 0.034
       },
-      "trials": 694
+      "trials": 986
     },
     {
-      "cfgId": "80b509bc",
+      "cfgId": "0d28ad87",
       "cfg": {
-        "cfgId": "80b509bc",
+        "cfgId": "0d28ad87",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.04,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 1
+        "plungerSpeed": 1.1333,
+        "gateThresholdFrac": 0.35,
+        "laneWidth": 0.04
       },
-      "trials": 694
+      "trials": 986
     },
     {
-      "cfgId": "80717872",
+      "cfgId": "c8306bc5",
       "cfg": {
-        "cfgId": "80717872",
+        "cfgId": "c8306bc5",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.04,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 1.8
+        "plungerSpeed": 1.1333,
+        "gateThresholdFrac": 0.35,
+        "laneWidth": 0.045
       },
-      "trials": 694
+      "trials": 986
     },
     {
-      "cfgId": "7d976e2c",
+      "cfgId": "7b7eee65",
       "cfg": {
-        "cfgId": "7d976e2c",
+        "cfgId": "7b7eee65",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.04,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 2.6
+        "plungerSpeed": 1.1333,
+        "gateThresholdFrac": 0.3917,
+        "laneWidth": 0.0291
       },
-      "trials": 694
+      "trials": 986
     },
     {
-      "cfgId": "e18bf45c",
+      "cfgId": "e2d72364",
       "cfg": {
-        "cfgId": "e18bf45c",
+        "cfgId": "e2d72364",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.04,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 3.4
+        "plungerSpeed": 1.1333,
+        "gateThresholdFrac": 0.3917,
+        "laneWidth": 0.034
       },
-      "trials": 694
+      "trials": 986
     },
     {
-      "cfgId": "91aafd75",
+      "cfgId": "f130c3df",
       "cfg": {
-        "cfgId": "91aafd75",
+        "cfgId": "f130c3df",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.04,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 4.2
+        "plungerSpeed": 1.1333,
+        "gateThresholdFrac": 0.3917,
+        "laneWidth": 0.04
       },
-      "trials": 694
+      "trials": 986
     },
     {
-      "cfgId": "fbdce12f",
+      "cfgId": "1a3f31ef",
       "cfg": {
-        "cfgId": "fbdce12f",
+        "cfgId": "1a3f31ef",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.04,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 5
+        "plungerSpeed": 1.1333,
+        "gateThresholdFrac": 0.3917,
+        "laneWidth": 0.045
       },
-      "trials": 694
+      "trials": 986
     },
     {
-      "cfgId": "cc31044f",
+      "cfgId": "f303471a",
       "cfg": {
-        "cfgId": "cc31044f",
+        "cfgId": "f303471a",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 1
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "a637b97e",
-      "cfg": {
-        "cfgId": "a637b97e",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 1.8
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "9f1dbf15",
-      "cfg": {
-        "cfgId": "9f1dbf15",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 2.6
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "189cdcce",
-      "cfg": {
-        "cfgId": "189cdcce",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 3.4
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "2a311c8c",
-      "cfg": {
-        "cfgId": "2a311c8c",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 4.2
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "1d6130fd",
-      "cfg": {
-        "cfgId": "1d6130fd",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 5
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "3be32e57",
-      "cfg": {
-        "cfgId": "3be32e57",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 1
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "bb89539b",
-      "cfg": {
-        "cfgId": "bb89539b",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 1.8
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "5bc37a7a",
-      "cfg": {
-        "cfgId": "5bc37a7a",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 2.6
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "9241c48c",
-      "cfg": {
-        "cfgId": "9241c48c",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 3.4
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "343627d1",
-      "cfg": {
-        "cfgId": "343627d1",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 4.2
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "24098381",
-      "cfg": {
-        "cfgId": "24098381",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 5
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "89fa9a51",
-      "cfg": {
-        "cfgId": "89fa9a51",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 1
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "38c2d73f",
-      "cfg": {
-        "cfgId": "38c2d73f",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 1.8
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "65c42757",
-      "cfg": {
-        "cfgId": "65c42757",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 2.6
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "7faa13c8",
-      "cfg": {
-        "cfgId": "7faa13c8",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 3.4
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "c4e8d76d",
-      "cfg": {
-        "cfgId": "c4e8d76d",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 4.2
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "8ae2e72d",
-      "cfg": {
-        "cfgId": "8ae2e72d",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 5
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "db9e38d3",
-      "cfg": {
-        "cfgId": "db9e38d3",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 1
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "7fdd935c",
-      "cfg": {
-        "cfgId": "7fdd935c",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 1.8
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "a00c27ec",
-      "cfg": {
-        "cfgId": "a00c27ec",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 2.6
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "871ba6e4",
-      "cfg": {
-        "cfgId": "871ba6e4",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 3.4
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "9bb612d5",
-      "cfg": {
-        "cfgId": "9bb612d5",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 4.2
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "bbfebb40",
-      "cfg": {
-        "cfgId": "bbfebb40",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 5
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "0b4069a9",
-      "cfg": {
-        "cfgId": "0b4069a9",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 1
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "82f70bb1",
-      "cfg": {
-        "cfgId": "82f70bb1",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 1.8
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "dbabfde3",
-      "cfg": {
-        "cfgId": "dbabfde3",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 2.6
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "0aaccd64",
-      "cfg": {
-        "cfgId": "0aaccd64",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 3.4
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "44503c89",
-      "cfg": {
-        "cfgId": "44503c89",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 4.2
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "4fc20c8d",
-      "cfg": {
-        "cfgId": "4fc20c8d",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 5
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "5b4a1889",
-      "cfg": {
-        "cfgId": "5b4a1889",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 1
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "e535263f",
-      "cfg": {
-        "cfgId": "e535263f",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 1.8
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "792510ab",
-      "cfg": {
-        "cfgId": "792510ab",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 2.6
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "15ec77b3",
-      "cfg": {
-        "cfgId": "15ec77b3",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 3.4
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "8b97d96a",
-      "cfg": {
-        "cfgId": "8b97d96a",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 4.2
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "9892a632",
-      "cfg": {
-        "cfgId": "9892a632",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.04,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 5
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "2ad8221d",
-      "cfg": {
-        "cfgId": "2ad8221d",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 1
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "e4ce6dbc",
-      "cfg": {
-        "cfgId": "e4ce6dbc",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 1.8
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "e08982c6",
-      "cfg": {
-        "cfgId": "e08982c6",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 2.6
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "41e38bc7",
-      "cfg": {
-        "cfgId": "41e38bc7",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 3.4
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "8b7fbcba",
-      "cfg": {
-        "cfgId": "8b7fbcba",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 4.2
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "330f62a6",
-      "cfg": {
-        "cfgId": "330f62a6",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 5
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "aca7a215",
-      "cfg": {
-        "cfgId": "aca7a215",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 1
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "d982f278",
-      "cfg": {
-        "cfgId": "d982f278",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 1.8
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "2bc78a13",
-      "cfg": {
-        "cfgId": "2bc78a13",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 2.6
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "993fba6b",
-      "cfg": {
-        "cfgId": "993fba6b",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 3.4
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "757c5503",
-      "cfg": {
-        "cfgId": "757c5503",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 4.2
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "2ed4effc",
-      "cfg": {
-        "cfgId": "2ed4effc",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 5
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "0bbe2cda",
-      "cfg": {
-        "cfgId": "0bbe2cda",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 1
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "7e685222",
-      "cfg": {
-        "cfgId": "7e685222",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 1.8
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "fd34731e",
-      "cfg": {
-        "cfgId": "fd34731e",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 2.6
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "caa037c8",
-      "cfg": {
-        "cfgId": "caa037c8",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 3.4
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "18dbfcf6",
-      "cfg": {
-        "cfgId": "18dbfcf6",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 4.2
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "d0a1c8aa",
-      "cfg": {
-        "cfgId": "d0a1c8aa",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 5
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "27969f00",
-      "cfg": {
-        "cfgId": "27969f00",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.045,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 1
+        "plungerSpeed": 1.1333,
+        "gateThresholdFrac": 0.4333,
+        "laneWidth": 0.0291
       },
-      "trials": 694
+      "trials": 986
     },
     {
-      "cfgId": "67bf69e8",
+      "cfgId": "8515d65c",
       "cfg": {
-        "cfgId": "67bf69e8",
+        "cfgId": "8515d65c",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.045,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 1.8
+        "plungerSpeed": 1.1333,
+        "gateThresholdFrac": 0.4333,
+        "laneWidth": 0.034
       },
-      "trials": 694
+      "trials": 986
     },
     {
-      "cfgId": "77f44b06",
+      "cfgId": "a256fa35",
       "cfg": {
-        "cfgId": "77f44b06",
+        "cfgId": "a256fa35",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.045,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 2.6
+        "plungerSpeed": 1.1333,
+        "gateThresholdFrac": 0.4333,
+        "laneWidth": 0.04
       },
-      "trials": 694
+      "trials": 986
     },
     {
-      "cfgId": "f6315d70",
+      "cfgId": "98a63024",
       "cfg": {
-        "cfgId": "f6315d70",
+        "cfgId": "98a63024",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.045,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 3.4
+        "plungerSpeed": 1.1333,
+        "gateThresholdFrac": 0.4333,
+        "laneWidth": 0.045
       },
-      "trials": 694
+      "trials": 986
     },
     {
-      "cfgId": "6cee092f",
+      "cfgId": "49b40ed1",
       "cfg": {
-        "cfgId": "6cee092f",
+        "cfgId": "49b40ed1",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.045,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 4.2
+        "plungerSpeed": 1.1333,
+        "gateThresholdFrac": 0.475,
+        "laneWidth": 0.0291
       },
-      "trials": 694
+      "trials": 986
     },
     {
-      "cfgId": "629e8509",
+      "cfgId": "da052fd2",
       "cfg": {
-        "cfgId": "629e8509",
+        "cfgId": "da052fd2",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.045,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 5
+        "plungerSpeed": 1.1333,
+        "gateThresholdFrac": 0.475,
+        "laneWidth": 0.034
       },
-      "trials": 694
+      "trials": 986
     },
     {
-      "cfgId": "e166b2dc",
+      "cfgId": "0ef05c30",
       "cfg": {
-        "cfgId": "e166b2dc",
+        "cfgId": "0ef05c30",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.045,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 1
+        "plungerSpeed": 1.1333,
+        "gateThresholdFrac": 0.475,
+        "laneWidth": 0.04
       },
-      "trials": 694
+      "trials": 986
     },
     {
-      "cfgId": "efab6010",
+      "cfgId": "6eef711b",
       "cfg": {
-        "cfgId": "efab6010",
+        "cfgId": "6eef711b",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.045,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 1.8
+        "plungerSpeed": 1.1333,
+        "gateThresholdFrac": 0.475,
+        "laneWidth": 0.045
       },
-      "trials": 694
+      "trials": 986
     },
     {
-      "cfgId": "542fcf0b",
+      "cfgId": "8e702c73",
       "cfg": {
-        "cfgId": "542fcf0b",
+        "cfgId": "8e702c73",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.045,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 2.6
+        "plungerSpeed": 1.1333,
+        "gateThresholdFrac": 0.5167,
+        "laneWidth": 0.0291
       },
-      "trials": 694
+      "trials": 986
     },
     {
-      "cfgId": "051cb0ea",
+      "cfgId": "0ac5cc94",
       "cfg": {
-        "cfgId": "051cb0ea",
+        "cfgId": "0ac5cc94",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.045,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 3.4
+        "plungerSpeed": 1.1333,
+        "gateThresholdFrac": 0.5167,
+        "laneWidth": 0.034
       },
-      "trials": 694
+      "trials": 985
     },
     {
-      "cfgId": "48c50b4e",
+      "cfgId": "1269565c",
       "cfg": {
-        "cfgId": "48c50b4e",
+        "cfgId": "1269565c",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.045,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 4.2
+        "plungerSpeed": 1.1333,
+        "gateThresholdFrac": 0.5167,
+        "laneWidth": 0.04
       },
-      "trials": 694
+      "trials": 985
     },
     {
-      "cfgId": "962a4c5b",
+      "cfgId": "40bf7d3f",
       "cfg": {
-        "cfgId": "962a4c5b",
+        "cfgId": "40bf7d3f",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.045,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 5
+        "plungerSpeed": 1.1333,
+        "gateThresholdFrac": 0.5167,
+        "laneWidth": 0.045
       },
-      "trials": 694
+      "trials": 985
     },
     {
-      "cfgId": "f7d0ee59",
+      "cfgId": "ba4a71e2",
       "cfg": {
-        "cfgId": "f7d0ee59",
+        "cfgId": "ba4a71e2",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.045,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 1
+        "plungerSpeed": 1.1333,
+        "gateThresholdFrac": 0.5583,
+        "laneWidth": 0.0291
       },
-      "trials": 694
+      "trials": 985
     },
     {
-      "cfgId": "43f8a6f6",
+      "cfgId": "235bc3ec",
       "cfg": {
-        "cfgId": "43f8a6f6",
+        "cfgId": "235bc3ec",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.045,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 1.8
+        "plungerSpeed": 1.1333,
+        "gateThresholdFrac": 0.5583,
+        "laneWidth": 0.034
       },
-      "trials": 694
+      "trials": 985
     },
     {
-      "cfgId": "97445dcc",
+      "cfgId": "a63c2c37",
       "cfg": {
-        "cfgId": "97445dcc",
+        "cfgId": "a63c2c37",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.045,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 2.6
+        "plungerSpeed": 1.1333,
+        "gateThresholdFrac": 0.5583,
+        "laneWidth": 0.04
       },
-      "trials": 694
+      "trials": 985
     },
     {
-      "cfgId": "c3d90b61",
+      "cfgId": "fdbec349",
       "cfg": {
-        "cfgId": "c3d90b61",
+        "cfgId": "fdbec349",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.045,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 3.4
+        "plungerSpeed": 1.1333,
+        "gateThresholdFrac": 0.5583,
+        "laneWidth": 0.045
       },
-      "trials": 694
+      "trials": 985
     },
     {
-      "cfgId": "f7da25a5",
+      "cfgId": "e73084b3",
       "cfg": {
-        "cfgId": "f7da25a5",
+        "cfgId": "e73084b3",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.045,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 4.2
+        "plungerSpeed": 1.1333,
+        "gateThresholdFrac": 0.6,
+        "laneWidth": 0.0291
       },
-      "trials": 694
+      "trials": 985
     },
     {
-      "cfgId": "09cc9459",
+      "cfgId": "37bf7106",
       "cfg": {
-        "cfgId": "09cc9459",
+        "cfgId": "37bf7106",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.045,
+        "arm": "main",
         "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 5
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "b5083dac",
-      "cfg": {
-        "cfgId": "b5083dac",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 1
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "9e018ca9",
-      "cfg": {
-        "cfgId": "9e018ca9",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 1.8
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "c83cd3a7",
-      "cfg": {
-        "cfgId": "c83cd3a7",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 2.6
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "0169e9e2",
-      "cfg": {
-        "cfgId": "0169e9e2",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 3.4
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "9218f5ee",
-      "cfg": {
-        "cfgId": "9218f5ee",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 4.2
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "1aba4a88",
-      "cfg": {
-        "cfgId": "1aba4a88",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 5
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "f3f77e49",
-      "cfg": {
-        "cfgId": "f3f77e49",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 41,
+        "plungerSpeed": 1.1333,
         "gateThresholdFrac": 0.6,
-        "plungerSpeed": 1
+        "laneWidth": 0.034
       },
-      "trials": 694
+      "trials": 985
     },
     {
-      "cfgId": "e97b0cf9",
+      "cfgId": "bb039c3a",
       "cfg": {
-        "cfgId": "e97b0cf9",
+        "cfgId": "bb039c3a",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 41,
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.1333,
         "gateThresholdFrac": 0.6,
-        "plungerSpeed": 1.8
+        "laneWidth": 0.04
       },
-      "trials": 694
+      "trials": 985
     },
     {
-      "cfgId": "82d4a6d1",
+      "cfgId": "d6668a5a",
       "cfg": {
-        "cfgId": "82d4a6d1",
+        "cfgId": "d6668a5a",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 41,
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.1333,
         "gateThresholdFrac": 0.6,
-        "plungerSpeed": 2.6
+        "laneWidth": 0.045
       },
-      "trials": 694
+      "trials": 985
     },
     {
-      "cfgId": "9c8c410a",
+      "cfgId": "0059ae05",
       "cfg": {
-        "cfgId": "9c8c410a",
+        "cfgId": "0059ae05",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 3.4
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "c80b01a9",
-      "cfg": {
-        "cfgId": "c80b01a9",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 4.2
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "e9a50d68",
-      "cfg": {
-        "cfgId": "e9a50d68",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 5
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "1c0d6939",
-      "cfg": {
-        "cfgId": "1c0d6939",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 1
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "0674264c",
-      "cfg": {
-        "cfgId": "0674264c",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 1.8
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "7a1bcd43",
-      "cfg": {
-        "cfgId": "7a1bcd43",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 2.6
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "34a1b469",
-      "cfg": {
-        "cfgId": "34a1b469",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 3.4
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "9e7573ae",
-      "cfg": {
-        "cfgId": "9e7573ae",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 4.2
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "74323591",
-      "cfg": {
-        "cfgId": "74323591",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 5
-      },
-      "trials": 694
-    },
-    {
-      "cfgId": "9044e483",
-      "cfg": {
-        "cfgId": "9044e483",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 55,
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.2667,
         "gateThresholdFrac": 0.35,
-        "plungerSpeed": 1
+        "laneWidth": 0.0291
       },
-      "trials": 694
+      "trials": 985
     },
     {
-      "cfgId": "7feea6c7",
+      "cfgId": "16bccad9",
       "cfg": {
-        "cfgId": "7feea6c7",
+        "cfgId": "16bccad9",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 55,
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.2667,
         "gateThresholdFrac": 0.35,
-        "plungerSpeed": 1.8
+        "laneWidth": 0.034
       },
-      "trials": 694
+      "trials": 985
     },
     {
-      "cfgId": "bc25e555",
+      "cfgId": "01dfb45b",
       "cfg": {
-        "cfgId": "bc25e555",
+        "cfgId": "01dfb45b",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 55,
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.2667,
         "gateThresholdFrac": 0.35,
-        "plungerSpeed": 2.6
+        "laneWidth": 0.04
       },
-      "trials": 694
+      "trials": 985
     },
     {
-      "cfgId": "2316f357",
+      "cfgId": "1ac74ccd",
       "cfg": {
-        "cfgId": "2316f357",
+        "cfgId": "1ac74ccd",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 55,
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.2667,
         "gateThresholdFrac": 0.35,
-        "plungerSpeed": 3.4
+        "laneWidth": 0.045
       },
-      "trials": 694
+      "trials": 985
     },
     {
-      "cfgId": "be915c07",
+      "cfgId": "7b635495",
       "cfg": {
-        "cfgId": "be915c07",
+        "cfgId": "7b635495",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 55,
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.2667,
+        "gateThresholdFrac": 0.3917,
+        "laneWidth": 0.0291
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "358735fd",
+      "cfg": {
+        "cfgId": "358735fd",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.2667,
+        "gateThresholdFrac": 0.3917,
+        "laneWidth": 0.034
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "9105c8f8",
+      "cfg": {
+        "cfgId": "9105c8f8",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.2667,
+        "gateThresholdFrac": 0.3917,
+        "laneWidth": 0.04
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "2dbb1675",
+      "cfg": {
+        "cfgId": "2dbb1675",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.2667,
+        "gateThresholdFrac": 0.3917,
+        "laneWidth": 0.045
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "08badbc6",
+      "cfg": {
+        "cfgId": "08badbc6",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.2667,
+        "gateThresholdFrac": 0.4333,
+        "laneWidth": 0.0291
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "a1089c8c",
+      "cfg": {
+        "cfgId": "a1089c8c",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.2667,
+        "gateThresholdFrac": 0.4333,
+        "laneWidth": 0.034
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "50a41122",
+      "cfg": {
+        "cfgId": "50a41122",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.2667,
+        "gateThresholdFrac": 0.4333,
+        "laneWidth": 0.04
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "c4d94037",
+      "cfg": {
+        "cfgId": "c4d94037",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.2667,
+        "gateThresholdFrac": 0.4333,
+        "laneWidth": 0.045
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "216f456a",
+      "cfg": {
+        "cfgId": "216f456a",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.2667,
+        "gateThresholdFrac": 0.475,
+        "laneWidth": 0.0291
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "e333ff25",
+      "cfg": {
+        "cfgId": "e333ff25",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.2667,
+        "gateThresholdFrac": 0.475,
+        "laneWidth": 0.034
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "8a94bedd",
+      "cfg": {
+        "cfgId": "8a94bedd",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.2667,
+        "gateThresholdFrac": 0.475,
+        "laneWidth": 0.04
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "945a89c3",
+      "cfg": {
+        "cfgId": "945a89c3",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.2667,
+        "gateThresholdFrac": 0.475,
+        "laneWidth": 0.045
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "3b04c4af",
+      "cfg": {
+        "cfgId": "3b04c4af",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.2667,
+        "gateThresholdFrac": 0.5167,
+        "laneWidth": 0.0291
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "336a2d15",
+      "cfg": {
+        "cfgId": "336a2d15",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.2667,
+        "gateThresholdFrac": 0.5167,
+        "laneWidth": 0.034
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "ee9dabd4",
+      "cfg": {
+        "cfgId": "ee9dabd4",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.2667,
+        "gateThresholdFrac": 0.5167,
+        "laneWidth": 0.04
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "e28f14e2",
+      "cfg": {
+        "cfgId": "e28f14e2",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.2667,
+        "gateThresholdFrac": 0.5167,
+        "laneWidth": 0.045
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "e61c40f0",
+      "cfg": {
+        "cfgId": "e61c40f0",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.2667,
+        "gateThresholdFrac": 0.5583,
+        "laneWidth": 0.0291
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "c109fc90",
+      "cfg": {
+        "cfgId": "c109fc90",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.2667,
+        "gateThresholdFrac": 0.5583,
+        "laneWidth": 0.034
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "8dd62439",
+      "cfg": {
+        "cfgId": "8dd62439",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.2667,
+        "gateThresholdFrac": 0.5583,
+        "laneWidth": 0.04
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "5d4986b8",
+      "cfg": {
+        "cfgId": "5d4986b8",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.2667,
+        "gateThresholdFrac": 0.5583,
+        "laneWidth": 0.045
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "e2ac83a9",
+      "cfg": {
+        "cfgId": "e2ac83a9",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.2667,
+        "gateThresholdFrac": 0.6,
+        "laneWidth": 0.0291
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "d0815e20",
+      "cfg": {
+        "cfgId": "d0815e20",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.2667,
+        "gateThresholdFrac": 0.6,
+        "laneWidth": 0.034
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "b9c9e60a",
+      "cfg": {
+        "cfgId": "b9c9e60a",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.2667,
+        "gateThresholdFrac": 0.6,
+        "laneWidth": 0.04
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "12147714",
+      "cfg": {
+        "cfgId": "12147714",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.2667,
+        "gateThresholdFrac": 0.6,
+        "laneWidth": 0.045
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "5405428a",
+      "cfg": {
+        "cfgId": "5405428a",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.4,
         "gateThresholdFrac": 0.35,
-        "plungerSpeed": 4.2
+        "laneWidth": 0.0291
       },
-      "trials": 694
+      "trials": 985
     },
     {
-      "cfgId": "dcdeea8b",
+      "cfgId": "887e3db0",
       "cfg": {
-        "cfgId": "dcdeea8b",
+        "cfgId": "887e3db0",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 55,
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.4,
         "gateThresholdFrac": 0.35,
-        "plungerSpeed": 5
+        "laneWidth": 0.034
       },
-      "trials": 694
+      "trials": 985
     },
     {
-      "cfgId": "eed90c9e",
+      "cfgId": "fd4442e8",
       "cfg": {
-        "cfgId": "eed90c9e",
+        "cfgId": "fd4442e8",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 55,
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.4,
+        "gateThresholdFrac": 0.35,
+        "laneWidth": 0.04
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "cc285009",
+      "cfg": {
+        "cfgId": "cc285009",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.4,
+        "gateThresholdFrac": 0.35,
+        "laneWidth": 0.045
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "e0b4e2d1",
+      "cfg": {
+        "cfgId": "e0b4e2d1",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.4,
+        "gateThresholdFrac": 0.3917,
+        "laneWidth": 0.0291
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "91ea1d3d",
+      "cfg": {
+        "cfgId": "91ea1d3d",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.4,
+        "gateThresholdFrac": 0.3917,
+        "laneWidth": 0.034
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "9dd4ea4b",
+      "cfg": {
+        "cfgId": "9dd4ea4b",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.4,
+        "gateThresholdFrac": 0.3917,
+        "laneWidth": 0.04
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "7872c7ad",
+      "cfg": {
+        "cfgId": "7872c7ad",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.4,
+        "gateThresholdFrac": 0.3917,
+        "laneWidth": 0.045
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "1072c00a",
+      "cfg": {
+        "cfgId": "1072c00a",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.4,
+        "gateThresholdFrac": 0.4333,
+        "laneWidth": 0.0291
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "aea13a7c",
+      "cfg": {
+        "cfgId": "aea13a7c",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.4,
+        "gateThresholdFrac": 0.4333,
+        "laneWidth": 0.034
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "c301bf10",
+      "cfg": {
+        "cfgId": "c301bf10",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.4,
+        "gateThresholdFrac": 0.4333,
+        "laneWidth": 0.04
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "a8229291",
+      "cfg": {
+        "cfgId": "a8229291",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.4,
+        "gateThresholdFrac": 0.4333,
+        "laneWidth": 0.045
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "4ab76b9e",
+      "cfg": {
+        "cfgId": "4ab76b9e",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.4,
+        "gateThresholdFrac": 0.475,
+        "laneWidth": 0.0291
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "55be13db",
+      "cfg": {
+        "cfgId": "55be13db",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.4,
+        "gateThresholdFrac": 0.475,
+        "laneWidth": 0.034
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "e59dccdd",
+      "cfg": {
+        "cfgId": "e59dccdd",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.4,
+        "gateThresholdFrac": 0.475,
+        "laneWidth": 0.04
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "1c77c12d",
+      "cfg": {
+        "cfgId": "1c77c12d",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.4,
+        "gateThresholdFrac": 0.475,
+        "laneWidth": 0.045
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "250b9da2",
+      "cfg": {
+        "cfgId": "250b9da2",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.4,
+        "gateThresholdFrac": 0.5167,
+        "laneWidth": 0.0291
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "2d769bbf",
+      "cfg": {
+        "cfgId": "2d769bbf",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.4,
+        "gateThresholdFrac": 0.5167,
+        "laneWidth": 0.034
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "500634d0",
+      "cfg": {
+        "cfgId": "500634d0",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.4,
+        "gateThresholdFrac": 0.5167,
+        "laneWidth": 0.04
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "2c0ca76a",
+      "cfg": {
+        "cfgId": "2c0ca76a",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.4,
+        "gateThresholdFrac": 0.5167,
+        "laneWidth": 0.045
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "3ccc047c",
+      "cfg": {
+        "cfgId": "3ccc047c",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.4,
+        "gateThresholdFrac": 0.5583,
+        "laneWidth": 0.0291
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "91b44bde",
+      "cfg": {
+        "cfgId": "91b44bde",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.4,
+        "gateThresholdFrac": 0.5583,
+        "laneWidth": 0.034
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "8af22fd1",
+      "cfg": {
+        "cfgId": "8af22fd1",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.4,
+        "gateThresholdFrac": 0.5583,
+        "laneWidth": 0.04
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "5949430c",
+      "cfg": {
+        "cfgId": "5949430c",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.4,
+        "gateThresholdFrac": 0.5583,
+        "laneWidth": 0.045
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "a4d8836d",
+      "cfg": {
+        "cfgId": "a4d8836d",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.4,
         "gateThresholdFrac": 0.6,
-        "plungerSpeed": 1
+        "laneWidth": 0.0291
       },
-      "trials": 694
+      "trials": 985
     },
     {
-      "cfgId": "cc28f53f",
+      "cfgId": "3fe4b87e",
       "cfg": {
-        "cfgId": "cc28f53f",
+        "cfgId": "3fe4b87e",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 55,
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.4,
         "gateThresholdFrac": 0.6,
-        "plungerSpeed": 1.8
+        "laneWidth": 0.034
       },
-      "trials": 694
+      "trials": 985
     },
     {
-      "cfgId": "4997805e",
+      "cfgId": "58b96069",
       "cfg": {
-        "cfgId": "4997805e",
+        "cfgId": "58b96069",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 55,
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.4,
         "gateThresholdFrac": 0.6,
-        "plungerSpeed": 2.6
+        "laneWidth": 0.04
       },
-      "trials": 694
+      "trials": 985
     },
     {
-      "cfgId": "ea7b2443",
+      "cfgId": "ba880a37",
       "cfg": {
-        "cfgId": "ea7b2443",
+        "cfgId": "ba880a37",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 55,
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.4,
         "gateThresholdFrac": 0.6,
-        "plungerSpeed": 3.4
+        "laneWidth": 0.045
       },
-      "trials": 694
+      "trials": 985
     },
     {
-      "cfgId": "c271a77b",
+      "cfgId": "aa26076a",
       "cfg": {
-        "cfgId": "c271a77b",
+        "cfgId": "aa26076a",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 55,
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.5333,
+        "gateThresholdFrac": 0.35,
+        "laneWidth": 0.0291
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "7f44f16c",
+      "cfg": {
+        "cfgId": "7f44f16c",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.5333,
+        "gateThresholdFrac": 0.35,
+        "laneWidth": 0.034
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "d4b5b92c",
+      "cfg": {
+        "cfgId": "d4b5b92c",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.5333,
+        "gateThresholdFrac": 0.35,
+        "laneWidth": 0.04
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "9a55d142",
+      "cfg": {
+        "cfgId": "9a55d142",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.5333,
+        "gateThresholdFrac": 0.35,
+        "laneWidth": 0.045
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "af197214",
+      "cfg": {
+        "cfgId": "af197214",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.5333,
+        "gateThresholdFrac": 0.3917,
+        "laneWidth": 0.0291
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "8a78c3e3",
+      "cfg": {
+        "cfgId": "8a78c3e3",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.5333,
+        "gateThresholdFrac": 0.3917,
+        "laneWidth": 0.034
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "4d6d378a",
+      "cfg": {
+        "cfgId": "4d6d378a",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.5333,
+        "gateThresholdFrac": 0.3917,
+        "laneWidth": 0.04
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "8ba97a51",
+      "cfg": {
+        "cfgId": "8ba97a51",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.5333,
+        "gateThresholdFrac": 0.3917,
+        "laneWidth": 0.045
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "a2b910b2",
+      "cfg": {
+        "cfgId": "a2b910b2",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.5333,
+        "gateThresholdFrac": 0.4333,
+        "laneWidth": 0.0291
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "f72af0fd",
+      "cfg": {
+        "cfgId": "f72af0fd",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.5333,
+        "gateThresholdFrac": 0.4333,
+        "laneWidth": 0.034
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "eb6355b6",
+      "cfg": {
+        "cfgId": "eb6355b6",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.5333,
+        "gateThresholdFrac": 0.4333,
+        "laneWidth": 0.04
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "0b7846d0",
+      "cfg": {
+        "cfgId": "0b7846d0",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.5333,
+        "gateThresholdFrac": 0.4333,
+        "laneWidth": 0.045
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "920861e4",
+      "cfg": {
+        "cfgId": "920861e4",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.5333,
+        "gateThresholdFrac": 0.475,
+        "laneWidth": 0.0291
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "e65a02e5",
+      "cfg": {
+        "cfgId": "e65a02e5",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.5333,
+        "gateThresholdFrac": 0.475,
+        "laneWidth": 0.034
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "92f7702e",
+      "cfg": {
+        "cfgId": "92f7702e",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.5333,
+        "gateThresholdFrac": 0.475,
+        "laneWidth": 0.04
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "cc4cf833",
+      "cfg": {
+        "cfgId": "cc4cf833",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.5333,
+        "gateThresholdFrac": 0.475,
+        "laneWidth": 0.045
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "cfeb430f",
+      "cfg": {
+        "cfgId": "cfeb430f",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.5333,
+        "gateThresholdFrac": 0.5167,
+        "laneWidth": 0.0291
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "0003634d",
+      "cfg": {
+        "cfgId": "0003634d",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.5333,
+        "gateThresholdFrac": 0.5167,
+        "laneWidth": 0.034
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "91157817",
+      "cfg": {
+        "cfgId": "91157817",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.5333,
+        "gateThresholdFrac": 0.5167,
+        "laneWidth": 0.04
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "96c9a8da",
+      "cfg": {
+        "cfgId": "96c9a8da",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.5333,
+        "gateThresholdFrac": 0.5167,
+        "laneWidth": 0.045
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "aae61404",
+      "cfg": {
+        "cfgId": "aae61404",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.5333,
+        "gateThresholdFrac": 0.5583,
+        "laneWidth": 0.0291
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "aa13820a",
+      "cfg": {
+        "cfgId": "aa13820a",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.5333,
+        "gateThresholdFrac": 0.5583,
+        "laneWidth": 0.034
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "5004c50d",
+      "cfg": {
+        "cfgId": "5004c50d",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.5333,
+        "gateThresholdFrac": 0.5583,
+        "laneWidth": 0.04
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "05e94a91",
+      "cfg": {
+        "cfgId": "05e94a91",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.5333,
+        "gateThresholdFrac": 0.5583,
+        "laneWidth": 0.045
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "d82f5c1e",
+      "cfg": {
+        "cfgId": "d82f5c1e",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.5333,
         "gateThresholdFrac": 0.6,
-        "plungerSpeed": 4.2
+        "laneWidth": 0.0291
       },
-      "trials": 694
+      "trials": 985
     },
     {
-      "cfgId": "6c8f0780",
+      "cfgId": "ad8e9924",
       "cfg": {
-        "cfgId": "6c8f0780",
+        "cfgId": "ad8e9924",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 55,
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.5333,
         "gateThresholdFrac": 0.6,
-        "plungerSpeed": 5
+        "laneWidth": 0.034
       },
-      "trials": 694
+      "trials": 985
     },
     {
-      "cfgId": "659088d2",
+      "cfgId": "b6f7a9eb",
       "cfg": {
-        "cfgId": "659088d2",
+        "cfgId": "b6f7a9eb",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 1
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.5333,
+        "gateThresholdFrac": 0.6,
+        "laneWidth": 0.04
       },
-      "trials": 694
+      "trials": 985
     },
     {
-      "cfgId": "e9efb851",
+      "cfgId": "40689d62",
       "cfg": {
-        "cfgId": "e9efb851",
+        "cfgId": "40689d62",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 1.8
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.5333,
+        "gateThresholdFrac": 0.6,
+        "laneWidth": 0.045
       },
-      "trials": 694
+      "trials": 985
     },
     {
-      "cfgId": "4996799c",
+      "cfgId": "2a1ba5c6",
       "cfg": {
-        "cfgId": "4996799c",
+        "cfgId": "2a1ba5c6",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 2.6
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.6667,
+        "gateThresholdFrac": 0.35,
+        "laneWidth": 0.0291
       },
-      "trials": 694
+      "trials": 985
     },
     {
-      "cfgId": "4a622438",
+      "cfgId": "6d7848d5",
       "cfg": {
-        "cfgId": "4a622438",
+        "cfgId": "6d7848d5",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 3.4
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.6667,
+        "gateThresholdFrac": 0.35,
+        "laneWidth": 0.034
       },
-      "trials": 694
+      "trials": 985
     },
     {
-      "cfgId": "db6d8547",
+      "cfgId": "b15c331f",
       "cfg": {
-        "cfgId": "db6d8547",
+        "cfgId": "b15c331f",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 4.2
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.6667,
+        "gateThresholdFrac": 0.35,
+        "laneWidth": 0.04
       },
-      "trials": 694
+      "trials": 985
     },
     {
-      "cfgId": "bea8d755",
+      "cfgId": "80a58fe3",
       "cfg": {
-        "cfgId": "bea8d755",
+        "cfgId": "80a58fe3",
         "exp": "e3",
         "family": "P1",
-        "laneWidth": 0.045,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 5
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.6667,
+        "gateThresholdFrac": 0.35,
+        "laneWidth": 0.045
       },
-      "trials": 694
+      "trials": 985
+    },
+    {
+      "cfgId": "f60c49c9",
+      "cfg": {
+        "cfgId": "f60c49c9",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.6667,
+        "gateThresholdFrac": 0.3917,
+        "laneWidth": 0.0291
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "51aad641",
+      "cfg": {
+        "cfgId": "51aad641",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.6667,
+        "gateThresholdFrac": 0.3917,
+        "laneWidth": 0.034
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "f12625b3",
+      "cfg": {
+        "cfgId": "f12625b3",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.6667,
+        "gateThresholdFrac": 0.3917,
+        "laneWidth": 0.04
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "62a95265",
+      "cfg": {
+        "cfgId": "62a95265",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.6667,
+        "gateThresholdFrac": 0.3917,
+        "laneWidth": 0.045
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "454c5a8f",
+      "cfg": {
+        "cfgId": "454c5a8f",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.6667,
+        "gateThresholdFrac": 0.4333,
+        "laneWidth": 0.0291
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "e4523267",
+      "cfg": {
+        "cfgId": "e4523267",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.6667,
+        "gateThresholdFrac": 0.4333,
+        "laneWidth": 0.034
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "466d90c6",
+      "cfg": {
+        "cfgId": "466d90c6",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.6667,
+        "gateThresholdFrac": 0.4333,
+        "laneWidth": 0.04
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "38490822",
+      "cfg": {
+        "cfgId": "38490822",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.6667,
+        "gateThresholdFrac": 0.4333,
+        "laneWidth": 0.045
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "40dc18e1",
+      "cfg": {
+        "cfgId": "40dc18e1",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.6667,
+        "gateThresholdFrac": 0.475,
+        "laneWidth": 0.0291
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "177fa381",
+      "cfg": {
+        "cfgId": "177fa381",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.6667,
+        "gateThresholdFrac": 0.475,
+        "laneWidth": 0.034
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "402c3aca",
+      "cfg": {
+        "cfgId": "402c3aca",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.6667,
+        "gateThresholdFrac": 0.475,
+        "laneWidth": 0.04
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "382db512",
+      "cfg": {
+        "cfgId": "382db512",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.6667,
+        "gateThresholdFrac": 0.475,
+        "laneWidth": 0.045
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "f9974162",
+      "cfg": {
+        "cfgId": "f9974162",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.6667,
+        "gateThresholdFrac": 0.5167,
+        "laneWidth": 0.0291
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "81ab201a",
+      "cfg": {
+        "cfgId": "81ab201a",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.6667,
+        "gateThresholdFrac": 0.5167,
+        "laneWidth": 0.034
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "f34bcfb9",
+      "cfg": {
+        "cfgId": "f34bcfb9",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.6667,
+        "gateThresholdFrac": 0.5167,
+        "laneWidth": 0.04
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "c5bb28e1",
+      "cfg": {
+        "cfgId": "c5bb28e1",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.6667,
+        "gateThresholdFrac": 0.5167,
+        "laneWidth": 0.045
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "a7aae754",
+      "cfg": {
+        "cfgId": "a7aae754",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.6667,
+        "gateThresholdFrac": 0.5583,
+        "laneWidth": 0.0291
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "286733a4",
+      "cfg": {
+        "cfgId": "286733a4",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.6667,
+        "gateThresholdFrac": 0.5583,
+        "laneWidth": 0.034
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "b5dd9832",
+      "cfg": {
+        "cfgId": "b5dd9832",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.6667,
+        "gateThresholdFrac": 0.5583,
+        "laneWidth": 0.04
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "40c8e362",
+      "cfg": {
+        "cfgId": "40c8e362",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.6667,
+        "gateThresholdFrac": 0.5583,
+        "laneWidth": 0.045
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "08d292d3",
+      "cfg": {
+        "cfgId": "08d292d3",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.6667,
+        "gateThresholdFrac": 0.6,
+        "laneWidth": 0.0291
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "7d50f1b9",
+      "cfg": {
+        "cfgId": "7d50f1b9",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.6667,
+        "gateThresholdFrac": 0.6,
+        "laneWidth": 0.034
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "ef6706c1",
+      "cfg": {
+        "cfgId": "ef6706c1",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.6667,
+        "gateThresholdFrac": 0.6,
+        "laneWidth": 0.04
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "bb532f23",
+      "cfg": {
+        "cfgId": "bb532f23",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.6667,
+        "gateThresholdFrac": 0.6,
+        "laneWidth": 0.045
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "5ef8ebbd",
+      "cfg": {
+        "cfgId": "5ef8ebbd",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.8,
+        "gateThresholdFrac": 0.35,
+        "laneWidth": 0.0291
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "af1d5987",
+      "cfg": {
+        "cfgId": "af1d5987",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.8,
+        "gateThresholdFrac": 0.35,
+        "laneWidth": 0.034
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "5b030452",
+      "cfg": {
+        "cfgId": "5b030452",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.8,
+        "gateThresholdFrac": 0.35,
+        "laneWidth": 0.04
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "10f7e488",
+      "cfg": {
+        "cfgId": "10f7e488",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.8,
+        "gateThresholdFrac": 0.35,
+        "laneWidth": 0.045
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "f7a54b96",
+      "cfg": {
+        "cfgId": "f7a54b96",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.8,
+        "gateThresholdFrac": 0.3917,
+        "laneWidth": 0.0291
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "af61762c",
+      "cfg": {
+        "cfgId": "af61762c",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.8,
+        "gateThresholdFrac": 0.3917,
+        "laneWidth": 0.034
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "a57ae3cf",
+      "cfg": {
+        "cfgId": "a57ae3cf",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.8,
+        "gateThresholdFrac": 0.3917,
+        "laneWidth": 0.04
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "d359dc3d",
+      "cfg": {
+        "cfgId": "d359dc3d",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.8,
+        "gateThresholdFrac": 0.3917,
+        "laneWidth": 0.045
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "94ca27fc",
+      "cfg": {
+        "cfgId": "94ca27fc",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.8,
+        "gateThresholdFrac": 0.4333,
+        "laneWidth": 0.0291
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "80533984",
+      "cfg": {
+        "cfgId": "80533984",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.8,
+        "gateThresholdFrac": 0.4333,
+        "laneWidth": 0.034
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "22a1ad09",
+      "cfg": {
+        "cfgId": "22a1ad09",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.8,
+        "gateThresholdFrac": 0.4333,
+        "laneWidth": 0.04
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "be74f571",
+      "cfg": {
+        "cfgId": "be74f571",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.8,
+        "gateThresholdFrac": 0.4333,
+        "laneWidth": 0.045
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "ecd42d0e",
+      "cfg": {
+        "cfgId": "ecd42d0e",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.8,
+        "gateThresholdFrac": 0.475,
+        "laneWidth": 0.0291
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "647e1b90",
+      "cfg": {
+        "cfgId": "647e1b90",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.8,
+        "gateThresholdFrac": 0.475,
+        "laneWidth": 0.034
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "22f969b1",
+      "cfg": {
+        "cfgId": "22f969b1",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.8,
+        "gateThresholdFrac": 0.475,
+        "laneWidth": 0.04
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "a7ef96bb",
+      "cfg": {
+        "cfgId": "a7ef96bb",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.8,
+        "gateThresholdFrac": 0.475,
+        "laneWidth": 0.045
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "8a7365d8",
+      "cfg": {
+        "cfgId": "8a7365d8",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.8,
+        "gateThresholdFrac": 0.5167,
+        "laneWidth": 0.0291
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "461d424c",
+      "cfg": {
+        "cfgId": "461d424c",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.8,
+        "gateThresholdFrac": 0.5167,
+        "laneWidth": 0.034
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "849e4ddc",
+      "cfg": {
+        "cfgId": "849e4ddc",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.8,
+        "gateThresholdFrac": 0.5167,
+        "laneWidth": 0.04
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "5ac04258",
+      "cfg": {
+        "cfgId": "5ac04258",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.8,
+        "gateThresholdFrac": 0.5167,
+        "laneWidth": 0.045
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "7a827ffa",
+      "cfg": {
+        "cfgId": "7a827ffa",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.8,
+        "gateThresholdFrac": 0.5583,
+        "laneWidth": 0.0291
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "ce55af69",
+      "cfg": {
+        "cfgId": "ce55af69",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.8,
+        "gateThresholdFrac": 0.5583,
+        "laneWidth": 0.034
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "3f17a84a",
+      "cfg": {
+        "cfgId": "3f17a84a",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.8,
+        "gateThresholdFrac": 0.5583,
+        "laneWidth": 0.04
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "00d4827f",
+      "cfg": {
+        "cfgId": "00d4827f",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.8,
+        "gateThresholdFrac": 0.5583,
+        "laneWidth": 0.045
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "9e73cd27",
+      "cfg": {
+        "cfgId": "9e73cd27",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.8,
+        "gateThresholdFrac": 0.6,
+        "laneWidth": 0.0291
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "039abb86",
+      "cfg": {
+        "cfgId": "039abb86",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.8,
+        "gateThresholdFrac": 0.6,
+        "laneWidth": 0.034
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "9b13db44",
+      "cfg": {
+        "cfgId": "9b13db44",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.8,
+        "gateThresholdFrac": 0.6,
+        "laneWidth": 0.04
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "ede18a40",
+      "cfg": {
+        "cfgId": "ede18a40",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "main",
+        "deflectorAngleDeg": 28,
+        "plungerSpeed": 1.8,
+        "gateThresholdFrac": 0.6,
+        "laneWidth": 0.045
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "f707a088",
+      "cfg": {
+        "cfgId": "f707a088",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "deflectorControl",
+        "plungerSpeed": 1.4,
+        "gateThresholdFrac": 0.475,
+        "laneWidth": 0.034,
+        "deflectorAngleDeg": 15
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "95917d84",
+      "cfg": {
+        "cfgId": "95917d84",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "deflectorControl",
+        "plungerSpeed": 1.4,
+        "gateThresholdFrac": 0.475,
+        "laneWidth": 0.034,
+        "deflectorAngleDeg": 21.7
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "7bac934b",
+      "cfg": {
+        "cfgId": "7bac934b",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "deflectorControl",
+        "plungerSpeed": 1.4,
+        "gateThresholdFrac": 0.475,
+        "laneWidth": 0.034,
+        "deflectorAngleDeg": 28.3
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "aa448e04",
+      "cfg": {
+        "cfgId": "aa448e04",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "deflectorControl",
+        "plungerSpeed": 1.4,
+        "gateThresholdFrac": 0.475,
+        "laneWidth": 0.034,
+        "deflectorAngleDeg": 35
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "f02a5608",
+      "cfg": {
+        "cfgId": "f02a5608",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "deflectorControl",
+        "plungerSpeed": 1.4,
+        "gateThresholdFrac": 0.475,
+        "laneWidth": 0.034,
+        "deflectorAngleDeg": 41.7
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "44f34622",
+      "cfg": {
+        "cfgId": "44f34622",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "deflectorControl",
+        "plungerSpeed": 1.4,
+        "gateThresholdFrac": 0.475,
+        "laneWidth": 0.034,
+        "deflectorAngleDeg": 48.3
+      },
+      "trials": 985
+    },
+    {
+      "cfgId": "a8b106d3",
+      "cfg": {
+        "cfgId": "a8b106d3",
+        "exp": "e3",
+        "family": "P1",
+        "arm": "deflectorControl",
+        "plungerSpeed": 1.4,
+        "gateThresholdFrac": 0.475,
+        "laneWidth": 0.034,
+        "deflectorAngleDeg": 55
+      },
+      "trials": 985
     },
     {
       "cfgId": "0b7495d3",
@@ -7456,6 +7533,48 @@
       "trials": 2000
     },
     {
+      "cfgId": "1f575247",
+      "cfg": {
+        "cfgId": "1f575247",
+        "exp": "e3",
+        "family": "P3",
+        "guideAngleDeg": 20,
+        "laneWidth": 0.026,
+        "postX": 0.015,
+        "inputPrior": "e1",
+        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
+      },
+      "trials": 2000
+    },
+    {
+      "cfgId": "cdfaad8e",
+      "cfg": {
+        "cfgId": "cdfaad8e",
+        "exp": "e3",
+        "family": "P3",
+        "guideAngleDeg": 20,
+        "laneWidth": 0.026,
+        "postX": 0.02,
+        "inputPrior": "e1",
+        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
+      },
+      "trials": 2000
+    },
+    {
+      "cfgId": "79269eae",
+      "cfg": {
+        "cfgId": "79269eae",
+        "exp": "e3",
+        "family": "P3",
+        "guideAngleDeg": 20,
+        "laneWidth": 0.026,
+        "postX": 0.025,
+        "inputPrior": "e1",
+        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
+      },
+      "trials": 2000
+    },
+    {
       "cfgId": "ce6a968c",
       "cfg": {
         "cfgId": "ce6a968c",
@@ -7478,6 +7597,48 @@
         "guideAngleDeg": 20,
         "laneWidth": 0.031,
         "postX": 0.01,
+        "inputPrior": "e1",
+        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
+      },
+      "trials": 2000
+    },
+    {
+      "cfgId": "fc7428eb",
+      "cfg": {
+        "cfgId": "fc7428eb",
+        "exp": "e3",
+        "family": "P3",
+        "guideAngleDeg": 20,
+        "laneWidth": 0.031,
+        "postX": 0.015,
+        "inputPrior": "e1",
+        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
+      },
+      "trials": 2000
+    },
+    {
+      "cfgId": "a0920224",
+      "cfg": {
+        "cfgId": "a0920224",
+        "exp": "e3",
+        "family": "P3",
+        "guideAngleDeg": 20,
+        "laneWidth": 0.031,
+        "postX": 0.02,
+        "inputPrior": "e1",
+        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
+      },
+      "trials": 2000
+    },
+    {
+      "cfgId": "3cea8167",
+      "cfg": {
+        "cfgId": "3cea8167",
+        "exp": "e3",
+        "family": "P3",
+        "guideAngleDeg": 20,
+        "laneWidth": 0.031,
+        "postX": 0.025,
         "inputPrior": "e1",
         "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
       },
@@ -7512,6 +7673,48 @@
       "trials": 2000
     },
     {
+      "cfgId": "6597c07f",
+      "cfg": {
+        "cfgId": "6597c07f",
+        "exp": "e3",
+        "family": "P3",
+        "guideAngleDeg": 20,
+        "laneWidth": 0.037,
+        "postX": 0.015,
+        "inputPrior": "e1",
+        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
+      },
+      "trials": 2000
+    },
+    {
+      "cfgId": "a1399ac6",
+      "cfg": {
+        "cfgId": "a1399ac6",
+        "exp": "e3",
+        "family": "P3",
+        "guideAngleDeg": 20,
+        "laneWidth": 0.037,
+        "postX": 0.02,
+        "inputPrior": "e1",
+        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
+      },
+      "trials": 2000
+    },
+    {
+      "cfgId": "7f7c5669",
+      "cfg": {
+        "cfgId": "7f7c5669",
+        "exp": "e3",
+        "family": "P3",
+        "guideAngleDeg": 20,
+        "laneWidth": 0.037,
+        "postX": 0.025,
+        "inputPrior": "e1",
+        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
+      },
+      "trials": 2000
+    },
+    {
       "cfgId": "fdc0cd61",
       "cfg": {
         "cfgId": "fdc0cd61",
@@ -7534,6 +7737,48 @@
         "guideAngleDeg": 20,
         "laneWidth": 0.042,
         "postX": 0.01,
+        "inputPrior": "e1",
+        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
+      },
+      "trials": 2000
+    },
+    {
+      "cfgId": "8fb3b219",
+      "cfg": {
+        "cfgId": "8fb3b219",
+        "exp": "e3",
+        "family": "P3",
+        "guideAngleDeg": 20,
+        "laneWidth": 0.042,
+        "postX": 0.015,
+        "inputPrior": "e1",
+        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
+      },
+      "trials": 2000
+    },
+    {
+      "cfgId": "e48ae62b",
+      "cfg": {
+        "cfgId": "e48ae62b",
+        "exp": "e3",
+        "family": "P3",
+        "guideAngleDeg": 20,
+        "laneWidth": 0.042,
+        "postX": 0.02,
+        "inputPrior": "e1",
+        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
+      },
+      "trials": 2000
+    },
+    {
+      "cfgId": "289a56f8",
+      "cfg": {
+        "cfgId": "289a56f8",
+        "exp": "e3",
+        "family": "P3",
+        "guideAngleDeg": 20,
+        "laneWidth": 0.042,
+        "postX": 0.025,
         "inputPrior": "e1",
         "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
       },
@@ -7582,6 +7827,34 @@
       "trials": 2000
     },
     {
+      "cfgId": "7ca74958",
+      "cfg": {
+        "cfgId": "7ca74958",
+        "exp": "e3",
+        "family": "P3",
+        "guideAngleDeg": 30,
+        "laneWidth": 0.026,
+        "postX": 0.015,
+        "inputPrior": "e1",
+        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
+      },
+      "trials": 2000
+    },
+    {
+      "cfgId": "f306fb0a",
+      "cfg": {
+        "cfgId": "f306fb0a",
+        "exp": "e3",
+        "family": "P3",
+        "guideAngleDeg": 30,
+        "laneWidth": 0.026,
+        "postX": 0.02,
+        "inputPrior": "e1",
+        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
+      },
+      "trials": 2000
+    },
+    {
       "cfgId": "c52d577b",
       "cfg": {
         "cfgId": "c52d577b",
@@ -7618,6 +7891,34 @@
         "guideAngleDeg": 30,
         "laneWidth": 0.031,
         "postX": 0.01,
+        "inputPrior": "e1",
+        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
+      },
+      "trials": 2000
+    },
+    {
+      "cfgId": "c31f1725",
+      "cfg": {
+        "cfgId": "c31f1725",
+        "exp": "e3",
+        "family": "P3",
+        "guideAngleDeg": 30,
+        "laneWidth": 0.031,
+        "postX": 0.015,
+        "inputPrior": "e1",
+        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
+      },
+      "trials": 2000
+    },
+    {
+      "cfgId": "faec8128",
+      "cfg": {
+        "cfgId": "faec8128",
+        "exp": "e3",
+        "family": "P3",
+        "guideAngleDeg": 30,
+        "laneWidth": 0.031,
+        "postX": 0.02,
         "inputPrior": "e1",
         "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
       },
@@ -7666,6 +7967,34 @@
       "trials": 2000
     },
     {
+      "cfgId": "7eabd058",
+      "cfg": {
+        "cfgId": "7eabd058",
+        "exp": "e3",
+        "family": "P3",
+        "guideAngleDeg": 30,
+        "laneWidth": 0.037,
+        "postX": 0.015,
+        "inputPrior": "e1",
+        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
+      },
+      "trials": 2000
+    },
+    {
+      "cfgId": "4dadddd9",
+      "cfg": {
+        "cfgId": "4dadddd9",
+        "exp": "e3",
+        "family": "P3",
+        "guideAngleDeg": 30,
+        "laneWidth": 0.037,
+        "postX": 0.02,
+        "inputPrior": "e1",
+        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
+      },
+      "trials": 2000
+    },
+    {
       "cfgId": "7a2a6396",
       "cfg": {
         "cfgId": "7a2a6396",
@@ -7702,6 +8031,34 @@
         "guideAngleDeg": 30,
         "laneWidth": 0.042,
         "postX": 0.01,
+        "inputPrior": "e1",
+        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
+      },
+      "trials": 2000
+    },
+    {
+      "cfgId": "a2e1d3c4",
+      "cfg": {
+        "cfgId": "a2e1d3c4",
+        "exp": "e3",
+        "family": "P3",
+        "guideAngleDeg": 30,
+        "laneWidth": 0.042,
+        "postX": 0.015,
+        "inputPrior": "e1",
+        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
+      },
+      "trials": 2000
+    },
+    {
+      "cfgId": "a2d59ecd",
+      "cfg": {
+        "cfgId": "a2d59ecd",
+        "exp": "e3",
+        "family": "P3",
+        "guideAngleDeg": 30,
+        "laneWidth": 0.042,
+        "postX": 0.02,
         "inputPrior": "e1",
         "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
       },
@@ -7764,6 +8121,20 @@
       "trials": 2000
     },
     {
+      "cfgId": "80f1ca0e",
+      "cfg": {
+        "cfgId": "80f1ca0e",
+        "exp": "e3",
+        "family": "P3",
+        "guideAngleDeg": 40,
+        "laneWidth": 0.026,
+        "postX": 0.015,
+        "inputPrior": "e1",
+        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
+      },
+      "trials": 2000
+    },
+    {
       "cfgId": "79c912de",
       "cfg": {
         "cfgId": "79c912de",
@@ -7814,6 +8185,20 @@
         "guideAngleDeg": 40,
         "laneWidth": 0.031,
         "postX": 0.01,
+        "inputPrior": "e1",
+        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
+      },
+      "trials": 2000
+    },
+    {
+      "cfgId": "20152fc5",
+      "cfg": {
+        "cfgId": "20152fc5",
+        "exp": "e3",
+        "family": "P3",
+        "guideAngleDeg": 40,
+        "laneWidth": 0.031,
+        "postX": 0.015,
         "inputPrior": "e1",
         "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
       },
@@ -7876,6 +8261,20 @@
       "trials": 2000
     },
     {
+      "cfgId": "6af5e200",
+      "cfg": {
+        "cfgId": "6af5e200",
+        "exp": "e3",
+        "family": "P3",
+        "guideAngleDeg": 40,
+        "laneWidth": 0.037,
+        "postX": 0.015,
+        "inputPrior": "e1",
+        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
+      },
+      "trials": 2000
+    },
+    {
       "cfgId": "387af989",
       "cfg": {
         "cfgId": "387af989",
@@ -7926,6 +8325,20 @@
         "guideAngleDeg": 40,
         "laneWidth": 0.042,
         "postX": 0.01,
+        "inputPrior": "e1",
+        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
+      },
+      "trials": 2000
+    },
+    {
+      "cfgId": "5222b28c",
+      "cfg": {
+        "cfgId": "5222b28c",
+        "exp": "e3",
+        "family": "P3",
+        "guideAngleDeg": 40,
+        "laneWidth": 0.042,
+        "postX": 0.015,
         "inputPrior": "e1",
         "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
       },
@@ -7988,6 +8401,20 @@
       "trials": 2000
     },
     {
+      "cfgId": "a519ebc1",
+      "cfg": {
+        "cfgId": "a519ebc1",
+        "exp": "e3",
+        "family": "P3",
+        "guideAngleDeg": 50,
+        "laneWidth": 0.026,
+        "postX": 0.015,
+        "inputPrior": "e1",
+        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
+      },
+      "trials": 2000
+    },
+    {
       "cfgId": "c2dd2f5e",
       "cfg": {
         "cfgId": "c2dd2f5e",
@@ -8038,6 +8465,20 @@
         "guideAngleDeg": 50,
         "laneWidth": 0.031,
         "postX": 0.01,
+        "inputPrior": "e1",
+        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
+      },
+      "trials": 2000
+    },
+    {
+      "cfgId": "aef1251a",
+      "cfg": {
+        "cfgId": "aef1251a",
+        "exp": "e3",
+        "family": "P3",
+        "guideAngleDeg": 50,
+        "laneWidth": 0.031,
+        "postX": 0.015,
         "inputPrior": "e1",
         "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
       },
@@ -8100,6 +8541,20 @@
       "trials": 2000
     },
     {
+      "cfgId": "92f81433",
+      "cfg": {
+        "cfgId": "92f81433",
+        "exp": "e3",
+        "family": "P3",
+        "guideAngleDeg": 50,
+        "laneWidth": 0.037,
+        "postX": 0.015,
+        "inputPrior": "e1",
+        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
+      },
+      "trials": 2000
+    },
+    {
       "cfgId": "07f8fa68",
       "cfg": {
         "cfgId": "07f8fa68",
@@ -8150,6 +8605,20 @@
         "guideAngleDeg": 50,
         "laneWidth": 0.042,
         "postX": 0.01,
+        "inputPrior": "e1",
+        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
+      },
+      "trials": 2000
+    },
+    {
+      "cfgId": "37b1c660",
+      "cfg": {
+        "cfgId": "37b1c660",
+        "exp": "e3",
+        "family": "P3",
+        "guideAngleDeg": 50,
+        "laneWidth": 0.042,
+        "postX": 0.015,
         "inputPrior": "e1",
         "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
       },
@@ -17634,1334 +18103,6 @@
         "dropDirectionDeg": 350
       },
       "trials": 333
-    },
-    {
-      "cfgId": "92ac6533",
-      "cfg": {
-        "cfgId": "92ac6533",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 1
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "ddd33b78",
-      "cfg": {
-        "cfgId": "ddd33b78",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 1.8
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "aff22342",
-      "cfg": {
-        "cfgId": "aff22342",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 2.6
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "f9407b1c",
-      "cfg": {
-        "cfgId": "f9407b1c",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 3.4
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "a6c5affc",
-      "cfg": {
-        "cfgId": "a6c5affc",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 4.2
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "b9549dcf",
-      "cfg": {
-        "cfgId": "b9549dcf",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 5
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "9e96b7a4",
-      "cfg": {
-        "cfgId": "9e96b7a4",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 1
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "aef0eaae",
-      "cfg": {
-        "cfgId": "aef0eaae",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 1.8
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "21316d29",
-      "cfg": {
-        "cfgId": "21316d29",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 2.6
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "48bf2632",
-      "cfg": {
-        "cfgId": "48bf2632",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 3.4
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "28cdea31",
-      "cfg": {
-        "cfgId": "28cdea31",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 4.2
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "a4870305",
-      "cfg": {
-        "cfgId": "a4870305",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 5
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "c6c9feaa",
-      "cfg": {
-        "cfgId": "c6c9feaa",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 1
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "4b888108",
-      "cfg": {
-        "cfgId": "4b888108",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 1.8
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "de96df7c",
-      "cfg": {
-        "cfgId": "de96df7c",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 2.6
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "77fc8759",
-      "cfg": {
-        "cfgId": "77fc8759",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 3.4
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "36db898b",
-      "cfg": {
-        "cfgId": "36db898b",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 4.2
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "7f3b8dc9",
-      "cfg": {
-        "cfgId": "7f3b8dc9",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 15,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 5
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "638865cb",
-      "cfg": {
-        "cfgId": "638865cb",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 1
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "5317598e",
-      "cfg": {
-        "cfgId": "5317598e",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 1.8
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "eed33efa",
-      "cfg": {
-        "cfgId": "eed33efa",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 2.6
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "010d40d3",
-      "cfg": {
-        "cfgId": "010d40d3",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 3.4
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "6caf48ad",
-      "cfg": {
-        "cfgId": "6caf48ad",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 4.2
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "edc866ed",
-      "cfg": {
-        "cfgId": "edc866ed",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 5
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "f01b9724",
-      "cfg": {
-        "cfgId": "f01b9724",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 1
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "0b0ea0a4",
-      "cfg": {
-        "cfgId": "0b0ea0a4",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 1.8
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "a4c91afb",
-      "cfg": {
-        "cfgId": "a4c91afb",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 2.6
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "fa86232b",
-      "cfg": {
-        "cfgId": "fa86232b",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 3.4
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "c8b19aed",
-      "cfg": {
-        "cfgId": "c8b19aed",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 4.2
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "66c8ce6e",
-      "cfg": {
-        "cfgId": "66c8ce6e",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 5
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "d7665ad1",
-      "cfg": {
-        "cfgId": "d7665ad1",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 1
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "7b7734a4",
-      "cfg": {
-        "cfgId": "7b7734a4",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 1.8
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "2e14cfcb",
-      "cfg": {
-        "cfgId": "2e14cfcb",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 2.6
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "0bd664cd",
-      "cfg": {
-        "cfgId": "0bd664cd",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 3.4
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "3a250c60",
-      "cfg": {
-        "cfgId": "3a250c60",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 4.2
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "e4f27635",
-      "cfg": {
-        "cfgId": "e4f27635",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 28,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 5
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "921eb10b",
-      "cfg": {
-        "cfgId": "921eb10b",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 1
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "bd4f13a3",
-      "cfg": {
-        "cfgId": "bd4f13a3",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 1.8
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "a4fd8d7d",
-      "cfg": {
-        "cfgId": "a4fd8d7d",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 2.6
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "096666ea",
-      "cfg": {
-        "cfgId": "096666ea",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 3.4
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "4902a2fa",
-      "cfg": {
-        "cfgId": "4902a2fa",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 4.2
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "d4da7879",
-      "cfg": {
-        "cfgId": "d4da7879",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 5
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "4d71101b",
-      "cfg": {
-        "cfgId": "4d71101b",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 1
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "466f74b4",
-      "cfg": {
-        "cfgId": "466f74b4",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 1.8
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "017e3afb",
-      "cfg": {
-        "cfgId": "017e3afb",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 2.6
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "79ae7d59",
-      "cfg": {
-        "cfgId": "79ae7d59",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 3.4
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "3be77c0c",
-      "cfg": {
-        "cfgId": "3be77c0c",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 4.2
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "625deccd",
-      "cfg": {
-        "cfgId": "625deccd",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 5
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "9b883f84",
-      "cfg": {
-        "cfgId": "9b883f84",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 1
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "1588c48e",
-      "cfg": {
-        "cfgId": "1588c48e",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 1.8
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "495a68eb",
-      "cfg": {
-        "cfgId": "495a68eb",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 2.6
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "894e04b3",
-      "cfg": {
-        "cfgId": "894e04b3",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 3.4
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "288f7fcb",
-      "cfg": {
-        "cfgId": "288f7fcb",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 4.2
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "7bd7b809",
-      "cfg": {
-        "cfgId": "7bd7b809",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 41,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 5
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "fd337fd7",
-      "cfg": {
-        "cfgId": "fd337fd7",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 1
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "e0eee4d5",
-      "cfg": {
-        "cfgId": "e0eee4d5",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 1.8
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "6d6ba461",
-      "cfg": {
-        "cfgId": "6d6ba461",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 2.6
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "b4ed8256",
-      "cfg": {
-        "cfgId": "b4ed8256",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 3.4
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "2c68cceb",
-      "cfg": {
-        "cfgId": "2c68cceb",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 4.2
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "55d49cca",
-      "cfg": {
-        "cfgId": "55d49cca",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.35,
-        "plungerSpeed": 5
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "d66cfe20",
-      "cfg": {
-        "cfgId": "d66cfe20",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 1
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "5eae1919",
-      "cfg": {
-        "cfgId": "5eae1919",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 1.8
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "970b443e",
-      "cfg": {
-        "cfgId": "970b443e",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 2.6
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "51f949b8",
-      "cfg": {
-        "cfgId": "51f949b8",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 3.4
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "ecfd5fcf",
-      "cfg": {
-        "cfgId": "ecfd5fcf",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 4.2
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "247ebd6e",
-      "cfg": {
-        "cfgId": "247ebd6e",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.6,
-        "plungerSpeed": 5
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "4bc988e3",
-      "cfg": {
-        "cfgId": "4bc988e3",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 1
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "2e12c24b",
-      "cfg": {
-        "cfgId": "2e12c24b",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 1.8
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "e9b5141a",
-      "cfg": {
-        "cfgId": "e9b5141a",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 2.6
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "bac5f514",
-      "cfg": {
-        "cfgId": "bac5f514",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 3.4
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "87ab37aa",
-      "cfg": {
-        "cfgId": "87ab37aa",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 4.2
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "aca382f9",
-      "cfg": {
-        "cfgId": "aca382f9",
-        "exp": "e3",
-        "family": "P1",
-        "laneWidth": 0.0291,
-        "deflectorAngleDeg": 55,
-        "gateThresholdFrac": 0.85,
-        "plungerSpeed": 5
-      },
-      "trials": 695
-    },
-    {
-      "cfgId": "1f575247",
-      "cfg": {
-        "cfgId": "1f575247",
-        "exp": "e3",
-        "family": "P3",
-        "guideAngleDeg": 20,
-        "laneWidth": 0.026,
-        "postX": 0.015,
-        "inputPrior": "e1",
-        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
-      },
-      "trials": 2000
-    },
-    {
-      "cfgId": "cdfaad8e",
-      "cfg": {
-        "cfgId": "cdfaad8e",
-        "exp": "e3",
-        "family": "P3",
-        "guideAngleDeg": 20,
-        "laneWidth": 0.026,
-        "postX": 0.02,
-        "inputPrior": "e1",
-        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
-      },
-      "trials": 2000
-    },
-    {
-      "cfgId": "79269eae",
-      "cfg": {
-        "cfgId": "79269eae",
-        "exp": "e3",
-        "family": "P3",
-        "guideAngleDeg": 20,
-        "laneWidth": 0.026,
-        "postX": 0.025,
-        "inputPrior": "e1",
-        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
-      },
-      "trials": 2000
-    },
-    {
-      "cfgId": "fc7428eb",
-      "cfg": {
-        "cfgId": "fc7428eb",
-        "exp": "e3",
-        "family": "P3",
-        "guideAngleDeg": 20,
-        "laneWidth": 0.031,
-        "postX": 0.015,
-        "inputPrior": "e1",
-        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
-      },
-      "trials": 2000
-    },
-    {
-      "cfgId": "a0920224",
-      "cfg": {
-        "cfgId": "a0920224",
-        "exp": "e3",
-        "family": "P3",
-        "guideAngleDeg": 20,
-        "laneWidth": 0.031,
-        "postX": 0.02,
-        "inputPrior": "e1",
-        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
-      },
-      "trials": 2000
-    },
-    {
-      "cfgId": "3cea8167",
-      "cfg": {
-        "cfgId": "3cea8167",
-        "exp": "e3",
-        "family": "P3",
-        "guideAngleDeg": 20,
-        "laneWidth": 0.031,
-        "postX": 0.025,
-        "inputPrior": "e1",
-        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
-      },
-      "trials": 2000
-    },
-    {
-      "cfgId": "6597c07f",
-      "cfg": {
-        "cfgId": "6597c07f",
-        "exp": "e3",
-        "family": "P3",
-        "guideAngleDeg": 20,
-        "laneWidth": 0.037,
-        "postX": 0.015,
-        "inputPrior": "e1",
-        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
-      },
-      "trials": 2000
-    },
-    {
-      "cfgId": "a1399ac6",
-      "cfg": {
-        "cfgId": "a1399ac6",
-        "exp": "e3",
-        "family": "P3",
-        "guideAngleDeg": 20,
-        "laneWidth": 0.037,
-        "postX": 0.02,
-        "inputPrior": "e1",
-        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
-      },
-      "trials": 2000
-    },
-    {
-      "cfgId": "7f7c5669",
-      "cfg": {
-        "cfgId": "7f7c5669",
-        "exp": "e3",
-        "family": "P3",
-        "guideAngleDeg": 20,
-        "laneWidth": 0.037,
-        "postX": 0.025,
-        "inputPrior": "e1",
-        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
-      },
-      "trials": 2000
-    },
-    {
-      "cfgId": "8fb3b219",
-      "cfg": {
-        "cfgId": "8fb3b219",
-        "exp": "e3",
-        "family": "P3",
-        "guideAngleDeg": 20,
-        "laneWidth": 0.042,
-        "postX": 0.015,
-        "inputPrior": "e1",
-        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
-      },
-      "trials": 2000
-    },
-    {
-      "cfgId": "e48ae62b",
-      "cfg": {
-        "cfgId": "e48ae62b",
-        "exp": "e3",
-        "family": "P3",
-        "guideAngleDeg": 20,
-        "laneWidth": 0.042,
-        "postX": 0.02,
-        "inputPrior": "e1",
-        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
-      },
-      "trials": 2000
-    },
-    {
-      "cfgId": "289a56f8",
-      "cfg": {
-        "cfgId": "289a56f8",
-        "exp": "e3",
-        "family": "P3",
-        "guideAngleDeg": 20,
-        "laneWidth": 0.042,
-        "postX": 0.025,
-        "inputPrior": "e1",
-        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
-      },
-      "trials": 2000
-    },
-    {
-      "cfgId": "7ca74958",
-      "cfg": {
-        "cfgId": "7ca74958",
-        "exp": "e3",
-        "family": "P3",
-        "guideAngleDeg": 30,
-        "laneWidth": 0.026,
-        "postX": 0.015,
-        "inputPrior": "e1",
-        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
-      },
-      "trials": 2000
-    },
-    {
-      "cfgId": "f306fb0a",
-      "cfg": {
-        "cfgId": "f306fb0a",
-        "exp": "e3",
-        "family": "P3",
-        "guideAngleDeg": 30,
-        "laneWidth": 0.026,
-        "postX": 0.02,
-        "inputPrior": "e1",
-        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
-      },
-      "trials": 2000
-    },
-    {
-      "cfgId": "c31f1725",
-      "cfg": {
-        "cfgId": "c31f1725",
-        "exp": "e3",
-        "family": "P3",
-        "guideAngleDeg": 30,
-        "laneWidth": 0.031,
-        "postX": 0.015,
-        "inputPrior": "e1",
-        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
-      },
-      "trials": 2000
-    },
-    {
-      "cfgId": "faec8128",
-      "cfg": {
-        "cfgId": "faec8128",
-        "exp": "e3",
-        "family": "P3",
-        "guideAngleDeg": 30,
-        "laneWidth": 0.031,
-        "postX": 0.02,
-        "inputPrior": "e1",
-        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
-      },
-      "trials": 2000
-    },
-    {
-      "cfgId": "7eabd058",
-      "cfg": {
-        "cfgId": "7eabd058",
-        "exp": "e3",
-        "family": "P3",
-        "guideAngleDeg": 30,
-        "laneWidth": 0.037,
-        "postX": 0.015,
-        "inputPrior": "e1",
-        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
-      },
-      "trials": 2000
-    },
-    {
-      "cfgId": "4dadddd9",
-      "cfg": {
-        "cfgId": "4dadddd9",
-        "exp": "e3",
-        "family": "P3",
-        "guideAngleDeg": 30,
-        "laneWidth": 0.037,
-        "postX": 0.02,
-        "inputPrior": "e1",
-        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
-      },
-      "trials": 2000
-    },
-    {
-      "cfgId": "a2e1d3c4",
-      "cfg": {
-        "cfgId": "a2e1d3c4",
-        "exp": "e3",
-        "family": "P3",
-        "guideAngleDeg": 30,
-        "laneWidth": 0.042,
-        "postX": 0.015,
-        "inputPrior": "e1",
-        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
-      },
-      "trials": 2000
-    },
-    {
-      "cfgId": "a2d59ecd",
-      "cfg": {
-        "cfgId": "a2d59ecd",
-        "exp": "e3",
-        "family": "P3",
-        "guideAngleDeg": 30,
-        "laneWidth": 0.042,
-        "postX": 0.02,
-        "inputPrior": "e1",
-        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
-      },
-      "trials": 2000
-    },
-    {
-      "cfgId": "80f1ca0e",
-      "cfg": {
-        "cfgId": "80f1ca0e",
-        "exp": "e3",
-        "family": "P3",
-        "guideAngleDeg": 40,
-        "laneWidth": 0.026,
-        "postX": 0.015,
-        "inputPrior": "e1",
-        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
-      },
-      "trials": 2000
-    },
-    {
-      "cfgId": "20152fc5",
-      "cfg": {
-        "cfgId": "20152fc5",
-        "exp": "e3",
-        "family": "P3",
-        "guideAngleDeg": 40,
-        "laneWidth": 0.031,
-        "postX": 0.015,
-        "inputPrior": "e1",
-        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
-      },
-      "trials": 2000
-    },
-    {
-      "cfgId": "6af5e200",
-      "cfg": {
-        "cfgId": "6af5e200",
-        "exp": "e3",
-        "family": "P3",
-        "guideAngleDeg": 40,
-        "laneWidth": 0.037,
-        "postX": 0.015,
-        "inputPrior": "e1",
-        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
-      },
-      "trials": 2000
-    },
-    {
-      "cfgId": "5222b28c",
-      "cfg": {
-        "cfgId": "5222b28c",
-        "exp": "e3",
-        "family": "P3",
-        "guideAngleDeg": 40,
-        "laneWidth": 0.042,
-        "postX": 0.015,
-        "inputPrior": "e1",
-        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
-      },
-      "trials": 2000
-    },
-    {
-      "cfgId": "a519ebc1",
-      "cfg": {
-        "cfgId": "a519ebc1",
-        "exp": "e3",
-        "family": "P3",
-        "guideAngleDeg": 50,
-        "laneWidth": 0.026,
-        "postX": 0.015,
-        "inputPrior": "e1",
-        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
-      },
-      "trials": 2000
-    },
-    {
-      "cfgId": "aef1251a",
-      "cfg": {
-        "cfgId": "aef1251a",
-        "exp": "e3",
-        "family": "P3",
-        "guideAngleDeg": 50,
-        "laneWidth": 0.031,
-        "postX": 0.015,
-        "inputPrior": "e1",
-        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
-      },
-      "trials": 2000
-    },
-    {
-      "cfgId": "92f81433",
-      "cfg": {
-        "cfgId": "92f81433",
-        "exp": "e3",
-        "family": "P3",
-        "guideAngleDeg": 50,
-        "laneWidth": 0.037,
-        "postX": 0.015,
-        "inputPrior": "e1",
-        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
-      },
-      "trials": 2000
-    },
-    {
-      "cfgId": "37b1c660",
-      "cfg": {
-        "cfgId": "37b1c660",
-        "exp": "e3",
-        "family": "P3",
-        "guideAngleDeg": 50,
-        "laneWidth": 0.042,
-        "postX": 0.015,
-        "inputPrior": "e1",
-        "shotlineSamplesPath": "data/summaries/e1-lab2-20260901T073830Z-shotline.json"
-      },
-      "trials": 2000
     }
   ]
 }
