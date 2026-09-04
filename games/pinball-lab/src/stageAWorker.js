@@ -10,7 +10,7 @@ import { createWriteStream } from 'node:fs';
 import { createGzip } from 'node:zlib';
 import { pipeline } from 'node:stream/promises';
 import { Readable } from 'node:stream';
-import { runTrialWithMeta } from './instrument.js';
+import { runTrialWithMeta, FLAGS } from './instrument.js';
 
 function newAcc() {
   return { n: 0, sum: 0, sumSq: 0 };
@@ -40,6 +40,15 @@ async function run() {
             cfgId: cfg.cfgId, trials: 0, flagged: 0, contactCount: 0, xaVals: [], stallWithContact: 0,
             // E4 (LAB-6) fields — harmless no-ops on E1/E2 records, which never set ct/cr/cp/cv.
             ct: 0, cr: 0, cp: 0, cv: 0, creep: 0, flaggedExclStalled: 0, stVals: [], rxaVals: [], relCounts: {},
+            // LAB-22: per-flag counts, so the declared-premise gate can hold every flag the
+            // premise did NOT declare to FLAG_GATE_FRACTION. Two versions, because E4's
+            // numerator (`flaggedExclStalled`) drops whole STALLED *trials*, not the STALLED
+            // *bit* — a per-bit count over all trials is not comparable to it (A2 reads 57.3%
+            // IMPACTS_EXHAUSTED per-bit against a 21.8% excl-stalled numerator, because most
+            // of those trials also stalled). Each caller passes whichever matches its own
+            // numerator.
+            flagCounts: Object.fromEntries(Object.keys(FLAGS).map((n) => [n, 0])),
+            flagCountsExclStalled: Object.fromEntries(Object.keys(FLAGS).map((n) => [n, 0])),
           };
         }
         if (seed >= trialCounts[ci]) { ci += 1; seed = 0; continue; }
@@ -47,6 +56,10 @@ async function run() {
         const { record, inbound, contacted } = runTrialWithMeta(cfg, seed);
         row.trials += 1;
         if (record.f !== 0) row.flagged += 1;
+        for (const [name, bit] of Object.entries(FLAGS)) if (record.f & bit) row.flagCounts[name] += 1;
+        if (!(record.f & FLAGS.STALLED)) {
+          for (const [name, bit] of Object.entries(FLAGS)) if (record.f & bit) row.flagCountsExclStalled[name] += 1;
+        }
         if (contacted) row.contactCount += 1;
         if (record.xa !== null) row.xaVals.push(record.xa);
         if (record.term === 'stall' && contacted) row.stallWithContact += 1;

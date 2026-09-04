@@ -1,0 +1,1939 @@
+{
+  "exp": "e1",
+  "out": "data/e1/pilot-01-lab22",
+  "instrumentCommitSha": "d7b887182644f92beb26c31586f75be392849979",
+  "generatedAt": "2026-09-04T22:04:05.741Z",
+  "units": {
+    "length": "m",
+    "speed": "m/s",
+    "angle": "deg (recorded), rad (internal)",
+    "time_dt_field": "ms",
+    "time_dw_field": "s"
+  },
+  "cfgCount": 12,
+  "trialCount": 10000,
+  "flaggedFraction": 0.1042,
+  "flagGateOk": true,
+  "flagCounts": {
+    "IMPACTS_EXHAUSTED": 6,
+    "ESCAPED": 0,
+    "TIMEOUT": 1036,
+    "STALLED": 0,
+    "NAN": 0,
+    "CREEP": 0
+  },
+  "declaredPremise": {
+    "expectedFlagFraction": 0.13,
+    "expectedFlags": [
+      "TIMEOUT"
+    ],
+    "reason": "The TIMEOUT tail is this pilot's subject matter, not a defect. §3.3 samples inbound speed down to 0.3 m/s against a 2.0s trial cap, so the slowest injections are still in play when the window closes. The pilot exists to prove the harness and every §3.4 column against exactly those edge cases, so redesigning it to clear 1% would remove what it validates. Measured post-solver-fix at 11.565% flagged overall, of which 10.914pp is TIMEOUT and only 0.650pp is IMPACTS_EXHAUSTED — on the solver-validity axis §2.7 exists to protect, this corpus passes. The ceiling is set at 13% to leave headroom over the measured 11.565% for run-to-run variation; it is not a measurement, it is a bound, and a run that exceeds it is still refused.",
+    "declaredBy": "ledger/handoffs/opus2/20260904T150000Z-three-gate-rulings.md §(b)"
+  },
+  "premiseApplied": true,
+  "ensembleInboundSds": {
+    "x0": 0.057689622335573475,
+    "speed0": 1.2140331310826409,
+    "angle0Deg": 40.080237043454346
+  },
+  "neverBaselineContactRate": 0.5155875299760192,
+  "secs": 5.384787833000001,
+  "cfgs": [
+    {
+      "cfgId": "6c7d9477",
+      "cfg": {
+        "cfgId": "6c7d9477",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "never"
+      },
+      "trials": 834,
+      "flagged": 117,
+      "contactRate": 0.5155875299760192,
+      "inboundSds": {
+        "x0": 0.05881272105088688,
+        "speed0": 1.2352511353371076,
+        "angle0Deg": 39.08827976458584
+      },
+      "shards": [
+        {
+          "path": "6c7d9477/shard-0.jsonl.gz",
+          "seedStart": 0,
+          "count": 105
+        },
+        {
+          "path": "6c7d9477/shard-1.jsonl.gz",
+          "seedStart": 105,
+          "count": 105
+        },
+        {
+          "path": "6c7d9477/shard-2.jsonl.gz",
+          "seedStart": 210,
+          "count": 104
+        },
+        {
+          "path": "6c7d9477/shard-3.jsonl.gz",
+          "seedStart": 314,
+          "count": 104
+        },
+        {
+          "path": "6c7d9477/shard-4.jsonl.gz",
+          "seedStart": 418,
+          "count": 104
+        },
+        {
+          "path": "6c7d9477/shard-5.jsonl.gz",
+          "seedStart": 522,
+          "count": 104
+        },
+        {
+          "path": "6c7d9477/shard-6.jsonl.gz",
+          "seedStart": 626,
+          "count": 104
+        },
+        {
+          "path": "6c7d9477/shard-7.jsonl.gz",
+          "seedStart": 730,
+          "count": 104
+        }
+      ]
+    },
+    {
+      "cfgId": "61547799",
+      "cfg": {
+        "cfgId": "61547799",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "fixedDelay",
+        "d": 0
+      },
+      "trials": 834,
+      "flagged": 97,
+      "contactRate": 0.47961630695443647,
+      "inboundSds": {
+        "x0": 0.05725687800895904,
+        "speed0": 1.2317861674367352,
+        "angle0Deg": 40.29806117412831
+      },
+      "shards": [
+        {
+          "path": "61547799/shard-0.jsonl.gz",
+          "seedStart": 0,
+          "count": 105
+        },
+        {
+          "path": "61547799/shard-1.jsonl.gz",
+          "seedStart": 105,
+          "count": 105
+        },
+        {
+          "path": "61547799/shard-2.jsonl.gz",
+          "seedStart": 210,
+          "count": 104
+        },
+        {
+          "path": "61547799/shard-3.jsonl.gz",
+          "seedStart": 314,
+          "count": 104
+        },
+        {
+          "path": "61547799/shard-4.jsonl.gz",
+          "seedStart": 418,
+          "count": 104
+        },
+        {
+          "path": "61547799/shard-5.jsonl.gz",
+          "seedStart": 522,
+          "count": 104
+        },
+        {
+          "path": "61547799/shard-6.jsonl.gz",
+          "seedStart": 626,
+          "count": 104
+        },
+        {
+          "path": "61547799/shard-7.jsonl.gz",
+          "seedStart": 730,
+          "count": 104
+        }
+      ]
+    },
+    {
+      "cfgId": "3eeefdfc",
+      "cfg": {
+        "cfgId": "3eeefdfc",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "fixedDelay",
+        "d": 50
+      },
+      "trials": 834,
+      "flagged": 88,
+      "contactRate": 0.5083932853717026,
+      "inboundSds": {
+        "x0": 0.05603995920897241,
+        "speed0": 1.199491623508574,
+        "angle0Deg": 39.97215245774049
+      },
+      "shards": [
+        {
+          "path": "3eeefdfc/shard-0.jsonl.gz",
+          "seedStart": 0,
+          "count": 105
+        },
+        {
+          "path": "3eeefdfc/shard-1.jsonl.gz",
+          "seedStart": 105,
+          "count": 105
+        },
+        {
+          "path": "3eeefdfc/shard-2.jsonl.gz",
+          "seedStart": 210,
+          "count": 104
+        },
+        {
+          "path": "3eeefdfc/shard-3.jsonl.gz",
+          "seedStart": 314,
+          "count": 104
+        },
+        {
+          "path": "3eeefdfc/shard-4.jsonl.gz",
+          "seedStart": 418,
+          "count": 104
+        },
+        {
+          "path": "3eeefdfc/shard-5.jsonl.gz",
+          "seedStart": 522,
+          "count": 104
+        },
+        {
+          "path": "3eeefdfc/shard-6.jsonl.gz",
+          "seedStart": 626,
+          "count": 104
+        },
+        {
+          "path": "3eeefdfc/shard-7.jsonl.gz",
+          "seedStart": 730,
+          "count": 104
+        }
+      ]
+    },
+    {
+      "cfgId": "9c8f8fa3",
+      "cfg": {
+        "cfgId": "9c8f8fa3",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "fixedDelay",
+        "d": 100
+      },
+      "trials": 834,
+      "flagged": 99,
+      "contactRate": 0.5335731414868106,
+      "inboundSds": {
+        "x0": 0.057448818890883484,
+        "speed0": 1.1867895775228243,
+        "angle0Deg": 40.087392494710265
+      },
+      "shards": [
+        {
+          "path": "9c8f8fa3/shard-0.jsonl.gz",
+          "seedStart": 0,
+          "count": 105
+        },
+        {
+          "path": "9c8f8fa3/shard-1.jsonl.gz",
+          "seedStart": 105,
+          "count": 105
+        },
+        {
+          "path": "9c8f8fa3/shard-2.jsonl.gz",
+          "seedStart": 210,
+          "count": 104
+        },
+        {
+          "path": "9c8f8fa3/shard-3.jsonl.gz",
+          "seedStart": 314,
+          "count": 104
+        },
+        {
+          "path": "9c8f8fa3/shard-4.jsonl.gz",
+          "seedStart": 418,
+          "count": 104
+        },
+        {
+          "path": "9c8f8fa3/shard-5.jsonl.gz",
+          "seedStart": 522,
+          "count": 104
+        },
+        {
+          "path": "9c8f8fa3/shard-6.jsonl.gz",
+          "seedStart": 626,
+          "count": 104
+        },
+        {
+          "path": "9c8f8fa3/shard-7.jsonl.gz",
+          "seedStart": 730,
+          "count": 104
+        }
+      ]
+    },
+    {
+      "cfgId": "b156f110",
+      "cfg": {
+        "cfgId": "b156f110",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "fixedDelay",
+        "d": 150
+      },
+      "trials": 833,
+      "flagged": 108,
+      "contactRate": 0.531812725090036,
+      "inboundSds": {
+        "x0": 0.057114700746347336,
+        "speed0": 1.2075093248392486,
+        "angle0Deg": 39.94545213515133
+      },
+      "shards": [
+        {
+          "path": "b156f110/shard-0.jsonl.gz",
+          "seedStart": 0,
+          "count": 105
+        },
+        {
+          "path": "b156f110/shard-1.jsonl.gz",
+          "seedStart": 105,
+          "count": 104
+        },
+        {
+          "path": "b156f110/shard-2.jsonl.gz",
+          "seedStart": 209,
+          "count": 104
+        },
+        {
+          "path": "b156f110/shard-3.jsonl.gz",
+          "seedStart": 313,
+          "count": 104
+        },
+        {
+          "path": "b156f110/shard-4.jsonl.gz",
+          "seedStart": 417,
+          "count": 104
+        },
+        {
+          "path": "b156f110/shard-5.jsonl.gz",
+          "seedStart": 521,
+          "count": 104
+        },
+        {
+          "path": "b156f110/shard-6.jsonl.gz",
+          "seedStart": 625,
+          "count": 104
+        },
+        {
+          "path": "b156f110/shard-7.jsonl.gz",
+          "seedStart": 729,
+          "count": 104
+        }
+      ]
+    },
+    {
+      "cfgId": "1daae80c",
+      "cfg": {
+        "cfgId": "1daae80c",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "fixedDelay",
+        "d": 200
+      },
+      "trials": 833,
+      "flagged": 98,
+      "contactRate": 0.517406962785114,
+      "inboundSds": {
+        "x0": 0.05894226242592169,
+        "speed0": 1.2438368489983231,
+        "angle0Deg": 39.66598808019298
+      },
+      "shards": [
+        {
+          "path": "1daae80c/shard-0.jsonl.gz",
+          "seedStart": 0,
+          "count": 105
+        },
+        {
+          "path": "1daae80c/shard-1.jsonl.gz",
+          "seedStart": 105,
+          "count": 104
+        },
+        {
+          "path": "1daae80c/shard-2.jsonl.gz",
+          "seedStart": 209,
+          "count": 104
+        },
+        {
+          "path": "1daae80c/shard-3.jsonl.gz",
+          "seedStart": 313,
+          "count": 104
+        },
+        {
+          "path": "1daae80c/shard-4.jsonl.gz",
+          "seedStart": 417,
+          "count": 104
+        },
+        {
+          "path": "1daae80c/shard-5.jsonl.gz",
+          "seedStart": 521,
+          "count": 104
+        },
+        {
+          "path": "1daae80c/shard-6.jsonl.gz",
+          "seedStart": 625,
+          "count": 104
+        },
+        {
+          "path": "1daae80c/shard-7.jsonl.gz",
+          "seedStart": 729,
+          "count": 104
+        }
+      ]
+    },
+    {
+      "cfgId": "03ede277",
+      "cfg": {
+        "cfgId": "03ede277",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "proximity",
+        "R": 0.07,
+        "L": 0
+      },
+      "trials": 833,
+      "flagged": 55,
+      "contactRate": 0.49819927971188477,
+      "inboundSds": {
+        "x0": 0.05908997951756884,
+        "speed0": 1.1914814719552584,
+        "angle0Deg": 39.048151381104915
+      },
+      "shards": [
+        {
+          "path": "03ede277/shard-0.jsonl.gz",
+          "seedStart": 0,
+          "count": 105
+        },
+        {
+          "path": "03ede277/shard-1.jsonl.gz",
+          "seedStart": 105,
+          "count": 104
+        },
+        {
+          "path": "03ede277/shard-2.jsonl.gz",
+          "seedStart": 209,
+          "count": 104
+        },
+        {
+          "path": "03ede277/shard-3.jsonl.gz",
+          "seedStart": 313,
+          "count": 104
+        },
+        {
+          "path": "03ede277/shard-4.jsonl.gz",
+          "seedStart": 417,
+          "count": 104
+        },
+        {
+          "path": "03ede277/shard-5.jsonl.gz",
+          "seedStart": 521,
+          "count": 104
+        },
+        {
+          "path": "03ede277/shard-6.jsonl.gz",
+          "seedStart": 625,
+          "count": 104
+        },
+        {
+          "path": "03ede277/shard-7.jsonl.gz",
+          "seedStart": 729,
+          "count": 104
+        }
+      ]
+    },
+    {
+      "cfgId": "04315c9f",
+      "cfg": {
+        "cfgId": "04315c9f",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "proximity",
+        "R": 0.07,
+        "L": 40
+      },
+      "trials": 833,
+      "flagged": 42,
+      "contactRate": 0.5234093637454982,
+      "inboundSds": {
+        "x0": 0.05727086616507391,
+        "speed0": 1.2176681692344433,
+        "angle0Deg": 40.098938199323165
+      },
+      "shards": [
+        {
+          "path": "04315c9f/shard-0.jsonl.gz",
+          "seedStart": 0,
+          "count": 105
+        },
+        {
+          "path": "04315c9f/shard-1.jsonl.gz",
+          "seedStart": 105,
+          "count": 104
+        },
+        {
+          "path": "04315c9f/shard-2.jsonl.gz",
+          "seedStart": 209,
+          "count": 104
+        },
+        {
+          "path": "04315c9f/shard-3.jsonl.gz",
+          "seedStart": 313,
+          "count": 104
+        },
+        {
+          "path": "04315c9f/shard-4.jsonl.gz",
+          "seedStart": 417,
+          "count": 104
+        },
+        {
+          "path": "04315c9f/shard-5.jsonl.gz",
+          "seedStart": 521,
+          "count": 104
+        },
+        {
+          "path": "04315c9f/shard-6.jsonl.gz",
+          "seedStart": 625,
+          "count": 104
+        },
+        {
+          "path": "04315c9f/shard-7.jsonl.gz",
+          "seedStart": 729,
+          "count": 104
+        }
+      ]
+    },
+    {
+      "cfgId": "db0bc0cf",
+      "cfg": {
+        "cfgId": "db0bc0cf",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "proximity",
+        "R": 0.1,
+        "L": 0
+      },
+      "trials": 833,
+      "flagged": 90,
+      "contactRate": 0.5006002400960384,
+      "inboundSds": {
+        "x0": 0.05679947006600294,
+        "speed0": 1.2176814357797818,
+        "angle0Deg": 41.78801117102903
+      },
+      "shards": [
+        {
+          "path": "db0bc0cf/shard-0.jsonl.gz",
+          "seedStart": 0,
+          "count": 105
+        },
+        {
+          "path": "db0bc0cf/shard-1.jsonl.gz",
+          "seedStart": 105,
+          "count": 104
+        },
+        {
+          "path": "db0bc0cf/shard-2.jsonl.gz",
+          "seedStart": 209,
+          "count": 104
+        },
+        {
+          "path": "db0bc0cf/shard-3.jsonl.gz",
+          "seedStart": 313,
+          "count": 104
+        },
+        {
+          "path": "db0bc0cf/shard-4.jsonl.gz",
+          "seedStart": 417,
+          "count": 104
+        },
+        {
+          "path": "db0bc0cf/shard-5.jsonl.gz",
+          "seedStart": 521,
+          "count": 104
+        },
+        {
+          "path": "db0bc0cf/shard-6.jsonl.gz",
+          "seedStart": 625,
+          "count": 104
+        },
+        {
+          "path": "db0bc0cf/shard-7.jsonl.gz",
+          "seedStart": 729,
+          "count": 104
+        }
+      ]
+    },
+    {
+      "cfgId": "b1f67129",
+      "cfg": {
+        "cfgId": "b1f67129",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "proximity",
+        "R": 0.1,
+        "L": 40
+      },
+      "trials": 833,
+      "flagged": 36,
+      "contactRate": 0.5282112845138055,
+      "inboundSds": {
+        "x0": 0.05760328803085558,
+        "speed0": 1.205337369705275,
+        "angle0Deg": 39.62905123068652
+      },
+      "shards": [
+        {
+          "path": "b1f67129/shard-0.jsonl.gz",
+          "seedStart": 0,
+          "count": 105
+        },
+        {
+          "path": "b1f67129/shard-1.jsonl.gz",
+          "seedStart": 105,
+          "count": 104
+        },
+        {
+          "path": "b1f67129/shard-2.jsonl.gz",
+          "seedStart": 209,
+          "count": 104
+        },
+        {
+          "path": "b1f67129/shard-3.jsonl.gz",
+          "seedStart": 313,
+          "count": 104
+        },
+        {
+          "path": "b1f67129/shard-4.jsonl.gz",
+          "seedStart": 417,
+          "count": 104
+        },
+        {
+          "path": "b1f67129/shard-5.jsonl.gz",
+          "seedStart": 521,
+          "count": 104
+        },
+        {
+          "path": "b1f67129/shard-6.jsonl.gz",
+          "seedStart": 625,
+          "count": 104
+        },
+        {
+          "path": "b1f67129/shard-7.jsonl.gz",
+          "seedStart": 729,
+          "count": 104
+        }
+      ]
+    },
+    {
+      "cfgId": "050caf60",
+      "cfg": {
+        "cfgId": "050caf60",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "proximity",
+        "R": 0.14,
+        "L": 0
+      },
+      "trials": 833,
+      "flagged": 120,
+      "contactRate": 0.5042016806722689,
+      "inboundSds": {
+        "x0": 0.057783886539768764,
+        "speed0": 1.207126105622317,
+        "angle0Deg": 41.55600158292672
+      },
+      "shards": [
+        {
+          "path": "050caf60/shard-0.jsonl.gz",
+          "seedStart": 0,
+          "count": 105
+        },
+        {
+          "path": "050caf60/shard-1.jsonl.gz",
+          "seedStart": 105,
+          "count": 104
+        },
+        {
+          "path": "050caf60/shard-2.jsonl.gz",
+          "seedStart": 209,
+          "count": 104
+        },
+        {
+          "path": "050caf60/shard-3.jsonl.gz",
+          "seedStart": 313,
+          "count": 104
+        },
+        {
+          "path": "050caf60/shard-4.jsonl.gz",
+          "seedStart": 417,
+          "count": 104
+        },
+        {
+          "path": "050caf60/shard-5.jsonl.gz",
+          "seedStart": 521,
+          "count": 104
+        },
+        {
+          "path": "050caf60/shard-6.jsonl.gz",
+          "seedStart": 625,
+          "count": 104
+        },
+        {
+          "path": "050caf60/shard-7.jsonl.gz",
+          "seedStart": 729,
+          "count": 104
+        }
+      ]
+    },
+    {
+      "cfgId": "279b3e0b",
+      "cfg": {
+        "cfgId": "279b3e0b",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "proximity",
+        "R": 0.14,
+        "L": 40
+      },
+      "trials": 833,
+      "flagged": 92,
+      "contactRate": 0.4969987995198079,
+      "inboundSds": {
+        "x0": 0.0581126373756408,
+        "speed0": 1.2244383430518024,
+        "angle0Deg": 39.785364849872565
+      },
+      "shards": [
+        {
+          "path": "279b3e0b/shard-0.jsonl.gz",
+          "seedStart": 0,
+          "count": 105
+        },
+        {
+          "path": "279b3e0b/shard-1.jsonl.gz",
+          "seedStart": 105,
+          "count": 104
+        },
+        {
+          "path": "279b3e0b/shard-2.jsonl.gz",
+          "seedStart": 209,
+          "count": 104
+        },
+        {
+          "path": "279b3e0b/shard-3.jsonl.gz",
+          "seedStart": 313,
+          "count": 104
+        },
+        {
+          "path": "279b3e0b/shard-4.jsonl.gz",
+          "seedStart": 417,
+          "count": 104
+        },
+        {
+          "path": "279b3e0b/shard-5.jsonl.gz",
+          "seedStart": 521,
+          "count": 104
+        },
+        {
+          "path": "279b3e0b/shard-6.jsonl.gz",
+          "seedStart": 625,
+          "count": 104
+        },
+        {
+          "path": "279b3e0b/shard-7.jsonl.gz",
+          "seedStart": 729,
+          "count": 104
+        }
+      ]
+    }
+  ],
+  "cfgSummaries": [
+    {
+      "cfgId": "6c7d9477",
+      "cfg": {
+        "cfgId": "6c7d9477",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "never"
+      },
+      "trials": 834,
+      "flaggedCount": 117,
+      "flaggedFraction": 0.14028776978417265,
+      "flagBreakdown": {
+        "IMPACTS_EXHAUSTED": 0,
+        "ESCAPED": 0,
+        "TIMEOUT": 0.14028776978417265,
+        "STALLED": 0,
+        "NAN": 0,
+        "CREEP": 0
+      },
+      "terms": {
+        "drain": 488,
+        "timeout": 117,
+        "shotline": 229
+      },
+      "columns": {
+        "vi": {
+          "n": 313,
+          "mean": 2.4401162270442343,
+          "sd": 0.8703116865314007
+        },
+        "ai": {
+          "n": 313,
+          "mean": 270.5768017946172,
+          "sd": 33.727233975578436
+        },
+        "hs": {
+          "n": 313,
+          "mean": 0.29813694727140977,
+          "sd": 0.3714774169001044
+        },
+        "ha": {
+          "n": 313,
+          "mean": 85.07987220447284,
+          "sd": 140.1375583726587
+        },
+        "hw": {
+          "n": 313,
+          "mean": 0,
+          "sd": 0
+        },
+        "dt": {
+          "n": 0,
+          "mean": null,
+          "sd": null
+        },
+        "vo": {
+          "n": 313,
+          "mean": 2.1587384845600943,
+          "sd": 0.7751658611760952
+        },
+        "ao": {
+          "n": 313,
+          "mean": 173.00495456897022,
+          "sd": 103.13679236207882
+        },
+        "n": {
+          "n": 717,
+          "mean": 0.6541143654114365,
+          "sd": 0.8750262267594132
+        },
+        "xx": {
+          "n": 229,
+          "mean": 0.024912992195536176,
+          "sd": 0.1539702113052821
+        },
+        "xs": {
+          "n": 229,
+          "mean": 1.483498477943076,
+          "sd": 0.8002991267790787
+        },
+        "xa": {
+          "n": 229,
+          "mean": 87.86750128469443,
+          "sd": 24.56276790485605
+        }
+      },
+      "fanWidthXa": 71.11421592748323
+    },
+    {
+      "cfgId": "61547799",
+      "cfg": {
+        "cfgId": "61547799",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "fixedDelay",
+        "d": 0
+      },
+      "trials": 834,
+      "flaggedCount": 97,
+      "flaggedFraction": 0.11630695443645084,
+      "flagBreakdown": {
+        "IMPACTS_EXHAUSTED": 0,
+        "ESCAPED": 0,
+        "TIMEOUT": 0.11630695443645084,
+        "STALLED": 0,
+        "NAN": 0,
+        "CREEP": 0
+      },
+      "terms": {
+        "drain": 567,
+        "timeout": 97,
+        "shotline": 170
+      },
+      "columns": {
+        "vi": {
+          "n": 303,
+          "mean": 2.3724251139271626,
+          "sd": 0.8933835259750693
+        },
+        "ai": {
+          "n": 303,
+          "mean": 268.43092230024007,
+          "sd": 33.986506773099926
+        },
+        "hs": {
+          "n": 303,
+          "mean": 0.3457896417259005,
+          "sd": 0.398394031444956
+        },
+        "ha": {
+          "n": 303,
+          "mean": 89.04290429042905,
+          "sd": 105.94060628678382
+        },
+        "hw": {
+          "n": 303,
+          "mean": 0,
+          "sd": 0
+        },
+        "dt": {
+          "n": 157,
+          "mean": 242.2505307855627,
+          "sd": 113.16523264861179
+        },
+        "vo": {
+          "n": 303,
+          "mean": 2.093745068296233,
+          "sd": 0.7826778809894313
+        },
+        "ao": {
+          "n": 303,
+          "mean": 168.94119794314736,
+          "sd": 103.28606144968698
+        },
+        "n": {
+          "n": 737,
+          "mean": 0.5373134328358209,
+          "sd": 0.7529145187538194
+        },
+        "xx": {
+          "n": 170,
+          "mean": 0.007057429822312458,
+          "sd": 0.14588047844036897
+        },
+        "xs": {
+          "n": 170,
+          "mean": 1.3866133041466515,
+          "sd": 0.6577944200050644
+        },
+        "xa": {
+          "n": 170,
+          "mean": 85.77672177118082,
+          "sd": 26.13985398723416
+        }
+      },
+      "fanWidthXa": 77.31938671187561
+    },
+    {
+      "cfgId": "3eeefdfc",
+      "cfg": {
+        "cfgId": "3eeefdfc",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "fixedDelay",
+        "d": 50
+      },
+      "trials": 834,
+      "flaggedCount": 88,
+      "flaggedFraction": 0.10551558752997602,
+      "flagBreakdown": {
+        "IMPACTS_EXHAUSTED": 0,
+        "ESCAPED": 0,
+        "TIMEOUT": 0.10551558752997602,
+        "STALLED": 0,
+        "NAN": 0,
+        "CREEP": 0
+      },
+      "terms": {
+        "shotline": 228,
+        "drain": 518,
+        "timeout": 88
+      },
+      "columns": {
+        "vi": {
+          "n": 336,
+          "mean": 2.3431626914349173,
+          "sd": 0.8816377190987832
+        },
+        "ai": {
+          "n": 336,
+          "mean": 268.41948877726895,
+          "sd": 33.49041387564935
+        },
+        "hs": {
+          "n": 336,
+          "mean": 0.40040771055561875,
+          "sd": 0.3785901041986553
+        },
+        "ha": {
+          "n": 336,
+          "mean": 90.64880952380952,
+          "sd": 86.00157165387589
+        },
+        "hw": {
+          "n": 336,
+          "mean": 0,
+          "sd": 0
+        },
+        "dt": {
+          "n": 253,
+          "mean": 184.68379446640316,
+          "sd": 102.74406317897625
+        },
+        "vo": {
+          "n": 336,
+          "mean": 2.0482236283018116,
+          "sd": 0.7711477540479379
+        },
+        "ao": {
+          "n": 336,
+          "mean": 139.0938191838179,
+          "sd": 99.39688296587468
+        },
+        "n": {
+          "n": 746,
+          "mean": 0.5563002680965148,
+          "sd": 0.7328673014469472
+        },
+        "xx": {
+          "n": 228,
+          "mean": 0.01865421102737812,
+          "sd": 0.1531109257539163
+        },
+        "xs": {
+          "n": 228,
+          "mean": 1.3613022200021019,
+          "sd": 0.6244041222769416
+        },
+        "xa": {
+          "n": 228,
+          "mean": 89.63774947183998,
+          "sd": 25.171676328115222
+        }
+      },
+      "fanWidthXa": 71.60761203037808
+    },
+    {
+      "cfgId": "9c8f8fa3",
+      "cfg": {
+        "cfgId": "9c8f8fa3",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "fixedDelay",
+        "d": 100
+      },
+      "trials": 834,
+      "flaggedCount": 99,
+      "flaggedFraction": 0.11870503597122302,
+      "flagBreakdown": {
+        "IMPACTS_EXHAUSTED": 0,
+        "ESCAPED": 0,
+        "TIMEOUT": 0.11870503597122302,
+        "STALLED": 0,
+        "NAN": 0,
+        "CREEP": 0
+      },
+      "terms": {
+        "drain": 491,
+        "shotline": 244,
+        "timeout": 99
+      },
+      "columns": {
+        "vi": {
+          "n": 346,
+          "mean": 2.284272238759002,
+          "sd": 0.8109364561515773
+        },
+        "ai": {
+          "n": 346,
+          "mean": 270.5939467750813,
+          "sd": 33.03154299168512
+        },
+        "hs": {
+          "n": 346,
+          "mean": 0.3778544701377272,
+          "sd": 0.3722292673151245
+        },
+        "ha": {
+          "n": 346,
+          "mean": 91.58835672997523,
+          "sd": 81.00539640522919
+        },
+        "hw": {
+          "n": 346,
+          "mean": -0.5909042058775092,
+          "sd": 24.606116714147646
+        },
+        "dt": {
+          "n": 282,
+          "mean": 142.70094562647753,
+          "sd": 105.46510560600854
+        },
+        "vo": {
+          "n": 346,
+          "mean": 2.529696239458961,
+          "sd": 2.7948767915101853
+        },
+        "ao": {
+          "n": 346,
+          "mean": 129.79960279399808,
+          "sd": 91.06837238464868
+        },
+        "n": {
+          "n": 735,
+          "mean": 0.5591836734693878,
+          "sd": 0.7072758406162757
+        },
+        "xx": {
+          "n": 244,
+          "mean": -0.01033962440455196,
+          "sd": 0.16554571859864278
+        },
+        "xs": {
+          "n": 244,
+          "mean": 2.0974650396871017,
+          "sd": 3.273236740512684
+        },
+        "xa": {
+          "n": 244,
+          "mean": 89.04225932877367,
+          "sd": 26.084896744737893
+        }
+      },
+      "fanWidthXa": 74.5722565627824
+    },
+    {
+      "cfgId": "b156f110",
+      "cfg": {
+        "cfgId": "b156f110",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "fixedDelay",
+        "d": 150
+      },
+      "trials": 833,
+      "flaggedCount": 108,
+      "flaggedFraction": 0.12965186074429771,
+      "flagBreakdown": {
+        "IMPACTS_EXHAUSTED": 0,
+        "ESCAPED": 0,
+        "TIMEOUT": 0.12965186074429771,
+        "STALLED": 0,
+        "NAN": 0,
+        "CREEP": 0
+      },
+      "terms": {
+        "drain": 477,
+        "shotline": 248,
+        "timeout": 108
+      },
+      "columns": {
+        "vi": {
+          "n": 335,
+          "mean": 2.3326650026255287,
+          "sd": 0.8030692633585566
+        },
+        "ai": {
+          "n": 335,
+          "mean": 270.97130755332375,
+          "sd": 32.16195542756851
+        },
+        "hs": {
+          "n": 335,
+          "mean": 0.3755137322102876,
+          "sd": 0.37982668245876094
+        },
+        "ha": {
+          "n": 335,
+          "mean": 81.97043354655295,
+          "sd": 90.35615592493761
+        },
+        "hw": {
+          "n": 335,
+          "mean": 4.577302729110935,
+          "sd": 31.80400226278204
+        },
+        "dt": {
+          "n": 246,
+          "mean": 104.99661246612462,
+          "sd": 101.82338478541168
+        },
+        "vo": {
+          "n": 335,
+          "mean": 2.693638113529686,
+          "sd": 2.690964340483084
+        },
+        "ao": {
+          "n": 335,
+          "mean": 139.17112003012167,
+          "sd": 91.07268229662901
+        },
+        "n": {
+          "n": 725,
+          "mean": 0.5944827586206897,
+          "sd": 0.7960346571990361
+        },
+        "xx": {
+          "n": 248,
+          "mean": -0.016536000616343787,
+          "sd": 0.15825162262929612
+        },
+        "xs": {
+          "n": 248,
+          "mean": 2.5966108771169054,
+          "sd": 3.482816243122135
+        },
+        "xa": {
+          "n": 248,
+          "mean": 88.70801152966538,
+          "sd": 25.665449082708655
+        }
+      },
+      "fanWidthXa": 82.82523364683556
+    },
+    {
+      "cfgId": "1daae80c",
+      "cfg": {
+        "cfgId": "1daae80c",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "fixedDelay",
+        "d": 200
+      },
+      "trials": 833,
+      "flaggedCount": 98,
+      "flaggedFraction": 0.11764705882352941,
+      "flagBreakdown": {
+        "IMPACTS_EXHAUSTED": 0,
+        "ESCAPED": 0,
+        "TIMEOUT": 0.11764705882352941,
+        "STALLED": 0,
+        "NAN": 0,
+        "CREEP": 0
+      },
+      "terms": {
+        "drain": 514,
+        "shotline": 221,
+        "timeout": 98
+      },
+      "columns": {
+        "vi": {
+          "n": 333,
+          "mean": 2.348535313847242,
+          "sd": 0.9077519726895128
+        },
+        "ai": {
+          "n": 333,
+          "mean": 269.8805225759007,
+          "sd": 34.89256565989442
+        },
+        "hs": {
+          "n": 333,
+          "mean": 0.349552718428715,
+          "sd": 0.3701080832203559
+        },
+        "ha": {
+          "n": 333,
+          "mean": 88.54182754182753,
+          "sd": 109.401094611782
+        },
+        "hw": {
+          "n": 333,
+          "mean": 0.9209588073586682,
+          "sd": 31.22378797630209
+        },
+        "dt": {
+          "n": 167,
+          "mean": 99.27644710578825,
+          "sd": 97.55951702216468
+        },
+        "vo": {
+          "n": 333,
+          "mean": 2.7871142023597892,
+          "sd": 2.837481884307271
+        },
+        "ao": {
+          "n": 333,
+          "mean": 154.53673022108552,
+          "sd": 103.54094079035498
+        },
+        "n": {
+          "n": 735,
+          "mean": 0.6136054421768707,
+          "sd": 0.8139317781484375
+        },
+        "xx": {
+          "n": 221,
+          "mean": -0.00032375560481456486,
+          "sd": 0.15209869680121454
+        },
+        "xs": {
+          "n": 221,
+          "mean": 3.0322803905285074,
+          "sd": 3.7387613049687465
+        },
+        "xa": {
+          "n": 221,
+          "mean": 90.60144070641341,
+          "sd": 23.01140460709947
+        }
+      },
+      "fanWidthXa": 64.71056661675283
+    },
+    {
+      "cfgId": "03ede277",
+      "cfg": {
+        "cfgId": "03ede277",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "proximity",
+        "R": 0.07,
+        "L": 0
+      },
+      "trials": 833,
+      "flaggedCount": 55,
+      "flaggedFraction": 0.06602641056422569,
+      "flagBreakdown": {
+        "IMPACTS_EXHAUSTED": 0.0024009603841536613,
+        "ESCAPED": 0,
+        "TIMEOUT": 0.06362545018007203,
+        "STALLED": 0,
+        "NAN": 0,
+        "CREEP": 0
+      },
+      "terms": {
+        "drain": 477,
+        "shotline": 303,
+        "timeout": 53
+      },
+      "columns": {
+        "vi": {
+          "n": 360,
+          "mean": 2.230590291690332,
+          "sd": 0.877334377406697
+        },
+        "ai": {
+          "n": 360,
+          "mean": 274.1236993519288,
+          "sd": 31.457660125248072
+        },
+        "hs": {
+          "n": 360,
+          "mean": 0.39254500317052754,
+          "sd": 0.30762842365404647
+        },
+        "ha": {
+          "n": 360,
+          "mean": 88.98908730158735,
+          "sd": 72.76556167208659
+        },
+        "hw": {
+          "n": 360,
+          "mean": 1.4198114946779943,
+          "sd": 70.53843372017138
+        },
+        "dt": {
+          "n": 348,
+          "mean": 17.361111111111104,
+          "sd": 9.374054903086211
+        },
+        "vo": {
+          "n": 360,
+          "mean": 6.118024241233375,
+          "sd": 4.450822524931123
+        },
+        "ao": {
+          "n": 360,
+          "mean": 121.66839904177202,
+          "sd": 78.2695687328742
+        },
+        "n": {
+          "n": 778,
+          "mean": 0.5077120822622108,
+          "sd": 0.594325079836847
+        },
+        "xx": {
+          "n": 301,
+          "mean": -0.011449829073272699,
+          "sd": 0.1649793035356926
+        },
+        "xs": {
+          "n": 301,
+          "mean": 6.690829824123736,
+          "sd": 4.478636694452543
+        },
+        "xa": {
+          "n": 301,
+          "mean": 90.17790215080842,
+          "sd": 19.03000595788931
+        }
+      },
+      "fanWidthXa": 54.226479422041194
+    },
+    {
+      "cfgId": "04315c9f",
+      "cfg": {
+        "cfgId": "04315c9f",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "proximity",
+        "R": 0.07,
+        "L": 40
+      },
+      "trials": 833,
+      "flaggedCount": 42,
+      "flaggedFraction": 0.05042016806722689,
+      "flagBreakdown": {
+        "IMPACTS_EXHAUSTED": 0.0012004801920768306,
+        "ESCAPED": 0,
+        "TIMEOUT": 0.04921968787515006,
+        "STALLED": 0,
+        "NAN": 0,
+        "CREEP": 0
+      },
+      "terms": {
+        "timeout": 41,
+        "drain": 453,
+        "shotline": 339
+      },
+      "columns": {
+        "vi": {
+          "n": 394,
+          "mean": 2.244831004614064,
+          "sd": 0.8322381482692436
+        },
+        "ai": {
+          "n": 394,
+          "mean": 267.81738196432724,
+          "sd": 30.751973948639254
+        },
+        "hs": {
+          "n": 394,
+          "mean": 0.3169082445758404,
+          "sd": 0.3659515142652993
+        },
+        "ha": {
+          "n": 394,
+          "mean": 97.55215131737974,
+          "sd": 134.38323355171394
+        },
+        "hw": {
+          "n": 394,
+          "mean": -1.8162055667961055,
+          "sd": 42.7956587201322
+        },
+        "dt": {
+          "n": 73,
+          "mean": 6.792237442922348,
+          "sd": 7.1330921570252555
+        },
+        "vo": {
+          "n": 394,
+          "mean": 3.209117928204352,
+          "sd": 3.1131359542194197
+        },
+        "ao": {
+          "n": 394,
+          "mean": 160.36304382235082,
+          "sd": 105.86075368364631
+        },
+        "n": {
+          "n": 791,
+          "mean": 0.8356510745891277,
+          "sd": 1.021685526995278
+        },
+        "xx": {
+          "n": 338,
+          "mean": -0.006011861496151232,
+          "sd": 0.15699490184880402
+        },
+        "xs": {
+          "n": 338,
+          "mean": 5.7219771946574856,
+          "sd": 4.081784066160577
+        },
+        "xa": {
+          "n": 338,
+          "mean": 92.77242339174157,
+          "sd": 19.981176315583184
+        }
+      },
+      "fanWidthXa": 55.63895039438528
+    },
+    {
+      "cfgId": "db0bc0cf",
+      "cfg": {
+        "cfgId": "db0bc0cf",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "proximity",
+        "R": 0.1,
+        "L": 0
+      },
+      "trials": 833,
+      "flaggedCount": 90,
+      "flaggedFraction": 0.10804321728691477,
+      "flagBreakdown": {
+        "IMPACTS_EXHAUSTED": 0,
+        "ESCAPED": 0,
+        "TIMEOUT": 0.10804321728691477,
+        "STALLED": 0,
+        "NAN": 0,
+        "CREEP": 0
+      },
+      "terms": {
+        "drain": 500,
+        "timeout": 90,
+        "shotline": 243
+      },
+      "columns": {
+        "vi": {
+          "n": 327,
+          "mean": 2.256242570775325,
+          "sd": 0.8192856941384942
+        },
+        "ai": {
+          "n": 327,
+          "mean": 265.8634926388152,
+          "sd": 34.82338304589078
+        },
+        "hs": {
+          "n": 327,
+          "mean": 0.47419367920863675,
+          "sd": 0.39611657518698745
+        },
+        "ha": {
+          "n": 327,
+          "mean": 92.81877093344983,
+          "sd": 63.1735329607716
+        },
+        "hw": {
+          "n": 327,
+          "mean": 3.126190446997289,
+          "sd": 43.00514566075328
+        },
+        "dt": {
+          "n": 323,
+          "mean": 30.4179566563467,
+          "sd": 21.482974164965533
+        },
+        "vo": {
+          "n": 327,
+          "mean": 5.03520401000078,
+          "sd": 5.202509856226983
+        },
+        "ao": {
+          "n": 327,
+          "mean": 132.1334086779112,
+          "sd": 92.41641474711095
+        },
+        "n": {
+          "n": 743,
+          "mean": 0.46567967698519513,
+          "sd": 0.5578100611953744
+        },
+        "xx": {
+          "n": 243,
+          "mean": 0.017085793871420264,
+          "sd": 0.16115526707160008
+        },
+        "xs": {
+          "n": 243,
+          "mean": 5.369321444876823,
+          "sd": 5.64006160451312
+        },
+        "xa": {
+          "n": 243,
+          "mean": 90.93946922642624,
+          "sd": 22.827867743038954
+        }
+      },
+      "fanWidthXa": 61.52778085478839
+    },
+    {
+      "cfgId": "b1f67129",
+      "cfg": {
+        "cfgId": "b1f67129",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "proximity",
+        "R": 0.1,
+        "L": 40
+      },
+      "trials": 833,
+      "flaggedCount": 36,
+      "flaggedFraction": 0.04321728691476591,
+      "flagBreakdown": {
+        "IMPACTS_EXHAUSTED": 0.0024009603841536613,
+        "ESCAPED": 0,
+        "TIMEOUT": 0.04081632653061224,
+        "STALLED": 0,
+        "NAN": 0,
+        "CREEP": 0
+      },
+      "terms": {
+        "shotline": 349,
+        "drain": 450,
+        "timeout": 34
+      },
+      "columns": {
+        "vi": {
+          "n": 404,
+          "mean": 2.23871555887829,
+          "sd": 0.8711689874666881
+        },
+        "ai": {
+          "n": 404,
+          "mean": 269.2069728473719,
+          "sd": 30.557055417648762
+        },
+        "hs": {
+          "n": 404,
+          "mean": 0.3280850305242175,
+          "sd": 0.36339500635827104
+        },
+        "ha": {
+          "n": 404,
+          "mean": 84.31288307402164,
+          "sd": 115.93917017262564
+        },
+        "hw": {
+          "n": 404,
+          "mean": 1.5182142715368463,
+          "sd": 67.92222884199816
+        },
+        "dt": {
+          "n": 209,
+          "mean": 12.699362041467278,
+          "sd": 14.28121560824464
+        },
+        "vo": {
+          "n": 404,
+          "mean": 5.0568016434790195,
+          "sd": 4.195841247476211
+        },
+        "ao": {
+          "n": 404,
+          "mean": 133.00055165392033,
+          "sd": 95.53655564474772
+        },
+        "n": {
+          "n": 797,
+          "mean": 0.7101631116687579,
+          "sd": 0.8638813887121171
+        },
+        "xx": {
+          "n": 347,
+          "mean": -0.00027257784874987103,
+          "sd": 0.15617094756995525
+        },
+        "xs": {
+          "n": 347,
+          "mean": 6.847582961971435,
+          "sd": 4.485289381555266
+        },
+        "xa": {
+          "n": 347,
+          "mean": 90.69610750818669,
+          "sd": 18.985556645154805
+        }
+      },
+      "fanWidthXa": 54.37030718546865
+    },
+    {
+      "cfgId": "050caf60",
+      "cfg": {
+        "cfgId": "050caf60",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "proximity",
+        "R": 0.14,
+        "L": 0
+      },
+      "trials": 833,
+      "flaggedCount": 120,
+      "flaggedFraction": 0.14405762304921968,
+      "flagBreakdown": {
+        "IMPACTS_EXHAUSTED": 0,
+        "ESCAPED": 0,
+        "TIMEOUT": 0.14405762304921968,
+        "STALLED": 0,
+        "NAN": 0,
+        "CREEP": 0
+      },
+      "terms": {
+        "timeout": 120,
+        "drain": 468,
+        "shotline": 245
+      },
+      "columns": {
+        "vi": {
+          "n": 300,
+          "mean": 2.4656645520483025,
+          "sd": 0.872199229721993
+        },
+        "ai": {
+          "n": 300,
+          "mean": 271.2547604099409,
+          "sd": 30.174374563216997
+        },
+        "hs": {
+          "n": 300,
+          "mean": 0.5006695697217594,
+          "sd": 0.39803653482983636
+        },
+        "ha": {
+          "n": 300,
+          "mean": 89.25595238095238,
+          "sd": 58.1867283894648
+        },
+        "hw": {
+          "n": 300,
+          "mean": -0.34075475872270045,
+          "sd": 10.234032896424932
+        },
+        "dt": {
+          "n": 300,
+          "mean": 47.2083333333333,
+          "sd": 24.956216304874044
+        },
+        "vo": {
+          "n": 300,
+          "mean": 2.7033844369534035,
+          "sd": 2.9026055856616573
+        },
+        "ao": {
+          "n": 300,
+          "mean": 114.29813706081829,
+          "sd": 80.92599823596112
+        },
+        "n": {
+          "n": 713,
+          "mean": 0.4361851332398317,
+          "sd": 0.5264712178321151
+        },
+        "xx": {
+          "n": 245,
+          "mean": -0.0000834465236362495,
+          "sd": 0.15454580094704945
+        },
+        "xs": {
+          "n": 245,
+          "mean": 1.9917760073178918,
+          "sd": 3.096728985005934
+        },
+        "xa": {
+          "n": 245,
+          "mean": 89.40573403548582,
+          "sd": 27.334945596517162
+        }
+      },
+      "fanWidthXa": 86.66010596556004
+    },
+    {
+      "cfgId": "279b3e0b",
+      "cfg": {
+        "cfgId": "279b3e0b",
+        "exp": "e1",
+        "restAngleDeg": -50,
+        "activeAngleDeg": 32,
+        "upMs": 14,
+        "radius": 0.012,
+        "restitution": 0.85,
+        "pol": "proximity",
+        "R": 0.14,
+        "L": 40
+      },
+      "trials": 833,
+      "flaggedCount": 92,
+      "flaggedFraction": 0.11044417767106843,
+      "flagBreakdown": {
+        "IMPACTS_EXHAUSTED": 0.0012004801920768306,
+        "ESCAPED": 0,
+        "TIMEOUT": 0.1092436974789916,
+        "STALLED": 0,
+        "NAN": 0,
+        "CREEP": 0
+      },
+      "terms": {
+        "drain": 480,
+        "shotline": 262,
+        "timeout": 91
+      },
+      "columns": {
+        "vi": {
+          "n": 322,
+          "mean": 2.3794361929197656,
+          "sd": 0.8047704542955081
+        },
+        "ai": {
+          "n": 322,
+          "mean": 271.47116378849205,
+          "sd": 30.97177099023849
+        },
+        "hs": {
+          "n": 322,
+          "mean": 0.3779339423450291,
+          "sd": 0.38887878532892517
+        },
+        "ha": {
+          "n": 322,
+          "mean": 94.49179236912155,
+          "sd": 96.34535431280392
+        },
+        "hw": {
+          "n": 322,
+          "mean": -1.9048402661516894,
+          "sd": 67.48406066259852
+        },
+        "dt": {
+          "n": 245,
+          "mean": 17.65306122448974,
+          "sd": 16.508533861967724
+        },
+        "vo": {
+          "n": 322,
+          "mean": 5.7081897620495745,
+          "sd": 4.83010229711792
+        },
+        "ao": {
+          "n": 322,
+          "mean": 131.8538158003007,
+          "sd": 87.10698459042759
+        },
+        "n": {
+          "n": 741,
+          "mean": 0.5060728744939271,
+          "sd": 0.6464274713865519
+        },
+        "xx": {
+          "n": 261,
+          "mean": 0.00983877722878471,
+          "sd": 0.15725488247033867
+        },
+        "xs": {
+          "n": 261,
+          "mean": 6.5896833639414245,
+          "sd": 5.281538719379796
+        },
+        "xa": {
+          "n": 261,
+          "mean": 89.4556925382142,
+          "sd": 22.146440800184386
+        }
+      },
+      "fanWidthXa": 64.08259966083321
+    }
+  ]
+}

@@ -12,6 +12,7 @@ import readline from 'node:readline';
 import path from 'node:path';
 import { mean, sd, fanWidth, flaggedFraction, bitFraction, tally } from './metrics.js';
 import { FLAGS } from './instrument.js';
+import { premiseHeaderLines } from './gate.js';
 
 function parseArgs(argv) {
   const args = {};
@@ -92,6 +93,11 @@ function toMarkdown(meta, cfgSummaries) {
     ' (`never`/`fixedDelay`/`proximity`), ~800 trials/cfg — proves the harness and every §3.4' +
     ' column, not the full Stage A/B geometry sweep or the §3.6 transfer function (LAB-2).');
   lines.push('');
+  // LAB-22: if the cfg set declared a §2.7 premise, it is echoed here — the exemption has to
+  // travel with the summary a reader actually opens, not live only in the cfg file.
+  lines.push(...premiseHeaderLines(meta.declaredPremise ?? null, {
+    fraction: meta.flaggedFraction, ok: meta.flagGateOk !== false,
+  }));
 
   const overFlagged = cfgSummaries.filter((s) => s.flaggedFraction > 0.01);
   if (overFlagged.length > 0) {

@@ -7,13 +7,163 @@
 // gates (§2.4a's sd-floor / arena-on-target checks).
 export const FLAG_GATE_FRACTION = 0.01;
 
+// LAB-22: the declared-premise exemption, implementing the ruling in opus2's
+// `ledger/handoffs/opus2/20260904T150000Z-three-gate-rulings.md` (§(b) and §(c)).
+//
+// Two corpora exceed 1% for reasons that are understood and written down — e1-pilot-01's
+// TIMEOUT tail (§3.3 samples inbound speed down to 0.3 m/s against a 2.0s cap) and E4 Stage
+// A1's coarse first-stage sweep. §2.7 is a STOP-UNTIL-EXPLAINED rule, not a threshold on
+// physics, so a corpus whose excess is explained should be able to say so — but as a recorded
+// claim a reader can challenge, never as a loosened threshold.
+//
+// Three properties make this an exemption rather than an escape hatch:
+//
+//   1. A premise is A CEILING THAT STILL FAILS. Declaring 13% does not skip the gate, it moves
+//      the gate to 13%. 13.1% is still a refusal. An exemption that cannot fail is not a gate.
+//   2. A premise is NARROW. It must name the flags it covers, and every flag it does NOT name
+//      is still held to FLAG_GATE_FRACTION. This is what keeps FLAG_GATE_FRACTION at 0.01 in
+//      substance and not just in name: a corpus declaring a TIMEOUT tail does not thereby get
+//      to hide a NAN. `expectedFlags` is required for exactly this reason — an unscoped
+//      declaration would weaken the gate for everything in the declaring corpus.
+//   3. A premise is ATTRIBUTABLE. `reason` and `declaredBy` are required, so the claim traces
+//      back to the handoff that made it and can be argued with rather than merely obeyed.
+export const PREMISE_MIN_REASON_CHARS = 40;
+const PREMISE_KEYS = new Set(['expectedFlagFraction', 'expectedFlags', 'reason', 'declaredBy']);
+// Mirrors instrument.js's FLAGS. Duplicated rather than imported to keep gate.js free of the
+// instrument's own imports (it is the one module every stage runner pulls in); the test
+// `premise: the flag vocabulary matches instrument.js` holds the two in step.
+export const PREMISE_FLAG_NAMES = ['IMPACTS_EXHAUSTED', 'ESCAPED', 'TIMEOUT', 'STALLED', 'NAN', 'CREEP'];
+
+function badPremise(source, msg) {
+  return new Error(`${source}: malformed \`premise\` — ${msg}. A declared-premise exemption is a claim a reader must be able to challenge; a premise that cannot be parsed is a wiring error, not a missing declaration.`);
+}
+
+/**
+ * A cfg file is either the bare array every existing cfgs/*.json already is (no premise), or
+ * `{ premise, cfgs }`. Returns `{ cfgs, premise }` with `premise: null` for the bare form.
+ * Throws on a malformed premise rather than degrading to "no premise declared" — a typo'd
+ * `expectedFlagFractoin` silently reading as "no ceiling" is the exact failure this mechanism
+ * exists to prevent.
+ */
+export function parseCfgSet(parsed, { source = '<cfg>' } = {}) {
+  if (Array.isArray(parsed)) return { cfgs: parsed, premise: null };
+  if (parsed === null || typeof parsed !== 'object') {
+    throw new Error(`${source}: expected a cfg array or an object with a \`cfgs\` key, got ${parsed === null ? 'null' : typeof parsed}`);
+  }
+  if (!Array.isArray(parsed.cfgs)) throw new Error(`${source}: the object form needs a \`cfgs\` array`);
+  const raw = parsed.premise;
+  if (raw === undefined || raw === null) return { cfgs: parsed.cfgs, premise: null };
+  if (typeof raw !== 'object' || Array.isArray(raw)) throw badPremise(source, 'it must be an object');
+
+  for (const key of Object.keys(raw)) {
+    if (!PREMISE_KEYS.has(key)) {
+      throw badPremise(source, `unknown key \`${key}\` (expected one of ${[...PREMISE_KEYS].join(', ')})`);
+    }
+  }
+  const { expectedFlagFraction: frac, expectedFlags: flags, reason, declaredBy } = raw;
+
+  if (typeof frac !== 'number' || !Number.isFinite(frac) || frac <= 0 || frac > 1) {
+    throw badPremise(source, `\`expectedFlagFraction\` must be a finite fraction in (0, 1], got ${JSON.stringify(frac)}`);
+  }
+  if (!Array.isArray(flags) || flags.length === 0) {
+    throw badPremise(source, '`expectedFlags` must be a non-empty array naming the flags this premise covers — an unscoped premise would weaken the gate for every other flag too');
+  }
+  for (const f of flags) {
+    if (!PREMISE_FLAG_NAMES.includes(f)) {
+      throw badPremise(source, `\`expectedFlags\` names ${JSON.stringify(f)}, which is not a flag (known: ${PREMISE_FLAG_NAMES.join(', ')})`);
+    }
+  }
+  if (typeof reason !== 'string' || reason.trim().length < PREMISE_MIN_REASON_CHARS) {
+    throw badPremise(source, `\`reason\` must be a written explanation of at least ${PREMISE_MIN_REASON_CHARS} characters, got ${typeof reason === 'string' ? `${reason.trim().length}` : typeof reason}`);
+  }
+  if (typeof declaredBy !== 'string' || declaredBy.trim().length === 0) {
+    throw badPremise(source, '`declaredBy` must name the handoff or LAB item that made this claim, so it can be traced');
+  }
+  return { cfgs: parsed.cfgs, premise: { expectedFlagFraction: frac, expectedFlags: [...flags], reason, declaredBy } };
+}
+
 /** `{ trials, flagged }` -> `{ fraction, ok }`. `flagged` is whatever count the caller has
  * already decided is "over the line" — E4 passes its STALLED-excluded count (STALLED is E4's
  * actual measurement, per §7's amendment); every other experiment passes the plain
- * any-bit-set count, since nothing else has a documented reason to exclude a flag bit. */
-export function flagGateResult({ trials, flagged, gateFraction = FLAG_GATE_FRACTION }) {
+ * any-bit-set count, since nothing else has a documented reason to exclude a flag bit.
+ *
+ * LAB-22: pass a `premise` (from `parseCfgSet`) to apply a declared-premise exemption. The
+ * premise's fraction becomes the ceiling, AND every flag the premise did not declare is
+ * separately held to `gateFraction` — which requires `flagCounts`, a `{ FLAG_NAME: count }`
+ * map over the same `trials`. Omitting `flagCounts` alongside a premise throws: "not checked"
+ * must never read as "passed" (the same rule LAB-21 applied to ranking support). */
+export function flagGateResult({ trials, flagged, gateFraction = FLAG_GATE_FRACTION, premise = null, flagCounts = null, excludedFlags = [] }) {
   const fraction = trials > 0 ? flagged / trials : 0;
-  return { fraction, ok: fraction <= gateFraction };
+  for (const f of excludedFlags) {
+    if (!PREMISE_FLAG_NAMES.includes(f)) throw new Error(`flagGateResult: excludedFlags names ${JSON.stringify(f)}, which is not a flag (known: ${PREMISE_FLAG_NAMES.join(', ')})`);
+  }
+  if (!premise) {
+    return { fraction, ok: fraction <= gateFraction, premiseApplied: false, gateFraction, undeclaredOverGate: [], excludedFlags: [...excludedFlags], reason: null };
+  }
+
+  if (flagCounts === null || typeof flagCounts !== 'object') {
+    throw new Error('flagGateResult: a `premise` was declared but no `flagCounts` were supplied, so the flags it does NOT cover could not be checked against FLAG_GATE_FRACTION. That is a wiring error — "not checked" must never read as "passed".');
+  }
+  const reasons = [];
+  const ceiling = premise.expectedFlagFraction;
+  if (fraction > ceiling) {
+    reasons.push(
+      `flagged fraction ${(fraction * 100).toFixed(2)}% exceeds the corpus's own declared premise of ` +
+      `${(ceiling * 100).toFixed(2)}% (declared by ${premise.declaredBy}) — a declared premise moves the gate, it does not remove it`);
+  }
+  // Every flag outside the declaration is still on the 1% gate.
+  const undeclaredOverGate = [];
+  for (const [flag, count] of Object.entries(flagCounts)) {
+    if (premise.expectedFlags.includes(flag)) continue;
+    // A flag the CALLER has already removed from `flagged` is not re-gated here. E4 passes
+    // its STALLED-excluded numerator per §7's amendment ("for a cradle experiment STALLED IS
+    // the measurement"); re-applying the 1% gate to STALLED per-flag would reinstate by the
+    // back door the exclusion the caller legitimately made. This is a STRUCTURAL exclusion
+    // already ruled on and is per-experiment; `expectedFlags` is a per-corpus claim about an
+    // expected excess. They are deliberately separate fields.
+    if (excludedFlags.includes(flag)) continue;
+    const f = trials > 0 ? count / trials : 0;
+    if (f > gateFraction) undeclaredOverGate.push({ flag, fraction: f });
+  }
+  if (undeclaredOverGate.length > 0) {
+    reasons.push(
+      `${undeclaredOverGate.map((u) => `${u.flag} at ${(u.fraction * 100).toFixed(2)}%`).join(', ')} ` +
+      `— over the ${(gateFraction * 100).toFixed(0)}% gate and NOT covered by the declared premise ` +
+      `(which covers ${premise.expectedFlags.join(', ')})`);
+  }
+  return {
+    fraction, ok: reasons.length === 0, premiseApplied: true, gateFraction: ceiling,
+    undeclaredOverGate, excludedFlags: [...excludedFlags],
+    reason: reasons.length ? reasons.join('; ') : null,
+  };
+}
+
+/** Markdown lines echoing a declared premise into a summary header, so the exemption travels
+ * with the summary a reader actually opens rather than living only in the cfg file. Returns
+ * `[]` when no premise was declared. */
+export function premiseHeaderLines(premise, gate) {
+  if (!premise) return [];
+  const declared = (premise.expectedFlagFraction * 100).toFixed(2);
+  const actual = (gate.fraction * 100).toFixed(2);
+  const head = gate.ok
+    ? `## Declared premise (§2.7 exemption) — measured ${actual}%, declared ceiling ${declared}%`
+    : `## ⚠ Declared premise EXCEEDED (§2.7) — measured ${actual}%, declared ceiling ${declared}%`;
+  return [
+    head,
+    '',
+    `> This corpus declares an expected flagged fraction above §2.7's ${(FLAG_GATE_FRACTION * 100).toFixed(0)}% gate. ` +
+    `The declaration covers **${premise.expectedFlags.join(', ')}** only — every other flag is still held to ` +
+    `${(FLAG_GATE_FRACTION * 100).toFixed(0)}%. This is a recorded claim, not a waiver: challenge it here.`,
+    '',
+    `- **declared ceiling**: ${declared}%  ·  **measured**: ${actual}%  ·  **verdict**: ${gate.ok ? 'within the declaration' : 'EXCEEDS THE DECLARATION'}`,
+    `- **covers flags**: ${premise.expectedFlags.join(', ')}`,
+    ...(gate.excludedFlags?.length
+      ? [`- **structurally excluded from the numerator** (a separate, per-experiment ruling, not part of this premise): ${gate.excludedFlags.join(', ')}`]
+      : []),
+    `- **declared by**: ${premise.declaredBy}`,
+    `- **reason**: ${premise.reason}`,
+    '',
+  ];
 }
 
 // LAB-16: E3 P1's `inBandFraction` was a pure step function of `plungerSpeed` (0.0 for one

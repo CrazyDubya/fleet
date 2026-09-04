@@ -11,7 +11,7 @@ import readline from 'node:readline';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { mean, percentile } from './metrics.js';
-import { validExclStalled, rankingValidityResult } from './gate.js';
+import { validExclStalled, rankingValidityResult, premiseHeaderLines } from './gate.js';
 
 async function* streamShards(dir, meta) {
   for (const shard of meta.shards) {
@@ -247,6 +247,11 @@ async function main() {
       n: pkVals.length,
     },
     vTrapByRestAngle: cvTable,
+    // LAB-22: Stage A1 is the stage that declares a §2.7 premise (the coarse first-stage
+    // sweep); it is carried through to the summary header so the claim is visible there.
+    declaredPremise: a1.meta.declaredPremise ?? null,
+    declaredPremiseStage: 'A1',
+    declaredPremiseGate: { fraction: a1.meta.flaggedFractionExclStalled, ok: a1.meta.flagGateOk !== false },
     rankingGuard: { a1: a1RankingGuard, a2: a2RankingGuard, b: bRankingGuard, releaseDispersion: releaseRankingGuard },
   };
 
@@ -331,6 +336,12 @@ export function toMarkdown(summary, csvRelPath) {
   lines.push('');
 
   lines.push(...guardStatusLines(summary.rankingGuard));
+
+  // LAB-22: A1's declared §2.7 premise, echoed where a reader will actually meet it.
+  if (summary.declaredPremise) {
+    lines.push(...premiseHeaderLines(summary.declaredPremise, summary.declaredPremiseGate)
+      .map((l) => (l.startsWith('## ') ? `${l} — Stage ${summary.declaredPremiseStage}` : l)));
+  }
 
   lines.push('## §9 slice verdict — H6');
   lines.push('');

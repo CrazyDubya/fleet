@@ -13,7 +13,7 @@ import { createWriteStream } from 'node:fs';
 import { createGzip } from 'node:zlib';
 import { pipeline } from 'node:stream/promises';
 import { Readable } from 'node:stream';
-import { runTrialWithMeta } from './instrument.js';
+import { runTrialWithMeta, FLAGS } from './instrument.js';
 
 function newAcc() {
   return { n: 0, sum: 0, sumSq: 0 };
@@ -30,6 +30,10 @@ async function run() {
   let flagged = 0;
   let contactCount = 0;
   let cursor = 0;
+  // LAB-22: per-flag counts, so the declared-premise gate can hold every flag the premise did
+  // NOT declare to FLAG_GATE_FRACTION. The aggregate `flagged` total cannot answer that.
+  const flagCounts = {};
+  for (const name of Object.keys(FLAGS)) flagCounts[name] = 0;
   const inboundAcc = { x0: newAcc(), speed0: newAcc(), angle0Deg: newAcc() };
 
   const source = new Readable({
@@ -41,6 +45,7 @@ async function run() {
       const seed = seedStart + cursor;
       const { record, inbound, contacted } = runTrialWithMeta(cfg, seed);
       if (record.f !== 0) flagged += 1;
+      for (const [name, bit] of Object.entries(FLAGS)) if (record.f & bit) flagCounts[name] += 1;
       if (contacted) contactCount += 1;
       addAcc(inboundAcc.x0, inbound.x0);
       addAcc(inboundAcc.speed0, inbound.speed0);
@@ -52,7 +57,7 @@ async function run() {
 
   await pipeline(source, createGzip(), createWriteStream(outPath));
 
-  parentPort.postMessage({ ok: true, trials: seedCount, flagged, contactCount, inboundAcc, outPath });
+  parentPort.postMessage({ ok: true, trials: seedCount, flagged, flagCounts, contactCount, inboundAcc, outPath });
 }
 
 run().catch((err) => {

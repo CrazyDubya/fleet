@@ -16,7 +16,7 @@ import { execFileSync } from 'node:child_process';
 import { sdFromAcc, uniformSd } from './metrics.js';
 import { INJECTION as E1_INJECTION, CRADLE_INJECTION as E1_CRADLE_INJECTION } from './arenas/e1_flippers.js';
 import { INJECTION_SPEED as E2_SPEED, INJECTION_ANGLE_DEG as E2_ANGLE } from './arenas/e2_bumpers.js';
-import { flagGateResult, FLAG_GATE_FRACTION } from './gate.js';
+import { flagGateResult, FLAG_GATE_FRACTION, parseCfgSet } from './gate.js';
 
 // §2.4a: "every run computes the sd of the sampled inbound quantities and fails loudly if any
 // falls below a floor." The floor is a fraction of the theoretical Uniform(lo,hi) sd for that
@@ -118,7 +118,9 @@ async function main() {
     return;
   }
 
-  const allCfgs = JSON.parse(readFileSync(args.cfgs, 'utf8'));
+  // LAB-22: a cfg file may be the bare array it has always been, or `{ premise, cfgs }` where
+  // the premise declares an expected flagged fraction above §2.7's 1% with a written reason.
+  const { cfgs: allCfgs, premise } = parseCfgSet(JSON.parse(readFileSync(args.cfgs, 'utf8')), { source: args.cfgs });
   const totalTrials = Number(args.trials);
   if (!Number.isFinite(totalTrials) || totalTrials <= 0) {
     console.error('runner.js: --trials must be a positive number');
@@ -142,6 +144,7 @@ async function main() {
 
   let totalRun = 0;
   let totalFlagged = 0;
+  const totalFlagCounts = {};
   const cfgMeta = [];
 
   for (let i = 0; i < cfgs.length; i++) {
@@ -173,6 +176,9 @@ async function main() {
 
     const cfgTrials = results.reduce((a, r) => a + r.trials, 0);
     const cfgFlagged = results.reduce((a, r) => a + r.flagged, 0);
+    for (const r of results) {
+      for (const [name, n] of Object.entries(r.flagCounts ?? {})) totalFlagCounts[name] = (totalFlagCounts[name] ?? 0) + n;
+    }
     const cfgContacts = results.reduce((a, r) => a + r.contactCount, 0);
     const contactRate = cfgTrials > 0 ? cfgContacts / cfgTrials : 0;
 
@@ -238,7 +244,7 @@ async function main() {
   // LAB-11/P0-1: §2.7's gate applied here too — this path (direct E1/E2 runs, including Stage
   // B and the cradle family) had no exclusion documented anywhere, so it's the plain any-bit
   // fraction, same as E1 Stage A's screen; only E4 (§7) has a STALLED exception.
-  const flagGate = flagGateResult({ trials: totalRun, flagged: totalFlagged });
+  const flagGate = flagGateResult({ trials: totalRun, flagged: totalFlagged, premise, flagCounts: totalFlagCounts });
 
   const meta = {
     exp, out, instrumentCommitSha: instrumentCommitSha(),
@@ -246,13 +252,18 @@ async function main() {
     units: { length: 'm', speed: 'm/s', angle: 'deg (recorded), rad (internal)', time_dt_field: 'ms', time_dw_field: 's' },
     cfgCount: cfgs.length, trialCount: totalRun, flaggedFraction: totalRun > 0 ? totalFlagged / totalRun : 0,
     flagGateOk: flagGate.ok,
+    // LAB-22: the premise travels with the run, so a summary written later can echo it and a
+    // reader can challenge the claim without going back to the cfg file.
+    flagCounts: totalFlagCounts,
+    declaredPremise: premise, premiseApplied: flagGate.premiseApplied,
     ensembleInboundSds, neverBaselineContactRate: neverCfg?.contactRate ?? null,
     secs, cfgs: cfgMeta,
   };
   writeFileSync(path.join(out, 'meta.json'), JSON.stringify(meta, null, 2));
 
   if (!flagGate.ok) {
-    console.error(JSON.stringify({ ok: false, error: `§2.7 gate: flagged fraction ${(flagGate.fraction * 100).toFixed(2)}% exceeds ${(FLAG_GATE_FRACTION * 100).toFixed(0)}%`, out }));
+    const detail = flagGate.reason ?? `flagged fraction ${(flagGate.fraction * 100).toFixed(2)}% exceeds ${(FLAG_GATE_FRACTION * 100).toFixed(0)}%`;
+    console.error(JSON.stringify({ ok: false, error: `§2.7 gate: ${detail}`, out }));
     process.exitCode = 1;
     return;
   }

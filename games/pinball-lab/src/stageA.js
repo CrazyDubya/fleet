@@ -23,7 +23,7 @@ import { execFileSync } from 'node:child_process';
 import { sdFromAcc, uniformSd, percentile, histogram, entropyBits } from './metrics.js';
 import { INJECTION } from './arenas/e1_flippers.js';
 import { buildE1StageACfgs, cfgId as hashCfg, buildE3AllCfgs } from './sweep.js';
-import { flagGateResult, FLAG_GATE_FRACTION, rankingValidityResult } from './gate.js';
+import { flagGateResult, FLAG_GATE_FRACTION, rankingValidityResult, parseCfgSet } from './gate.js';
 
 const DEFAULT_TOTAL_TRIALS = 400000; // §3.3 Stage A budget; --trials overrides for smoke tests
 const INBOUND_SD_FLOOR_FRACTION = 0.5;
@@ -94,7 +94,8 @@ async function runE4Stage(args) {
   mkdirSync(out, { recursive: true });
   const start = performance.now();
 
-  const cfgs = JSON.parse(readFileSync(cfgsPath, 'utf8'));
+  // LAB-22: bare array (no premise) or `{ premise, cfgs }`. E4 Stage A1 declares one.
+  const { cfgs, premise } = parseCfgSet(JSON.parse(readFileSync(cfgsPath, 'utf8')), { source: cfgsPath });
   const totalTrialsArg = args.trials ? Number(args.trials) : cfgs.length * 100;
   const trialCounts = splitEvenly(totalTrialsArg, cfgs.length);
   const maxWorkers = Math.max(1, os.cpus().length - 1);
@@ -115,6 +116,8 @@ async function runE4Stage(args) {
   for (const r of results) for (const row of r.perCfg) perCfgByIndex.set(row.cfgId, row);
 
   let totalTrials = 0, totalFlagged = 0, totalFlaggedExclStalled = 0;
+  const totalFlagCounts = {};
+  const totalFlagCountsExclStalled = {};
   let totalCt = 0, totalCr = 0, totalCp = 0, totalCv = 0, totalCreep = 0;
   const perCfgSummary = [];
   for (const cfg of cfgs) {
@@ -122,6 +125,8 @@ async function runE4Stage(args) {
     totalTrials += row.trials;
     totalFlagged += row.flagged;
     totalFlaggedExclStalled += row.flaggedExclStalled;
+    for (const [name, n] of Object.entries(row.flagCounts ?? {})) totalFlagCounts[name] = (totalFlagCounts[name] ?? 0) + n;
+    for (const [name, n] of Object.entries(row.flagCountsExclStalled ?? {})) totalFlagCountsExclStalled[name] = (totalFlagCountsExclStalled[name] ?? 0) + n;
     totalCt += row.ct; totalCr += row.cr; totalCp += row.cp; totalCv += row.cv; totalCreep += row.creep;
     const sorted = [...row.stVals].sort((a, b) => a - b);
     const medianSt = sorted.length ? sorted[Math.floor(sorted.length / 2)] : null;
@@ -144,7 +149,9 @@ async function runE4Stage(args) {
   const c0 = perCfgSummary.find((c) => c.arm === 'C0');
   const c0Ok = !c0 || c0.cp < 0.01;
   const flaggedExclStalledFraction = totalTrials > 0 ? totalFlaggedExclStalled / totalTrials : 0;
-  const flagGate = flagGateResult({ trials: totalTrials, flagged: totalFlaggedExclStalled });
+  // LAB-22: E4 already excludes STALLED from the numerator (§7); a declared premise, if this
+  // cfg set carries one, additionally moves the ceiling and holds every UNDECLARED flag to 1%.
+  const flagGate = flagGateResult({ trials: totalTrials, flagged: totalFlaggedExclStalled, premise, flagCounts: totalFlagCountsExclStalled, excludedFlags: ['STALLED'] });
 
   const secs = (performance.now() - start) / 1000;
   const meta = {
@@ -158,6 +165,9 @@ async function runE4Stage(args) {
     creep: totalTrials ? totalCreep / totalTrials : 0,
     c0Cp: c0?.cp ?? null, c0OnTarget: c0Ok,
     flagGateOk: flagGate.ok,
+    flagCounts: totalFlagCounts, flagCountsExclStalled: totalFlagCountsExclStalled,
+    declaredPremise: premise, premiseApplied: flagGate.premiseApplied,
+    gateExcludedFlags: flagGate.excludedFlags,
     secs,
     shards: results.map((r) => ({ path: path.relative(out, r.outPath) })),
     cfgs: cfgs.map((cfg) => ({ cfg, trials: perCfgByIndex.get(cfg.cfgId).trials })),
@@ -183,7 +193,8 @@ async function runE4Stage(args) {
   }
 
   if (!flagGate.ok) {
-    console.error(JSON.stringify({ ok: false, error: `§2.7 gate: flagged fraction (excl STALLED) ${(flagGate.fraction * 100).toFixed(2)}% exceeds ${(FLAG_GATE_FRACTION * 100).toFixed(0)}%`, out }));
+    const detail = flagGate.reason ?? `flagged fraction (excl STALLED) ${(flagGate.fraction * 100).toFixed(2)}% exceeds ${(FLAG_GATE_FRACTION * 100).toFixed(0)}%`;
+    console.error(JSON.stringify({ ok: false, error: `§2.7 gate: ${detail}`, out }));
     process.exitCode = 1;
     return;
   }

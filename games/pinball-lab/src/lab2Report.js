@@ -12,7 +12,7 @@ import readline from 'node:readline';
 import path from 'node:path';
 import { mean, sd, percentile } from './metrics.js';
 import { cfgId as hashCfg } from './sweep.js';
-import { rankingValidityResult } from './gate.js';
+import { rankingValidityResult, premiseHeaderLines } from './gate.js';
 
 const GEOMETRY_KEYS = ['restAngleDeg', 'activeAngleDeg', 'upMs', 'omegaProfile', 'radius', 'restitution'];
 const HS_BINS = 10;
@@ -262,6 +262,10 @@ async function main() {
     generatedAt: new Date().toISOString(),
     stageBRunDir: stageBDir, cradleRunDir: cradleDir,
     stageBMeta: { instrumentCommitSha: stageBMeta.instrumentCommitSha, trialCount: stageBMeta.trialCount, secs: stageBMeta.secs },
+    // LAB-22: Stage B declares a §2.7 premise (a pure TIMEOUT tail from §3.3's 0.3 m/s
+    // floor against the 2.0s cap); echo it where a reader of the summary will meet it.
+    declaredPremise: stageBMeta.declaredPremise ?? null,
+    declaredPremiseGate: { fraction: stageBMeta.flaggedFraction, ok: stageBMeta.flagGateOk !== false },
     cradleMeta: { trialCount: cradleMeta.trialCount, secs: cradleMeta.secs },
     totals: {
       trials: totalTrials, flagged: totalFlagged, flaggedFraction: totalTrials ? totalFlagged / totalTrials : 0,
@@ -317,6 +321,7 @@ function toMarkdown(summary, best) {
     `NAN ${(summary.totals.flagCounts.NAN / summary.totals.trials * 100).toFixed(3)}%)`);
   lines.push(`- **flipper contact rate**: ${(summary.totals.contactRate * 100).toFixed(1)}%  ·  **geometries characterised**: ${summary.geometryCount}`);
   lines.push('');
+  lines.push(...premiseHeaderLines(summary.declaredPremise ?? null, summary.declaredPremiseGate ?? { fraction: summary.totals.flaggedFraction, ok: true }));
   lines.push('> §2.7: ESCAPED and NAN are near-zero (no solver artifact); TIMEOUT and' +
     ' IMPACTS_EXHAUSTED dominate the flagged fraction — the same pattern LAB-1b found for the' +
     ' main family (slow-speed injections still falling at the 2.0s cap; the flipper firing' +
