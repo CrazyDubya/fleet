@@ -49,6 +49,10 @@ function towardFlipper(pos, vel, flipperName) {
   const states = [{ label: 'rest', angleDeg: restDeg }, { label: 'active', angleDeg: activeDeg }, { label: 'flip-at-arrival', angleDeg: null }];
   let contacted = false, minDist = Infinity, closest = null;
   let pivot = null;
+  // Per-state results. The original version stopped at the first state that made contact,
+  // which hid the case a re-aim has to care about: a feed that reaches the flipper only when
+  // the player already happens to be holding it up. Every state is now run and reported.
+  const perState = [];
   for (const st of states) {
     const { world, flippers } = buildFullWorld();
     const target = flippers[flipperName];
@@ -56,16 +60,29 @@ function towardFlipper(pos, vel, flipperName) {
     if (st.angleDeg === null) { target.angle = target.restAngle; target.angularVel = 0; target.active = true; }
     else { target.angle = st.angleDeg * DEG; target.angularVel = 0; target.active = false; }
     const ball = addBall(world, { id: 't', pos: { x: pos.x, y: pos.y }, vel: { x: vel.x, y: vel.y }, radius: BALL_RADIUS });
-    for (let i = 0; i < Math.round(DURATION_S / STEP_DT) && !contacted; i++) {
+    let hit = false, alongBat = null;
+    for (let i = 0; i < Math.round(DURATION_S / STEP_DT) && !hit; i++) {
+      const prev = { x: ball.pos.x, y: ball.pos.y };
+      const angleNow = target.angle;
       const events = advance(world, STEP_DT);
-      for (const e of events) if (e.primitive?.flipper?.tag === target.tag) contacted = true;
+      for (const e of events) {
+        if (e.primitive?.flipper?.tag !== target.tag) continue;
+        hit = true;
+        // Where the contact lands along the bat: 0 = pivot, 1 = tip. The collider is a
+        // capsule of radius `flipper.radius` from pivot to tip, so a ball touching the round
+        // hub at the pivot end registers a contact at a NEGATIVE fraction. That is a graze on
+        // the hub, where the bat's surface speed is ~0 — it is not a hit worth having, and
+        // asserting only `contacted` would not tell the two apart.
+        alongBat = ((prev.x - target.pivot.x) * Math.cos(angleNow) + (prev.y - target.pivot.y) * Math.sin(angleNow)) / target.length;
+      }
       const d = Math.hypot(ball.pos.x - target.pivot.x, ball.pos.y - target.pivot.y);
       if (d < minDist) { minDist = d; closest = { x: ball.pos.x, y: ball.pos.y }; }
       if (recess.isDrained(ball)) break;
     }
-    if (contacted) break;
+    perState.push({ state: st.label, hit, alongBat });
+    if (hit) contacted = true;
   }
-  return { contacted, minDist, closest, pivot };
+  return { contacted, minDist, closest, pivot, perState, statesHit: perState.filter((s) => s.hit).length };
 }
 
 /** Simulates one deterministic hand-off toward a CLUSTER of point targets (the spring riders —
@@ -110,7 +127,8 @@ test('mechanism hand-off audit, pasted for the record', () => {
     const r = towardFlipper(slide.ramp.exit.pos, { x: slide.ramp.exit.dir.x * slide.ramp.exit.speed, y: slide.ramp.exit.dir.y * slide.ramp.exit.speed }, 'left');
     const armTipX = recess.LEFT_FLIPPER_PIVOT.x + Math.cos(-50 * DEG) * 0.075;
     rows.push({ mechanism: 'SLIDE ramp', target: 'LEFT flipper / LEFT_INLANE_FEED', deterministic: true,
-      arrives: r.contacted, closestApproachM: r.minDist, note: r.contacted ? '' : sideNote(r.closest, r.pivot, armTipX) });
+      arrives: r.contacted, closestApproachM: r.minDist, perState: r.perState, statesHit: r.statesHit,
+      note: r.contacted ? '' : sideNote(r.closest, r.pivot, armTipX) });
   }
 
   // 2. MONKEY BARS ramp -> "the UPPER-LEFT FLIPPER" (table/ramps.js buildMonkeyBarsRamp doc comment)
@@ -119,7 +137,8 @@ test('mechanism hand-off audit, pasted for the record', () => {
     const r = towardFlipper(monkeyBars.ramp.exit.pos, { x: monkeyBars.ramp.exit.dir.x * monkeyBars.ramp.exit.speed, y: monkeyBars.ramp.exit.dir.y * monkeyBars.ramp.exit.speed }, 'upperLeft');
     const armTipX = recess.UPPER_LEFT_FLIPPER_PIVOT.x + Math.cos(-25 * DEG) * 0.065;
     rows.push({ mechanism: 'MONKEY BARS ramp', target: 'upperLeft flipper / UPPER_LEFT_FLIPPER_FEED', deterministic: true,
-      arrives: r.contacted, closestApproachM: r.minDist, note: r.contacted ? '' : sideNote(r.closest, r.pivot, armTipX) });
+      arrives: r.contacted, closestApproachM: r.minDist, perState: r.perState, statesHit: r.statesHit,
+      note: r.contacted ? '' : sideNote(r.closest, r.pivot, armTipX) });
   }
 
   // 3. TUNNEL ramp -> "the spring riders" (table/mechanisms.js: "Spring riders — pop bumpers")
@@ -147,7 +166,7 @@ test('mechanism hand-off audit, pasted for the record', () => {
     };
     const r = towardFlipper(ejectPos, evel, 'left');
     rows.push({ mechanism: 'SANDBOX scoop eject', target: 'LEFT flipper', deterministic: true,
-      arrives: r.contacted, closestApproachM: r.minDist,
+      arrives: r.contacted, closestApproachM: r.minDist, perState: r.perState, statesHit: r.statesHit,
       note: r.contacted ? '' : `closest approach occurs well above the flipper's height (y=${r.closest.y.toFixed(3)} vs pivot y=${r.pivot.y}) — the trajectory diverges toward the right side of the table before it ever descends that far, not a narrow same-height miss` });
   }
 
@@ -214,6 +233,9 @@ test('mechanism hand-off audit, pasted for the record', () => {
   for (const r of rows) {
     console.log(`${r.mechanism} -> ${r.target}`);
     console.log(`  deterministic=${r.deterministic}  arrives=${r.arrives}  closestApproach=${r.closestApproachM !== null ? (r.closestApproachM * 100).toFixed(2) + 'cm' : 'n/a'}`);
+    if (r.perState) {
+      console.log(`  ${r.perState.map((s) => `${s.state}=${s.hit ? `hit@${s.alongBat.toFixed(2)}` : 'miss'}`).join('  ')}   (alongBat: 0=pivot hub, 1=tip)`);
+    }
     if (r.note) console.log(`  ${r.note}`);
   }
 
@@ -221,13 +243,44 @@ test('mechanism hand-off audit, pasted for the record', () => {
   console.log(`\n${missCount} confirmed miss(es) among the mechanisms with a real point target: ` +
     rows.filter((r) => r.arrives === false).map((r) => r.mechanism).join(', '));
 
-  // Pin only what CURRENTLY CONNECTS — a future geometry change that breaks a working feed
-  // fails here. Do NOT assert on SLIDE/MONKEY BARS/SANDBOX EJECT — they are known-broken;
-  // asserting on them would either fail immediately or force a fix decision that is the user's,
-  // not this test's, to make.
   const tunnelRow = rows.find((r) => r.mechanism === 'TUNNEL ramp');
   assert.equal(tunnelRow.arrives, true, 'TUNNEL ramp -> spring riders regressed (was connecting)');
 
   const plungerRow = rows.find((r) => r.mechanism === 'PLUNGER');
   assert.equal(plungerRow.arrives, true, 'PLUNGER regressed — no longer clears the lane at every sampled power');
+
+  // The three feeds this file was written to expose as silent misses are now re-aimed
+  // (table/ramps.js, 2026-09-04 — exit vectors only, no pivot/length/angle touched) and are
+  // asserted rather than merely reported.
+  //
+  // The bar is deliberately stricter than `arrives`. Before the re-aim, SLIDE went from
+  // arrives=false to arrives=true purely from sonnet2's flipper sub-stepping (abd4e88) while
+  // its geometry was untouched — but the contact it gained was at alongBat -0.31, the round
+  // hub at the pivot end, and only when the flipper was already raised. A boolean cannot tell
+  // that from a real hit, so the two ramp feeds assert the contact lands on the BAT, in every
+  // flipper state a player's timing can produce.
+  const onBat = (f) => f > 0.25 && f < 0.95;
+
+  for (const name of ['SLIDE ramp', 'MONKEY BARS ramp']) {
+    const row = rows.find((r) => r.mechanism === name);
+    assert.equal(row.arrives, true, `${name} no longer reaches the flipper its exit constant is named for`);
+    assert.equal(row.statesHit, 3, `${name} reaches the flipper in only ${row.statesHit}/3 flipper states`);
+    for (const s of row.perState) {
+      assert.ok(onBat(s.alongBat),
+        `${name} (${s.state}): contact at alongBat=${s.alongBat.toFixed(3)} is on the hub/past the tip, not the bat`);
+    }
+  }
+
+  // The SANDBOX scoop asserts ARRIVAL only, and that limit is measured, not conceded for
+  // convenience. Its eject origin is not free (main.js derives it from the aim), and the ball
+  // then flies ~45cm unguided past the slingshot before it reaches flipper height. Sweeping
+  // every heading at SCOOP_EJECT: 26 arrive in all three states, and the best of them held a
+  // mid-bat landing in only 5 of 25 perturbations of ±3°/±0.2 m/s. Arrival itself is solid at
+  // 35/35. Asserting a bat fraction here would be pinning a coincidence, so it is not pinned.
+  const scoopRow = rows.find((r) => r.mechanism === 'SANDBOX scoop eject');
+  assert.equal(scoopRow.arrives, true, 'SANDBOX scoop eject no longer reaches the left flipper');
+  assert.equal(scoopRow.statesHit, 3, `SANDBOX scoop eject reaches the left flipper in only ${scoopRow.statesHit}/3 flipper states`);
+
+  assert.equal(rows.filter((r) => r.arrives === false).length, 0,
+    'a mechanism with a real point target is missing it again');
 });
