@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import { Segment, Arc, Circle } from '../src/physics/shapes.js';
 import { sweepCircleSegment, sweepCircleCircle, sweepCircleArc, earliestImpact, stepBall } from '../src/physics/solver.js';
 import { makeRng, range } from '../src/physics/rng.js';
+import { createFlipper, flipperEntry } from '../src/physics/flipper.js';
+import { FLIPPER, E_FLIPPER, BALL_RADIUS, MAX_IMPACTS, MU, K_DRAG, gravityForPitch } from '../src/physics/constants.js';
+import { LEFT_FLIPPER_PIVOT, RIGHT_FLIPPER_PIVOT } from '../src/table/recess.js';
 
 test('sweepCircleSegment: ball moving straight into a horizontal wall finds exact TOI', () => {
   const seg = Segment({ x: -1, y: 0 }, { x: 1, y: 0 });
@@ -123,5 +126,88 @@ test('anti-tunneling property: a fast ball fired at a wall from many angles neve
       ball.pos.y >= -1e-3 && ball.pos.y <= halfH * 2 + 1e-3,
       `trial ${trial}: ball escaped to (${ball.pos.x}, ${ball.pos.y}) at angle ${angle}`
     );
+  }
+});
+
+// stepBall's maxImpacts loop, exercised only by containment-only tests above (0 gravity or
+// 20 m/s free flight in an open box — never more than 2 impacts/step, per the opus2 solver
+// audit's own histogram over the anti-tunneling test's exact 60,000 stepBall calls). None of
+// that catches under-advance: both sweep routines return { t: 0 } on immediate overlap, so
+// `remaining -= hit.t` subtracts nothing and the loop can burn every iteration of maxImpacts
+// without the clock moving at all — only the fixed 1mm pushout per iteration changes anything.
+// The real-game trigger is two flippers raised at once: tip gap 0.0288m against a required
+// 2*(flipper.radius+BALL_RADIUS)=0.0510m (see constants.js's own note on this same 51mm
+// number, recorded for the *rest* angle — the active/raised angle was never checked against
+// it), so a centred ball penetrates each capsule by 11.1mm and the two pushout normals
+// oppose. This is a real, reachable state (a player holding both flippers up), not synthetic.
+function raisedFlipperPrimitives() {
+  const left = createFlipper({
+    pivot: LEFT_FLIPPER_PIVOT, length: FLIPPER.lower.length,
+    restAngleDeg: FLIPPER.lower.restAngle, activeAngleDeg: FLIPPER.lower.activeAngle,
+    upMs: FLIPPER.lower.upMs, downMs: FLIPPER.lower.downMs, restitution: E_FLIPPER, tag: 'flipper-left',
+  });
+  const right = createFlipper({
+    pivot: RIGHT_FLIPPER_PIVOT, length: FLIPPER.lower.length,
+    restAngleDeg: 180 - FLIPPER.lower.restAngle, activeAngleDeg: 180 - FLIPPER.lower.activeAngle,
+    upMs: FLIPPER.lower.upMs, downMs: FLIPPER.lower.downMs, restitution: E_FLIPPER, tag: 'flipper-right',
+  });
+  // Both fully up and held (angularVel 0, not mid-sweep) — a player trapping the ball, which
+  // is the *harder* case: mid-sweep surface velocity can eventually kick a trapped ball clear
+  // (opus2 measured an ~8-substep/33ms escape that way), but a held, stationary wedge has no
+  // such rescue, so if the t=0 bug is present the ball never leaves at all.
+  left.angle = left.activeAngle;
+  right.angle = right.activeAngle;
+  return { left, right, primitives: [flipperEntry(left), flipperEntry(right)] };
+}
+
+test('stepBall never returns with unconsumed time: held two-raised-flipper double-overlap wedge, real gravity and drag', () => {
+  const { left, primitives } = raisedFlipperPrimitives();
+  const gravity = gravityForPitch();
+  const tuning = { mu: MU, kDrag: K_DRAG, maxImpacts: MAX_IMPACTS };
+  const dt = 1 / 240;
+
+  // Centred between the two raised tips (y = tip height), falling — the exact wedge opus2
+  // measured against the current solver.
+  const wedgeY = LEFT_FLIPPER_PIVOT.y + Math.sin(left.activeAngle) * FLIPPER.lower.length;
+  const ball = { pos: { x: 0, y: wedgeY }, vel: { x: 0, y: -0.9 }, radius: BALL_RADIUS };
+
+  for (let i = 0; i < 600; i++) {
+    const events = stepBall(ball, gravity, primitives, dt, tuning);
+    // The actual property: no time left unconsumed by the call. (events.length ===
+    // maxImpacts was the original proxy for this, and still a fair health-check, but a fix
+    // that resolves several overlapping primitives in one loop iteration can legitimately
+    // push more than one event per iteration, so it's no longer 1:1 with "hit the cap".)
+    assert.ok(
+      Math.abs(events.remaining) < 1e-9,
+      `substep ${i}: stepBall returned with ${events.remaining}s of dt unconsumed (${events.length} events)`
+    );
+  }
+});
+
+test('stepBall never returns with unconsumed time: a parameterised set of double-overlap starting offsets in the same wedge', () => {
+  const gravity = gravityForPitch();
+  const tuning = { mu: MU, kDrag: K_DRAG, maxImpacts: MAX_IMPACTS };
+  const dt = 1 / 240;
+
+  // Small starting offsets and fall speeds around the wedge centre — real variation in where
+  // and how fast a ball enters a double-flipper trap, not just the single symmetric case.
+  const offsets = [-0.006, -0.003, 0, 0.003, 0.006];
+  const speeds = [0.3, 0.9, 1.6];
+
+  for (const dx of offsets) {
+    for (const speed of speeds) {
+      const { left, primitives } = raisedFlipperPrimitives();
+      const wedgeY = LEFT_FLIPPER_PIVOT.y + Math.sin(left.activeAngle) * FLIPPER.lower.length;
+      const ball = { pos: { x: dx, y: wedgeY }, vel: { x: 0, y: -speed }, radius: BALL_RADIUS };
+
+      for (let i = 0; i < 200; i++) {
+        const events = stepBall(ball, gravity, primitives, dt, tuning);
+        assert.ok(
+          Math.abs(events.remaining) < 1e-9,
+          `dx=${dx}, speed=${speed}, substep ${i}: stepBall returned with ${events.remaining}s ` +
+          `of dt unconsumed (${events.length} events) — unconsumed time stranded in this double-overlap config`
+        );
+      }
+    }
   }
 });
