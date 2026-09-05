@@ -14,6 +14,7 @@ import readline from 'node:readline';
 import path from 'node:path';
 import { mean } from './metrics.js';
 import { validExclStalled, rankingValidityResult } from './gate.js';
+import { rate as measuredRate, fmt as fmtMeasured } from './measured.js';
 
 async function* streamShards(dir, meta) {
   for (const shard of meta.shards) {
@@ -82,6 +83,11 @@ async function main() {
     if (r.hsS !== null && r.hsS !== undefined) row.measuredHsSVals.push(r.hsS);
   }
 
+  // MEASURED-1: each rate keeps its bare fraction (crRate etc. — the Pearson-r math below and
+  // JSON consumers need a plain number, and those already existed at these exact names) and
+  // gains a `Measured` sidecar (`crRateM` etc. — spec §5.3's additive convention: unchanged key
+  // stays a bare number, the new key carries n/k/interval). Only the sidecars are rendered in
+  // the markdown table below; the bare fields are what get lost silently if read without them.
   const assemblies = [...byAssembly.values()].map((row) => ({
     ...row,
     crRate: row.trials ? row.cr / row.trials : 0,
@@ -89,6 +95,11 @@ async function main() {
     shotRate: row.trials ? row.shot / row.trials : 0,
     retrapRate: row.trials ? row.retrap / row.trials : 0,
     drainRate: row.trials ? row.drain / row.trials : 0,
+    crRateM: measuredRate(row.cr, row.trials, { estimand: 'fraction of trials that catch (cr)' }),
+    cpRateM: measuredRate(row.cp, row.trials, { estimand: 'fraction of trials clearing the catch/playability tradeoff (cp)' }),
+    shotRateM: measuredRate(row.shot, row.trials, { estimand: 'fraction of trials releasing as a shot' }),
+    retrapRateM: measuredRate(row.retrap, row.trials, { estimand: 'fraction of trials releasing as a retrap' }),
+    drainRateM: measuredRate(row.drain, row.trials, { estimand: 'fraction of trials releasing as a drain' }),
     measuredHsSMean: row.measuredHsSVals.length ? mean(row.measuredHsSVals) : null,
   })).sort((a, b) => a.hsSRaw - b.hsSRaw);
 
@@ -173,10 +184,15 @@ async function main() {
   lines.push('');
   lines.push('## Shot rate vs hsS (the deciding curve)');
   lines.push('');
-  lines.push('| hsS (axis, unclamped) | hsS (predicted, clamped) | hsS (measured mean) | n | cr% | cp% | shot% | retrap% | drain% |');
+  // MEASURED-1: each rate cell is a `Measured` value's own rendered form — rate, event count,
+  // and a 95% Wilson interval together, so a thin count (e.g. one event in ~11,000 trials)
+  // reads visibly as one event rather than as an indistinguishable 0.009% next to a row backed
+  // by thousands. Table is wider for it; the spec's own §5 names that cost explicitly rather
+  // than trading it away for a narrower table.
+  lines.push('| hsS (axis, unclamped) | hsS (predicted, clamped) | hsS (measured mean) | n | cr | cp | shot | retrap | drain |');
   lines.push('|---|---|---|---|---|---|---|---|---|');
   for (const a of assemblies) {
-    lines.push(`| ${fmt(a.hsSRaw, 4)} | ${fmt(a.hsSPredicted, 4)} | ${fmt(a.measuredHsSMean, 4)} | ${a.trials} | ${fmt(a.crRate * 100, 2)} | ${fmt(a.cpRate * 100, 2)} | ${fmt(a.shotRate * 100, 3)} | ${fmt(a.retrapRate * 100, 2)} | ${fmt(a.drainRate * 100, 2)} |`);
+    lines.push(`| ${fmt(a.hsSRaw, 4)} | ${fmt(a.hsSPredicted, 4)} | ${fmt(a.measuredHsSMean, 4)} | ${a.trials} | ${fmtMeasured(a.crRateM)} | ${fmtMeasured(a.cpRateM)} | ${fmtMeasured(a.shotRateM)} | ${fmtMeasured(a.retrapRateM)} | ${fmtMeasured(a.drainRateM)} |`);
   }
   lines.push('');
   // LAB-28 (V5): `pearsonR`/`maxShotRate` are computed AFTER `axisGuard` runs, over the same
