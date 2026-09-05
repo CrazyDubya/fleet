@@ -115,3 +115,34 @@
 `e3-lab23-check-heatmap.csv` — 1cm x 1cm occupancy bins (`family,x,y,count`) of every
 substep a ball spent below 0.15 m/s, summed across that family's trials. §5.4: "the single
 most directly useful artifact in the whole program" — a map of where a ball goes to die.
+
+<!-- SAMPLECAP-1-ANNOTATION:BEGIN -->
+
+## Corrected family characterisation (SAMPLECAP-1)
+
+`returnXVariety` and `timeToReturnMedianS` in the table above were computed from a
+per-worker **prefix** of each family's reached trials — workers own contiguous cfg
+slices, so the retained trials came from one end of each slice — not from a sample of
+the family. Every trial is on disk, so both have been recomputed over **every** reached
+trial. Nothing was re-simulated and this summary was not regenerated; no other metric
+here is affected. Source: `e3-lab23-check-familystats.json`.
+
+**These are the values this run supports:**
+
+| family | reached trials | return-x variety | median time to return |
+|---|---|---|---|
+| P1 | 584,815 | **0.8796** | **2.0292 s** |
+| P2 | 748,030 | **0.8964** | **1.1583 s** |
+| P3 | 980,605 | **0.8970** | **0.7417 s** |
+| P4 | 999,977 | **0.9083** | **0.8625 s** |
+| P5 | 1,000,000 | **0.9095** | **0.2208 s** |
+
+**Return-x variety.** 0.880–0.909 across the 5 families, a spread of 0.030. All of them spread their returns comparably; none concentrates them into a narrow band. 
+The table above shows a spread of 0.448 — an apparent separation 15× wider than the data supports. That separation is an artifact of which trials were retained.
+- **P1** reads 0.4614 above; it is **0.8796**. Any reading that treats P1 as less various than the other families does not survive the correction.
+
+**Median time to return.** P5 < P3 < P4 < P2 < P1 — P1 2.029 s, P2 1.158 s, P3 0.742 s, P4 0.862 s, P5 0.221 s.
+- The **ordering is unchanged** from the table above; the magnitudes are not.
+- **P5** reads 0.1000 s above; it is **0.2208 s** (2.21×).
+
+<!-- SAMPLECAP-1-ANNOTATION:END -->

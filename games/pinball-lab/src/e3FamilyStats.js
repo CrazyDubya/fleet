@@ -19,6 +19,7 @@ import { readFileSync, writeFileSync, createReadStream } from 'node:fs';
 import { createGunzip } from 'node:zlib';
 import readline from 'node:readline';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { percentile, histogram, entropyBits } from './metrics.js';
 import { indeterminate, fmt as fmtMeasured } from './measured.js';
 
@@ -41,6 +42,103 @@ export function familyStats(xx, tt) {
   };
 }
 
+export const BEGIN = '<!-- SAMPLECAP-1-ANNOTATION:BEGIN -->';
+export const END = '<!-- SAMPLECAP-1-ANNOTATION:END -->';
+
+// A published value this far from the corrected one changes how the row reads, rather than
+// moving it in the last digit. Used only to decide which families the prose calls out.
+const VARIETY_NOTABLE = 0.05;
+const MEDIAN_NOTABLE_RATIO = 1.2;
+
+function ordering(fams, pick) {
+  return [...fams].sort((a, b) => pick(a[1]) - pick(b[1])).map(([k]) => k).join(' < ');
+}
+
+/** The corrected characterisation, as prose plus a table. Pure, so the wording is testable and
+ * so it can be regenerated from a companion without re-reading any shard. */
+export function annotationBlock(companion) {
+  const fams = Object.entries(companion.families);
+  const cv = fams.map(([, f]) => f.returnXVariety);
+  const pv = fams.map(([, f]) => f.publishedReturnXVariety).filter((v) => v !== null && v !== undefined);
+  const cSpread = Math.max(...cv) - Math.min(...cv);
+  const pSpread = pv.length === fams.length ? Math.max(...pv) - Math.min(...pv) : null;
+
+  const L = [];
+  L.push(BEGIN);
+  L.push('');
+  L.push('## Corrected family characterisation (SAMPLECAP-1)');
+  L.push('');
+  L.push('`returnXVariety` and `timeToReturnMedianS` in the table above were computed from a');
+  L.push('per-worker **prefix** of each family\'s reached trials — workers own contiguous cfg');
+  L.push('slices, so the retained trials came from one end of each slice — not from a sample of');
+  L.push('the family. Every trial is on disk, so both have been recomputed over **every** reached');
+  L.push('trial. Nothing was re-simulated and this summary was not regenerated; no other metric');
+  L.push(`here is affected. Source: \`e3-${companion.runId}-familystats.json\`.`);
+  L.push('');
+  L.push('**These are the values this run supports:**');
+  L.push('');
+  L.push('| family | reached trials | return-x variety | median time to return |');
+  L.push('|---|---|---|---|');
+  for (const [k, f] of fams) {
+    L.push(`| ${k} | ${f.reachedTrials.toLocaleString()} | **${f.returnXVariety.toFixed(4)}** | **${f.timeToReturnMedianS.toFixed(4)} s** |`);
+  }
+  L.push('');
+
+  // --- return-x variety ---
+  const movedV = fams.filter(([, f]) => f.publishedReturnXVariety !== null
+    && Math.abs(f.publishedReturnXVariety - f.returnXVariety) >= VARIETY_NOTABLE);
+  L.push(`**Return-x variety.** ${Math.min(...cv).toFixed(3)}–${Math.max(...cv).toFixed(3)} across the ` +
+    `${fams.length} ${fams.length === 1 ? 'family' : 'families'}, a spread of ${cSpread.toFixed(3)}. ` +
+    (fams.length > 1
+      ? 'All of them spread their returns comparably; none concentrates them into a narrow band. '
+      : ''));
+  if (pSpread !== null && cSpread > 0 && pSpread > 2 * cSpread) {
+    L.push(`The table above shows a spread of ${pSpread.toFixed(3)} — an apparent separation ` +
+      `${(pSpread / cSpread).toFixed(0)}× wider than the data supports. That separation is an artifact of ` +
+      'which trials were retained.');
+  }
+  for (const [k, f] of movedV) {
+    L.push(`- **${k}** reads ${f.publishedReturnXVariety.toFixed(4)} above; it is **${f.returnXVariety.toFixed(4)}**. ` +
+      `Any reading that treats ${k} as ${f.publishedReturnXVariety < f.returnXVariety ? 'less' : 'more'} various than the ` +
+      'other families does not survive the correction.');
+  }
+  L.push('');
+
+  // --- time to return ---
+  const cOrd = ordering(fams, (f) => f.timeToReturnMedianS);
+  const havePub = fams.every(([, f]) => f.publishedTimeToReturnMedianS !== null && f.publishedTimeToReturnMedianS !== undefined);
+  const pOrd = havePub ? ordering(fams, (f) => f.publishedTimeToReturnMedianS) : null;
+  L.push(`**Median time to return.** ${fams.length > 1 ? `${cOrd} — ` : ''}` +
+    fams.map(([k, f]) => `${k} ${f.timeToReturnMedianS.toFixed(3)} s`).join(', ') + '.');
+  if (pOrd !== null && fams.length > 1) {
+    L.push(pOrd === cOrd
+      ? '- The **ordering is unchanged** from the table above; the magnitudes are not.'
+      : `- The **ordering changes**: the table above gives ${pOrd}.`);
+  }
+  for (const [k, f] of fams) {
+    if (!havePub || !f.publishedTimeToReturnMedianS) continue;
+    const r = f.timeToReturnMedianS / f.publishedTimeToReturnMedianS;
+    if (r >= MEDIAN_NOTABLE_RATIO || r <= 1 / MEDIAN_NOTABLE_RATIO) {
+      L.push(`- **${k}** reads ${f.publishedTimeToReturnMedianS.toFixed(4)} s above; it is ` +
+        `**${f.timeToReturnMedianS.toFixed(4)} s** (${r.toFixed(2)}×).`);
+    }
+  }
+  L.push('');
+  L.push(END);
+  return L.join('\n');
+}
+
+/** Insert or REPLACE the annotation block. Idempotent: applying twice leaves one block, and a
+ * revised block supersedes rather than stacks beside its predecessor. */
+export function applyAnnotation(md, block) {
+  const i = md.indexOf(BEGIN);
+  const j = md.indexOf(END);
+  if (i !== -1 && j !== -1 && j > i) {
+    return md.slice(0, i) + block + md.slice(j + END.length);
+  }
+  return `${md.replace(/\s*$/, '')}\n\n${block}\n`;
+}
+
 async function* streamShard(dir, shardPath) {
   const rl = readline.createInterface({ input: createReadStream(path.join(dir, shardPath)).pipe(createGunzip()) });
   for await (const line of rl) if (line.trim()) yield JSON.parse(line);
@@ -53,10 +151,34 @@ async function main() {
       return pairs;
     }, [])
   );
+  // --annotate: state the corrected characterisation IN the summary a reader opens. Reads the
+  // companion this tool already wrote and rewrites only the .md — never the published .json,
+  // whose numbers stay exactly as published, and never by re-running any writer.
+  if (args.annotate !== undefined) {
+    const runId = args.annotate === true || args.annotate?.startsWith?.('--') ? args.out : args.annotate;
+    if (!runId) {
+      console.error('usage: node src/e3FamilyStats.js --annotate <runId>');
+      process.exitCode = 1;
+      return;
+    }
+    const companionPath = path.join('data/summaries', `e3-${runId}-familystats.json`);
+    const mdPath = path.join('data/summaries', `e3-${runId}.md`);
+    const companion = JSON.parse(readFileSync(companionPath, 'utf8'));
+    const before = readFileSync(mdPath, 'utf8');
+    const after = applyAnnotation(before, annotationBlock(companion));
+    writeFileSync(mdPath, after);
+    console.log(JSON.stringify({
+      ok: true, annotated: mdPath, from: companionPath,
+      replacedExisting: before.includes(BEGIN), bytesAdded: after.length - before.length,
+    }));
+    return;
+  }
+
   const runDir = args.run;
   const runId = args.out;
   if (!runDir || !runId) {
-    console.error('usage: node src/e3FamilyStats.js --run <dir> --out <runId> [--summary <published.json>]');
+    console.error('usage: node src/e3FamilyStats.js --run <dir> --out <runId> [--summary <published.json>]\n' +
+      '       node src/e3FamilyStats.js --annotate <runId>');
     process.exitCode = 1;
     return;
   }
@@ -147,4 +269,12 @@ async function main() {
   console.log(JSON.stringify({ ok: true, runId, families: Object.keys(families).length, reachedTrials: reached }));
 }
 
-main();
+// LAB-20's rule, and this file tripped it: run the CLI only when this file IS the entry point.
+// A test importing `annotationBlock` otherwise runs the whole report, prints the usage banner
+// and sets a non-zero exit — the test file fails with no individual test failing.
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((err) => {
+    console.error(JSON.stringify({ ok: false, error: String(err?.stack ?? err) }));
+    process.exitCode = 1;
+  });
+}
