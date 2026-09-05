@@ -101,9 +101,14 @@ test('V5: e4Report.js attaches the covering ranking guard\'s verdict to bestCp, 
   assert.match(text, /bestPocketCpGuardOk/, 'expected the guard verdict to reach the published summary object');
 });
 
-test('V5: e5aReport.js\'s raw Pearson r / max shot rate line is marked when the axis guard failed', () => {
+// RETIRE-ALL §6 (ledger/handoffs/opus2/20260905T201139Z-decisions.md): pearsonR is retired from
+// e5aReport.js entirely — the raw stat line this test pins now reports the step (computeStep),
+// not a correlation coefficient. The V5 property this test actually checks (the raw stat line
+// must itself carry the axis-guard marker, not rely on the verdict banner above it) is
+// unaffected by the retirement and still holds.
+test('V5: e5aReport.js\'s raw step / max shot rate line is marked when the axis guard failed', () => {
   const text = src('e5aReport.js');
-  const lineIdx = text.indexOf('Pearson r(hsS, shotRate)');
+  const lineIdx = text.indexOf('Step across');
   assert.ok(lineIdx >= 0);
   const nearby = text.slice(lineIdx - 400, lineIdx + 400);
   assert.match(nearby, /axisGuard\.ok/, 'the raw stat line must itself check axisGuard, not just the verdict banner above it');

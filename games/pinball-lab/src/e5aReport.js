@@ -34,6 +34,33 @@ function assemblyKey(cfg) {
   return `${JSON.stringify(cfg.guide)}|${cfg.activeAngleDeg}|${cfg.radius}`;
 }
 
+/** RETIRE-ALL §6: the shape a correlation coefficient was the wrong statistic for. Sorts
+ * assemblies by shot rate, finds the single largest multiplicative gap between consecutive
+ * values (guarding against a zero denominator when the low side is exactly 0), and reports the
+ * two groups either side of it — "this is a step, not a trend" as an actual partition, not an
+ * adjective. `low`/`high` counts and boundary values are what "publish the step" (RETIRE-ALL-C
+ * framing carried over from the operator's own summary of the decision doc) means concretely. */
+function computeStep(assemblies) {
+  const sorted = [...assemblies].map((a) => a.shotRate).sort((a, b) => a - b);
+  // The largest ABSOLUTE gap, not the largest ratio — a ratio blows up trivially at the
+  // zero-to-first-nonzero boundary (several assemblies commonly sit at exactly 0), which would
+  // always "win" and hide the real, much larger separation further up the distribution. The
+  // decision doc's own split (13 assemblies <=2.151%, 3 >=29.264%) is the largest ABSOLUTE gap
+  // in this data, not the zero boundary.
+  let bestGapIdx = -1, bestGapSize = -Infinity;
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const gap = sorted[i + 1] - sorted[i];
+    if (gap > bestGapSize) { bestGapSize = gap; bestGapIdx = i; }
+  }
+  if (bestGapIdx < 0) return { lowCount: sorted.length, highCount: 0, lowMax: sorted[sorted.length - 1] ?? null, highMin: null, gapRatio: null };
+  const lowMax = sorted[bestGapIdx], highMin = sorted[bestGapIdx + 1];
+  return {
+    lowCount: bestGapIdx + 1, highCount: sorted.length - bestGapIdx - 1,
+    lowMax, highMin,
+    gapRatio: lowMax > 0 ? highMin / lowMax : null,
+  };
+}
+
 async function main() {
   const args = Object.fromEntries(
     process.argv.slice(2).reduce((pairs, arg, i, arr) => {
@@ -103,50 +130,45 @@ async function main() {
     measuredHsSMean: row.measuredHsSVals.length ? mean(row.measuredHsSVals) : null,
   })).sort((a, b) => a.hsSRaw - b.hsSRaw);
 
-  // The verdict: does shotRate rise with hsSPredicted? Pearson correlation across assemblies
-  // (n=15-16, one point per assembly, pooled trials) — simple and matches "does the curve rise
-  // steeply" without over-claiming a functional form.
-  // LAB-27: correlate against the UNCLAMPED projection. `hsSPredicted` clamps at 0 to match
-  // classifySettle's measured range, which collapses 62.4% of the feasible space onto one value
-  // and cannot carry an ordering. Both are reported; only the unclamped one is analysed.
+  // RETIRE-ALL §6 (ledger/handoffs/opus2/20260905T201139Z-decisions.md): `pearsonR` is RETIRED
+  // from the verdict, not merely re-labelled. It was real (survives its null past 200,000
+  // shuffles) but misdescribed what it measured: the two marginal distributions here permit a
+  // maximum achievable r of 0.6949, and the observed 0.6873 is 98.9% of that ceiling — a
+  // near-perfect relationship read as "moderate" against the usual 0-1 intuition. Worse,
+  // `STEEP_R_THRESHOLD = 0.5` demanded 71.9% of the ACHIEVABLE maximum, not half of a 0-1 scale,
+  // and the doc found this gate fails HARDEST when the effect is most concentrated — a
+  // perfectly-separated step confined to one assembly would only permit r=0.4125, flipping the
+  // verdict to MODEL on a perfect relationship. And it was the wrong shape to begin with: this
+  // is a STEP (13 assemblies at <=2.151%, 3 at >=29.264%, a clean gap), not a trend a
+  // correlation coefficient is the right statistic for at all.
+  //
+  // What replaces it, per the decision doc's own Option C ("rest the verdict on magnitude
+  // against Stage C's 0.12% ceiling"): the verdict no longer needs a coefficient. It rests on
+  // whether shot rate clears Stage C's own banked ceiling by an order of magnitude ANYWHERE in
+  // this sweep, plus a description of the step itself (computeStep below) — the actual shape in
+  // the data, not a single number standing in for it.
   const xs = assemblies.map((a) => a.hsSRaw);
   const ys = assemblies.map((a) => a.shotRate);
-  const mx = mean(xs), my = mean(ys);
-  let cov = 0, vx = 0, vy = 0;
-  for (let i = 0; i < xs.length; i++) {
-    cov += (xs[i] - mx) * (ys[i] - my);
-    vx += (xs[i] - mx) ** 2;
-    vy += (ys[i] - my) ** 2;
-  }
-  const pearsonR = vx > 0 && vy > 0 ? cov / Math.sqrt(vx * vy) : null;
   const maxShotRate = Math.max(...ys);
   const minShotRate = Math.min(...ys);
+  const step = computeStep(assemblies);
 
-  // §3/E5a's own stated decision rule: "if shot rate rises steeply with hsS -> geometry,
-  // solver exonerated. If shot rate stays ~0 at every hsS -> model is the suspect." Applied as
-  // a concrete threshold: "rises steeply" requires BOTH a strong positive correlation AND the
-  // top-hsS assemblies clearing a shot rate an order of magnitude above Stage C's banked
-  // ceiling (0.12%, LAB-6 §5.4) — a curve that's merely "less than uniformly zero" isn't a
-  // steep rise.
-  const STEEP_R_THRESHOLD = 0.5;
   const STEEP_MAX_THRESHOLD = 0.01; // 1% — ~10x Stage C's banked max of 0.12%
-  // LAB-25: gate the verdict on whether the AXIS can carry a correlation at all. E5a's
-  // assemblies are binned from an analytic hsS prediction, and the feasible set can collapse
-  // onto a handful of distinct values — the regenerated run has 9 of 15 assemblies at
-  // hsSPredicted = 0.0000 exactly. A Pearson r over that is decided by the few rows that are
-  // not tied, which is the LAB-16 family of mistake arriving in a correlation instead of a
-  // ranking. No new threshold: this is gate.js's existing population test (distinct-value
-  // floor and tie-block ceiling), the same one every other table in the lab already answers to.
+  // LAB-25: gate the verdict on whether the AXIS can carry an ordering at all. E5a's assemblies
+  // are binned from an analytic hsS prediction, and the feasible set can collapse onto a
+  // handful of distinct values — the regenerated run has 9 of 15 assemblies at
+  // hsSPredicted = 0.0000 exactly. Kept unchanged by this retirement: this guards the AXIS
+  // (hsSRaw), not the retired correlation, and the axis question is unaffected by whether a
+  // correlation or a step is what's read off it.
   const axisGuard = rankingValidityResult(xs);
-  const curveIsReadable = pearsonR !== null && pearsonR >= STEEP_R_THRESHOLD && maxShotRate >= STEEP_MAX_THRESHOLD;
-  const verdict = !axisGuard.ok ? 'INDETERMINATE' : (curveIsReadable ? 'GEOMETRY' : 'MODEL');
+  const verdict = !axisGuard.ok ? 'INDETERMINATE' : (maxShotRate >= STEEP_MAX_THRESHOLD ? 'GEOMETRY' : 'MODEL');
 
   const out = {
     exp: 'e5a', runId, generatedAt: new Date().toISOString(), instrumentCommitSha: meta.instrumentCommitSha,
     c0Cp: c0, c0OnTarget: c0Ok,
     trialCount: meta.trialCount, secs: meta.secs,
     assemblies,
-    curve: { pearsonR, maxShotRate, minShotRate, nAssemblies: assemblies.length, axisGuardOk: axisGuard.ok },
+    curve: { maxShotRate, minShotRate, nAssemblies: assemblies.length, axisGuardOk: axisGuard.ok, step },
     axisGuard,
     verdict,
   };
@@ -163,19 +185,35 @@ async function main() {
     lines.push(`> ⚠ **The verdict is INDETERMINATE because the axis cannot carry it.** ` +
       `the hsS axis has ${axisGuard.distinctCount} distinct values across ${axisGuard.n} assemblies ` +
       `and ${(axisGuard.maxTieFraction * 100).toFixed(0)}% of them are tied at a single value — ` +
-      `${axisGuard.reason}. A Pearson r computed over that is decided by the handful of rows that are ` +
-      `not tied, so neither GEOMETRY nor MODEL can be read off it. The per-assembly table below is ` +
-      `real measured data and stands on its own; what does not stand is the curve drawn through it. ` +
+      `${axisGuard.reason}. The per-assembly table below is ` +
+      `real measured data and stands on its own; what does not stand is any curve drawn through it. ` +
       `Fixing this needs a denser feasible hsS sweep, not a re-run of this grid.`);
     lines.push('');
   }
   lines.push('');
+  // RETIRE-ALL §6: the verdict narration no longer cites a correlation coefficient — it rests on
+  // magnitude against Stage C's own banked ceiling (0.12%) and the step itself (computeStep),
+  // per the decision doc's Option C. The step's own two numbers (${step.lowCount} at or under
+  // its low boundary, ${step.highCount} clearing it) are the shape a coefficient stood in for
+  // and got wrong (opus2's doc: 13 assemblies at <=2.151%, 3 at >=29.264%, perfect separation —
+  // a step, not a trend, and no coefficient claim survives being retired better than that
+  // sentence does).
   if (verdict === 'GEOMETRY') {
-    lines.push(`Shot rate rises with \`hsS\` (Pearson r = ${fmt(pearsonR, 3)}, max shot rate ${fmt(maxShotRate * 100, 2)}%` +
-      ` vs Stage C's banked ceiling of 0.12%) — **E4's catch/playability tradeoff is real geometry, the kinematic-flipper solver is exonerated on this question.**`);
+    lines.push(
+      `Shot rate clears Stage C's banked ceiling (0.12%) by more than an order of magnitude at its ` +
+      `highest hsS assemblies — max shot rate ${fmt(maxShotRate * 100, 2)}% — and does so as a STEP, not a ` +
+      `trend: ${step.highCount} of ${assemblies.length} assemblies clear ${fmt((step.highMin ?? 0) * 100, 2)}%, ` +
+      `${step.lowCount} sit at or under ${fmt((step.lowMax ?? 0) * 100, 2)}%` +
+      (step.gapRatio && Number.isFinite(step.gapRatio) ? `, a ${fmt(step.gapRatio, 1)}x gap between the two groups` : '') +
+      `. **E4's catch/playability tradeoff is real geometry, the kinematic-flipper solver is exonerated on this question.** ` +
+      `(A Pearson r was computed for this shape in an earlier version of this report and is retired: the two ` +
+      `marginal distributions here permit a maximum achievable r of ~0.69, so a near-perfect relationship read as ` +
+      `"moderate" against the usual 0-1 intuition, and the coefficient is the wrong statistic for a step in the ` +
+      `first place — see RETIRE-ALL §6, ledger/handoffs/opus2/20260905T201139Z-decisions.md.)`
+    );
   } else {
-    lines.push(`Shot rate stays near zero across the WHOLE \`hsS\` range swept here (Pearson r = ${fmt(pearsonR, 3)},` +
-      ` max shot rate ${fmt(maxShotRate * 100, 2)}%, min ${fmt(minShotRate * 100, 2)}%) — including assemblies E4's Stage C never released from.` +
+    lines.push(`Shot rate stays near zero across the WHOLE \`hsS\` range swept here` +
+      ` (max shot rate ${fmt(maxShotRate * 100, 2)}%, min ${fmt(minShotRate * 100, 2)}%) — including assemblies E4's Stage C never released from.` +
       ` **The kinematic, spinless, single-\`MU\` flipper model is the suspect: E4's release finding is provisional, and E5b/E5c (ball spin + rubber friction + dynamic flipper) are justified.**`);
   }
   lines.push('');
@@ -195,13 +233,16 @@ async function main() {
     lines.push(`| ${fmt(a.hsSRaw, 4)} | ${fmt(a.hsSPredicted, 4)} | ${fmt(a.measuredHsSMean, 4)} | ${a.trials} | ${fmtMeasured(a.crRateM)} | ${fmtMeasured(a.cpRateM)} | ${fmtMeasured(a.shotRateM)} | ${fmtMeasured(a.retrapRateM)} | ${fmtMeasured(a.drainRateM)} |`);
   }
   lines.push('');
-  // LAB-28 (V5): `pearsonR`/`maxShotRate` are computed AFTER `axisGuard` runs, over the same
-  // `xs` the guard already found untrustworthy when it fails — the verdict above already
-  // accounts for that (INDETERMINATE), but this raw stat line used to assert the numbers with
-  // no marker of its own, so a reader skimming past the verdict banner could still quote
-  // "Pearson r = 0.83" as a fact the guard never actually cleared.
-  lines.push(`Pearson r(hsS, shotRate) = ${fmt(pearsonR, 3)} across ${assemblies.length} assemblies. Max shot rate ${fmt(maxShotRate * 100, 3)}%, min ${fmt(minShotRate * 100, 3)}%.` +
-    (axisGuard.ok ? '' : ' ⚠ computed over an axis the ranking guard above marked invalid — not a validated correlation.'));
+  // LAB-28 (V5), still applicable after RETIRE-ALL §6: `maxShotRate`/`step` are computed AFTER
+  // `axisGuard` runs, over the same `xs` the guard already found untrustworthy when it fails —
+  // the verdict above already accounts for that (INDETERMINATE), but this raw stat line asserts
+  // the numbers with its own marker regardless, so a reader skimming past the verdict banner
+  // still sees the caveat.
+  lines.push(`Step across ${assemblies.length} assemblies: ${step.lowCount} low (<=${fmt((step.lowMax ?? 0) * 100, 2)}%), ` +
+    `${step.highCount} high (>=${fmt((step.highMin ?? 0) * 100, 2)}%)` +
+    (step.gapRatio && Number.isFinite(step.gapRatio) ? `, gap ${fmt(step.gapRatio, 1)}x` : '') +
+    `. Max shot rate ${fmt(maxShotRate * 100, 3)}%, min ${fmt(minShotRate * 100, 3)}%.` +
+    (axisGuard.ok ? '' : ' ⚠ computed over an axis the ranking guard above marked invalid.'));
   lines.push('');
   lines.push('## Notes');
   lines.push('');
@@ -210,7 +251,7 @@ async function main() {
   lines.push('- Same release protocol as Stage C: `holdThenRelease` policy, `release: true` (6.0s window), `upMs` ∈ {8,14,24}, `releaseDelayMs` ∈ {60,150,350}, `inj: drop`. `restAngleDeg`/`restitution` held at LAB-2\'s winner, matching every other E4 stage\'s "flipper held fixed except where the design explicitly re-sweeps it" convention.');
 
   writeFileSync(path.join('data/summaries', `e5a-${runId}.md`), lines.join('\n') + '\n');
-  console.log(JSON.stringify({ ok: true, verdict, pearsonR, maxShotRate, nAssemblies: assemblies.length }));
+  console.log(JSON.stringify({ ok: true, verdict, step, maxShotRate, nAssemblies: assemblies.length }));
 }
 
 main();
