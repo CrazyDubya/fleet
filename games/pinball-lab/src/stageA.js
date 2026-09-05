@@ -24,6 +24,7 @@ import { sdFromAcc, uniformSd, percentile, histogram, entropyBits } from './metr
 import { INJECTION } from './arenas/e1_flippers.js';
 import { buildE1StageACfgs, cfgId as hashCfg, buildE3AllCfgs } from './sweep.js';
 import { flagGateResult, FLAG_GATE_FRACTION, rankingValidityResult, parseCfgSet } from './gate.js';
+import { rate as measuredRate, fmt as fmtMeasured } from './measured.js';
 
 const DEFAULT_TOTAL_TRIALS = 400000; // §3.3 Stage A budget; --trials overrides for smoke tests
 const INBOUND_SD_FLOOR_FRACTION = 0.5;
@@ -229,12 +230,16 @@ function e3ToMarkdown(meta, perCfgRanked, runId, rankingGuard, rankingGuardFallb
   lines.push('');
   lines.push('## Per-family summary (§5.4)');
   lines.push('');
+  // MEASURED-2: returnRate/inBandFraction/stallRate render through their `Measured` sidecars
+  // (rate, event count, and a 95% Wilson interval together) rather than the bare percentage —
+  // same convention as E5a (MEASURED-1). flaggedFraction/IMPACTS_EXHAUSTED are unchanged (not
+  // converted this dispatch).
   lines.push('| family | trials | flagged% | IMPACTS_EXHAUSTED% | returnRate | inBandFraction | stallRate | variety(entropy) | median timeToReturn(s) |');
   lines.push('|---|---|---|---|---|---|---|---|---|');
   for (const [f, m] of Object.entries(meta.familyMetrics)) {
     lines.push(
       `| ${FAMILY_LABEL[f] ?? f} | ${m.trials} | ${(m.flaggedFraction * 100).toFixed(2)} | ${(m.impactsExhaustedFraction * 100).toFixed(2)} | ` +
-      `${(m.returnRate * 100).toFixed(1)}% | ${(m.inBandFraction * 100).toFixed(1)}% | ${(m.stallRate * 100).toFixed(1)}% | ` +
+      `${fmtMeasured(m.returnRateM)} | ${fmtMeasured(m.inBandFractionM)} | ${fmtMeasured(m.stallRateM)} | ` +
       `${m.returnXVariety !== null ? m.returnXVariety.toFixed(3) : '—'} | ${m.timeToReturnMedianS !== null ? m.timeToReturnMedianS.toFixed(2) : '—'} |`
     );
   }
@@ -421,6 +426,13 @@ async function runE3Stage(args) {
       returnXVariety: xVariety,
       timeToReturnMedianS: fs.tt.length ? percentile(fs.tt, 50) : null,
       cfgs: rows.length,
+      // MEASURED-2: additive sidecars alongside the bare fractions above — those are unchanged
+      // (this file's own downstream JSON/ranking code reads them as plain numbers). `reached`
+      // is `inBandFraction`'s own denominator, not `trials` (LAB-21's own point: a rate's
+      // interval is only honest over the population it was actually computed against).
+      returnRateM: measuredRate(reached, trials, { estimand: `${family}: fraction of trials returning to a flipper` }),
+      inBandFractionM: measuredRate(inBand, reached, { estimand: `${family}: fraction of RETURNS landing in the 1.0-2.5 m/s playable band` }),
+      stallRateM: measuredRate(stallCount, trials, { estimand: `${family}: fraction of trials stalling out` }),
     };
   }
 

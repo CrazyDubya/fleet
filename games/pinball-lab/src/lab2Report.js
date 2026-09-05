@@ -13,6 +13,7 @@ import path from 'node:path';
 import { mean, sd, percentile } from './metrics.js';
 import { cfgId as hashCfg } from './sweep.js';
 import { rankingValidityResult, premiseHeaderLines, requireFlagGateOk } from './gate.js';
+import { rate as measuredRate, fmt as fmtMeasured } from './measured.js';
 
 const GEOMETRY_KEYS = ['restAngleDeg', 'activeAngleDeg', 'upMs', 'omegaProfile', 'radius', 'restitution'];
 const HS_BINS = 10;
@@ -280,6 +281,9 @@ async function main() {
     totals: {
       trials: totalTrials, flagged: totalFlagged, flaggedFraction: totalTrials ? totalFlagged / totalTrials : 0,
       contacted: totalContacted, contactRate: totalTrials ? totalContacted / totalTrials : 0,
+      // MEASURED-2: additive sidecar — `contactRate` above is unchanged, this is the one
+      // headline scalar in this file's summary line converted this dispatch.
+      contactRateM: measuredRate(totalContacted, totalTrials, { estimand: 'fraction of Stage B trials reaching flipper contact' }),
       shotline: totalShotline, flagCounts,
     },
     geometryCount: geometryResults.length,
@@ -335,7 +339,7 @@ function toMarkdown(summary, best) {
     `TIMEOUT ${(summary.totals.flagCounts.TIMEOUT / summary.totals.trials * 100).toFixed(2)}%, ` +
     `STALLED ${(summary.totals.flagCounts.STALLED / summary.totals.trials * 100).toFixed(2)}%, ` +
     `NAN ${(summary.totals.flagCounts.NAN / summary.totals.trials * 100).toFixed(3)}%)`);
-  lines.push(`- **flipper contact rate**: ${(summary.totals.contactRate * 100).toFixed(1)}%  ·  **geometries characterised**: ${summary.geometryCount}`);
+  lines.push(`- **flipper contact rate**: ${fmtMeasured(summary.totals.contactRateM)}  ·  **geometries characterised**: ${summary.geometryCount}`);
   lines.push('');
   // LAB-28 (V3): `declaredPremiseGate` is always constructed in `main()` above (and would have
   // thrown via `requireFlagGateOk` before `summary` even existed if it couldn't be), so a `??`

@@ -21,6 +21,22 @@ test('rate: a textbook Wilson interval (k=50, n=100) matches the standard refere
   assert.ok(Math.abs(m.ci[1] - 0.5962) < 0.001);
 });
 
+test('rate(0, n) with n>0: zero EVENTS over real trials is `measured`, not `unmeasured` — a thin/empty count is published, not refused', () => {
+  // Distinct from rate(0,0): a real trial count with zero occurrences is a genuine finding
+  // (MEASURED-2's own check, prompted by an operator instruction: "a rate of zero events is
+  // the case to get right ... zero over eleven thousand trials should print as zero with its
+  // interval and its denominator, not as a bare zero and not as an absence").
+  const m = rate(0, 11244, { estimand: 'test' });
+  assert.equal(m.kind, 'measured');
+  assert.equal(m.value, 0);
+  assert.equal(m.k, 0);
+  assert.equal(m.n, 11244);
+  assert.ok(Array.isArray(m.ci) && m.ci.length === 2);
+  assert.equal(m.ci[0], 0, 'Wilson lower bound at k=0 is exactly 0, not negative or NaN');
+  assert.ok(m.ci[1] > 0, 'Wilson upper bound at k=0 is a real positive number, not 0 or NaN — the interval must still say something');
+  assert.match(`${m}`, /^0\.000% \(0 events \/ 11,244, 95% CI 0\.0000%–0\.0\d+%\)$/);
+});
+
 test('rate(0, 0): zero trials returns unmeasured, with NO value field at all', () => {
   const m = rate(0, 0, { estimand: 'anything' });
   assert.equal(m.kind, 'unmeasured');

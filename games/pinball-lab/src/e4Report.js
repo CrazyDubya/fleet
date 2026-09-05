@@ -12,6 +12,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { mean, percentile } from './metrics.js';
 import { validExclStalled, rankingValidityResult, premiseHeaderLines, requireFlagGateOk } from './gate.js';
+import { rate as measuredRate, fmt as fmtMeasured } from './measured.js';
 
 async function* streamShards(dir, meta) {
   for (const shard of meta.shards) {
@@ -199,6 +200,9 @@ async function main() {
   const releaseTable = [...cByAssembly.entries()].map(([id, row]) => ({
     baseAssemblyId: id, trials: row.trials,
     shotRate: (row.relCounts.shot ?? 0) / row.trials,
+    // MEASURED-2: additive sidecar (bare `shotRate` above is unchanged — the sort and the
+    // ranking guard just below both need a plain number).
+    shotRateM: measuredRate(row.relCounts.shot ?? 0, row.trials, { estimand: `${id}: fraction of trials releasing as a shot` }),
     dispersionDeg: row.rxaVals.length >= 2 ? percentile(row.rxaVals, 95) - percentile(row.rxaVals, 5) : null,
     relCounts: row.relCounts,
   })).sort((x, y) => y.shotRate - x.shotRate);
@@ -436,10 +440,12 @@ export function toMarkdown(summary, csvRelPath) {
       'ordered by shotRate for readability only, not as a performance ranking.');
     lines.push('');
   }
-  lines.push('| assembly | trials | shot% | dispersion (P95-P5, °) | rel mix |');
+  // MEASURED-2: shot rate renders through its `Measured` sidecar (rate, event count, 95%
+  // Wilson interval) — same convention as E5a (MEASURED-1) and E3 (this dispatch).
+  lines.push('| assembly | trials | shot rate | dispersion (P95-P5, °) | rel mix |');
   lines.push('|---|---|---|---|---|');
   for (const r of summary.releaseDispersion) {
-    lines.push(`| ${r.baseAssemblyId} | ${r.trials} | ${fmt(r.shotRate * 100, 1)} | ${fmt(r.dispersionDeg, 1)} | ${JSON.stringify(r.relCounts)} |`);
+    lines.push(`| ${r.baseAssemblyId} | ${r.trials} | ${fmtMeasured(r.shotRateM)} | ${fmt(r.dispersionDeg, 1)} | ${JSON.stringify(r.relCounts)} |`);
   }
   lines.push('');
   const narrow = summary.releaseDispersion.filter((r) => r.dispersionDeg !== null && r.dispersionDeg < 5);
