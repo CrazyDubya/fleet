@@ -42,6 +42,9 @@ export function createMultiballState() {
     locks: 0, // balls currently mounted at the merry-go-round, pre-multiball (0-2 while
               // building toward the 3rd; the 3rd lock immediately starts the release)
     active: false,
+    fieldDay: false, // T9: true while THIS active run is FIELD DAY rather than an ordinary
+                      // RECESS MULTIBALL — see startFieldDay's own doc comment. Never true
+                      // while `active` is false.
     ballsInPlay: 0, // meaningful only while active — see onBallAdded/onBallLost
     jackpotLit: new Set(), // MODE_SHOT_TAGS shot at least once this multiball
     jackpotReady: false,
@@ -51,6 +54,45 @@ export function createMultiballState() {
     jackpotsCollected: 0, // toward JACKPOTS_FOR_SUPER — see collectJackpot/collectSuperJackpot
     superJackpotLit: false,
   };
+}
+
+/**
+ * FIELD DAY (T9, design doc §4.4's wizard mode): "4-ball multiball... runs until one ball
+ * remains." Reuses THIS module's own ball-count lifecycle (`active`/`ballsInPlay`/
+ * `onBallAdded`/`onBallLost`) rather than a second, parallel ball-counter — "how many balls
+ * are physically in play, ending when back to 1" is the exact same fact RECESS MULTIBALL
+ * already tracks correctly, and a duplicate counter for the same physical fact is exactly the
+ * kind of redundant state a scope audit found bugs in twice already today (LIT-1's
+ * sandboxLit/hopscotchJackpot.lit, and JACKPOTS_FOR_SUPER's own deliberate scope note above).
+ * `onBallLost`'s existing "ends multiball once back down to 1 ball in play" is, unmodified,
+ * exactly "runs until one ball remains."
+ *
+ * Deliberately does NOT touch, reset, or read the jackpot/add-a-ball fields (jackpotLit,
+ * jackpotValue, jackpotReady, jackpotsCollected, superJackpotLit, addABallUsed) — those belong
+ * to RECESS MULTIBALL's lock-and-collect design, which FIELD DAY has nothing to do with (its
+ * own "all five shots lit for 2 000 000, relighting, doubling every 5" is a flat,
+ * always-lit-no-collection loop, tracked separately in rules/modes.js's own `fieldDay` state).
+ * Whatever those fields held before FIELD DAY started is simply never consulted while
+ * `m.fieldDay` is true — `m.fieldDay` is the tag rules/game.js reads (alongside `m.active`) to
+ * route a shot's scoring to FIELD DAY's own logic instead of the jackpot path, without a second
+ * "which kind of multiball is this" flag duplicating information `m.fieldDay` already carries.
+ *
+ * `ballsInPlay` starts at 1, not 0 — unlike the 3rd-lock path in onMerryGoRoundEntry, where the
+ * triggering ball is itself captured (no longer "in play") until released alongside the other
+ * 2. TREEHOUSE is a standup target: hitting it doesn't remove the ball from play, so the ball
+ * that triggers FIELD DAY is ALREADY one of the 4 and never goes through onBallAdded — only the
+ * 3 NEW balls main.js spawns do (3 calls to onBallAdded bring the count to 4, matching
+ * FIELD_DAY_BALL_COUNT). Starting at 0 here would undercount by exactly the one ball that was
+ * never "added," and the "ends at 1 remaining" check further down would fire one drain too
+ * early.
+ */
+export function startFieldDay(m, atS) {
+  m.active = true;
+  m.fieldDay = true;
+  m.ballsInPlay = 1;
+  m.lockLit = false; // defensive: a lock lit mid-build shouldn't linger as a stale lamp for the
+                      // whole FIELD DAY run — see startFieldDay's own doc comment in modes.js.
+  return { startedAtS: atS };
 }
 
 /** TREEHOUSE hit: lights lock, if it isn't already lit, there's a slot free, and multiball
@@ -179,12 +221,15 @@ export function onBallLost(m) {
   m.ballsInPlay = Math.max(0, m.ballsInPlay - 1);
   if (m.ballsInPlay > 1) return null;
   m.active = false;
+  const wasFieldDay = m.fieldDay;
+  m.fieldDay = false;
   // A partial climb toward the super jackpot does not survive the multiball run it happened
   // in (see JACKPOTS_FOR_SUPER's own doc comment on scope) — one collected jackpot when
   // multiball ends this way is simply gone, not a head start on the next multiball's own count.
+  // Harmless no-op when this was FIELD DAY, which never touches these fields in the first place.
   m.jackpotsCollected = 0;
   m.superJackpotLit = false;
-  return { kind: 'multiballEnd' };
+  return { kind: wasFieldDay ? 'fieldDayEnd' : 'multiballEnd' };
 }
 
 /** Called from endOfBall as a safety net (e.g. a tilt mid-multiball) — multiball has no
@@ -193,11 +238,13 @@ export function onBallLost(m) {
  * balls are still out there. */
 export function forceEnd(m) {
   if (!m.active && m.locks === 0) return null;
+  const wasFieldDay = m.fieldDay;
   m.active = false;
+  m.fieldDay = false;
   m.locks = 0;
   m.lockLit = false;
   // Same discard as onBallLost's ordinary multiball end — see its own comment.
   m.jackpotsCollected = 0;
   m.superJackpotLit = false;
-  return { kind: 'multiballForceEnd' };
+  return { kind: wasFieldDay ? 'fieldDayForceEnd' : 'multiballForceEnd' };
 }

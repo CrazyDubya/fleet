@@ -127,7 +127,10 @@ function endOfBall(state, atS, { skipBonus = false } = {}) {
   // Safety net for a multiball still running when the ball ends outright (a tilt, most
   // plausibly) — it has no business surviving past the ball it started on.
   const forced = multiball.forceEnd(p.multiball);
-  if (forced) display.push(forced);
+  if (forced) {
+    display.push(forced);
+    if (forced.kind === 'fieldDayForceEnd') display.push(endFieldDay(state, p));
+  }
 
   // RECESS METER's EXTRA BALL: the same player takes another ball at the same ball number
   // rather than the turn passing on — the classic pinball meaning of "extra ball".
@@ -245,8 +248,38 @@ function trySkillShot(state, p, tag, atS) {
   return { handled: false, display: [] };
 }
 
+/** Restores bonusX to whatever it was right before FIELD DAY started (see the SW_TREEHOUSE
+ * branch below for where it was saved) — decision #2 of FIELDDAY-1: the 25× lock does not
+ * survive the mode itself, but a player's earned pre-FIELD-DAY progress isn't erased to 1
+ * either. Called from both of FIELD DAY's own two endings (onBallLost's 'fieldDayEnd' and
+ * endOfBall's safety-net 'fieldDayForceEnd') — never from the ordinary RECESS MULTIBALL ones,
+ * which never touch bonusX at all. Also bumps `fieldDaysCompleted`, the counter that survives
+ * `completed`'s own reset at FIELD DAY's START (see modes.js's startFieldDay doc comment). */
+function endFieldDay(state, p) {
+  const fd = p.modesState.fieldDay;
+  if (fd.bonusXBeforeFieldDay !== null) p.bonusX = fd.bonusXBeforeFieldDay;
+  fd.bonusXBeforeFieldDay = null;
+  p.modesState.fieldDaysCompleted += 1;
+  return { kind: 'bonusX', player: activePlayerIndex(state), value: p.bonusX };
+}
+
 function scoreSwitchTag(state, p, tag, atS) {
   const display = [];
+
+  // FIELD DAY (T9): while it's the active run, all five of its own shots (FIELD_DAY_SHOT_TAGS
+  // — the usual four plus THE ORBIT, see modes.js's own doc comment on "all five") mean
+  // exactly one thing — collect the current escalating value and relight — overriding every
+  // one of those tags' ordinary meaning (mode-start, combo, jackpot-lighting, add-a-ball) for
+  // the duration, the same way a real machine's wizard mode repurposes its major shots. This
+  // check has to come before every other tag branch below for that reason.
+  if (p.multiball.active && p.multiball.fieldDay && modes.FIELD_DAY_SHOT_TAGS.includes(tag)) {
+    const { points } = modes.onFieldDayShot(p.modesState);
+    p.score += points;
+    display.push({ kind: 'score', tag: 'field_day', points, total: p.score });
+    p.shotsThisBall += 1;
+    display.push(...applyMeter(state, p));
+    return display;
+  }
 
   if (POP_TAGS.has(tag)) {
     const points = POP_BASE_POINTS + POP_ESCALATOR * p.popHitsThisBall;
@@ -270,6 +303,25 @@ function scoreSwitchTag(state, p, tag, atS) {
     const points = SWITCH_POINTS.get(tag);
     p.score += points;
     display.push({ kind: 'score', tag, points, total: p.score });
+
+    // FIELD DAY: TREEHOUSE lit for the wizard mode takes priority over ordinary lock-lighting
+    // for this hit — once it's lit, this shot's meaning changes to launching it, same as a
+    // wizard-mode-lit shot overriding its everyday function elsewhere on the table. Guarded on
+    // `!p.multiball.active` for clarity, though multiball.onTreehouseHit below already refuses
+    // to light a lock while any multiball (FIELD DAY included) is active — FIELD DAY can't be
+    // started on top of an already-active multiball or a second FIELD DAY.
+    if (p.modesState.fieldDayLit && !p.multiball.active) {
+      const started = modes.startFieldDay(p.modesState, atS);
+      if (started) {
+        multiball.startFieldDay(p.multiball, atS);
+        p.modesState.fieldDay.bonusXBeforeFieldDay = p.bonusX;
+        p.bonusX = modes.FIELD_DAY_BONUS_X;
+        display.push({ kind: 'bonusX', player: activePlayerIndex(state), value: p.bonusX });
+        display.push(started);
+        return display;
+      }
+    }
+
     const lamp = multiball.onTreehouseHit(p.multiball);
     if (lamp) display.push(lamp);
     return display;
@@ -430,8 +482,14 @@ export function processEvents(state, events, atS) {
 
     if (tag === SW_FUN_COMPLETE) {
       const p = activePlayer(state);
-      p.bonusX = Math.min(BONUS_X_MAX, p.bonusX + 1);
-      display.push({ kind: 'bonusX', player: activePlayerIndex(state), value: p.bonusX });
+      // FIELD DAY: bonus X is locked at 25× for the run's duration (§4.4) — an F-U-N
+      // completion must not touch it (BONUS_X_MAX is 10, so without this guard a completion
+      // here would actually LOWER it via Math.min(10, 26), breaking the lock rather than
+      // respecting it).
+      if (!(p.multiball.active && p.multiball.fieldDay)) {
+        p.bonusX = Math.min(BONUS_X_MAX, p.bonusX + 1);
+        display.push({ kind: 'bonusX', player: activePlayerIndex(state), value: p.bonusX });
+      }
       continue;
     }
 
@@ -449,7 +507,10 @@ export function processEvents(state, events, atS) {
 
     if (tag === SW_BALL_LOST) {
       const ended = multiball.onBallLost(p.multiball);
-      if (ended) display.push(ended);
+      if (ended) {
+        display.push(ended);
+        if (ended.kind === 'fieldDayEnd') display.push(endFieldDay(state, p));
+      }
       continue;
     }
 

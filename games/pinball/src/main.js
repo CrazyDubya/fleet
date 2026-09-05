@@ -760,6 +760,14 @@ let mgrMountedSlots = [];
 // Scheduled releases from a 'multiballStart': {entry, atS}, 400ms apart per §4.4.
 let mgrReleaseQueue = [];
 
+// FIELD DAY (T9): the ball that hit TREEHOUSE is already in play (it's a standup target, not
+// a capture — nothing to release), so getting to the design doc's "4-ball multiball" means
+// spawning 3 NEW balls rather than releasing already-mounted ones. Scheduled the same way
+// mgrReleaseQueue's own 3 releases are (400ms apart) so all 4 don't materialise stacked on
+// the exact same point in the same frame: {atS} only — there's no existing ball entry to
+// carry like mgrReleaseQueue's release does, spawnBall creates a fresh one when each fires.
+let fieldDayReleaseQueue = [];
+
 // --- Cheap hit-flash: a small pool of additive spark sprites (spark.jpg, per the
 // reference), flashed at the ball's position on a bumper/slingshot hit and faded out over
 // ~0.2s. Reuses a fixed pool rather than allocating per hit. ---
@@ -1002,14 +1010,23 @@ function applyDisplayEvents(display) {
         y: sandboxAddABallPlacement.heading.y * 1.8,
       });
       pendingNextFrameTags.push(SW_BALL_ADDED); // see its declaration below
-    } else if (d.kind === 'multiballForceEnd') {
+    } else if (d.kind === 'multiballForceEnd' || d.kind === 'fieldDayForceEnd') {
       // A ball ended outright mid-multiball (tilt, or any other forced end) — nothing should
       // keep riding the carousel or wait in a staggered release queue into a ball that no
-      // longer exists.
+      // longer exists. Also covers the (rare) case a lock was mid-build when FIELD DAY itself
+      // started (rules/multiball.js's startFieldDay clears the LAMP but not any already-
+      // mounted balls) and then a tilt force-ends the run.
       for (const entry of mgrMountedSlots) releaseFromMergeGoRound(entry, 0);
       mgrMountedSlots = [];
       for (const r of mgrReleaseQueue) releaseFromMergeGoRound(r.entry, 0);
       mgrReleaseQueue = [];
+      if (d.kind === 'fieldDayForceEnd') {
+        // A single `else if` chain only ever runs ONE branch per display event — this has to
+        // be handled here (not in a separate 'fieldDayForceEnd' branch further down) or it
+        // would silently never fire alongside the cleanup above.
+        callouts.show('FIELD DAY OVER');
+        fieldDayReleaseQueue = [];
+      }
     } else if (d.kind === 'tilt') {
       // TILT (design §4.4): "flippers die, the ball drains ... no ball save" — the rules side
       // (rules/game.js's tiltBall) already ended the ball with no bonus and no save; this is
@@ -1023,6 +1040,17 @@ function applyDisplayEvents(display) {
       // JACKPOT-1: the same transient callout layer TILT-1B built (ui/callouts.js) — no
       // second message channel, per that dispatch's own instruction.
       callouts.show('SUPER JACKPOT!');
+    } else if (d.kind === 'fieldDayStart') {
+      // T9: the ball that hit TREEHOUSE stays in play (a standup target, not a capture) —
+      // schedule 3 NEW balls, staggered like every other multi-ball release on this table, to
+      // reach the design doc's "4-ball multiball".
+      const startAtS = elapsedS;
+      for (let i = 0; i < 3; i++) fieldDayReleaseQueue.push({ atS: startAtS + (i + 1) * 0.4 });
+      callouts.show('FIELD DAY!', { durationMs: 2400 });
+    } else if (d.kind === 'fieldDayEnd') {
+      // Same channel as every other transient message here (ui/callouts.js) — no second one.
+      callouts.show('FIELD DAY COMPLETE');
+      fieldDayReleaseQueue = [];
     }
 
     if (eventLog) eventLog.log(`${d.kind}${'tag' in d ? ':' + d.tag : ''}`);
@@ -1132,6 +1160,19 @@ function frame(now) {
     }
   }
 
+  // FIELD DAY's own staggered 3-new-ball release — same 400ms cadence, drained the same way,
+  // so a spawn due this frame lands in this same frame's SW_BALL_ADDED batch.
+  if (fieldDayReleaseQueue.length > 0) {
+    const due = fieldDayReleaseQueue.filter((r) => elapsedS >= r.atS);
+    if (due.length > 0) {
+      fieldDayReleaseQueue = fieldDayReleaseQueue.filter((r) => elapsedS < r.atS);
+      for (const r of due) {
+        spawnBall(recess.LAUNCH_POSITION, { x: 0, y: PLUNGER_MAX_SPEED * 0.7 });
+        scoreTags.push(SW_BALL_ADDED);
+      }
+    }
+  }
+
   // The drain check is geometric (recess.isDrained), not a physics collision event, but it
   // still goes through the same switch-event queue as everything else — SW_DRAIN/SW_BALL_LOST
   // are pushed onto this frame's tag batch rather than calling into rules state (or
@@ -1220,4 +1261,8 @@ window.__pinball = {
   rulesState, activePlayer: () => activePlayer(rulesState),
   hopscotchBankState, sandBankState, funLamps, tetherballSpinner, pinwheelSpinner,
   slide, monkeyBars, tunnel, sandbox, scoop, merryGoRound,
+  // Injects a synthetic switch-tag batch through the SAME processRules/applyDisplayEvents path
+  // frame() uses — for debug scripts driving a specific rules-layer scenario (e.g. forcing a
+  // FIELD DAY start) without waiting on the physical shot that would ordinarily produce the tag.
+  injectTags: (tags) => applyDisplayEvents(processRules(rulesState, tags, elapsedS)),
 };

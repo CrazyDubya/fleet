@@ -10,7 +10,7 @@
 import { makeRng, pick } from '../physics/rng.js';
 import {
   SW_FUN,
-  SW_SLIDE_EXIT, SW_MONKEYBARS_EXIT, SW_TUNNEL_EXIT, SW_SANDBOX_ENTRY,
+  SW_SLIDE_EXIT, SW_MONKEYBARS_EXIT, SW_TUNNEL_EXIT, SW_SANDBOX_ENTRY, SW_ORBIT_EXIT,
   SW_TETHERBALL_SPIN,
 } from '../table/switches.js';
 
@@ -55,6 +55,21 @@ const MODE_ORDER = ['KICKBALL', 'HIDE_SEEK', 'DODGEBALL', 'JUMP_ROPE'];
 const HANG_TIME_REWARDS = ['bonusX', 'ballSave', 'points'];
 const HANG_TIME_POINTS = 500000;
 
+// FIELD DAY (T9, wizard mode — design doc §4.4): "Completing all four lights FIELD DAY at the
+// TREEHOUSE... 4-ball multiball, all five shots lit for 2 000 000, relighting; every 5 shots
+// the value doubles. Bonus X locked at 25×. Runs until one ball remains."
+//
+// "all five shots" — §4.3/§4.4 only ever name four shots (SLIDE, MONKEY BARS, TUNNEL, SANDBOX;
+// MODE_SHOT_TAGS above). THE ORBIT (SW_ORBIT_EXIT) was added later, after the design doc, and
+// isn't in that set — but it's the only 5th major shot on the table, sits in the same
+// SWITCH_POINTS tier as the other four, and "all five" has no other candidate. Read as meaning
+// MODE_SHOT_TAGS + THE ORBIT, stated here rather than left to guesswork at the call site.
+export const FIELD_DAY_SHOT_TAGS = [...MODE_SHOT_TAGS, SW_ORBIT_EXIT];
+export const FIELD_DAY_BASE_VALUE = 2000000; // "2 000 000" (§4.4)
+export const FIELD_DAY_DOUBLE_EVERY = 5; // "every 5 shots the value doubles" (§4.4)
+export const FIELD_DAY_BONUS_X = 25; // "Bonus X locked at 25×" (§4.4)
+export const FIELD_DAY_BALL_COUNT = 4; // "4-ball multiball" (§4.4)
+
 export function createModesState(seed = 1) {
   return {
     rng: makeRng(seed),
@@ -68,6 +83,20 @@ export function createModesState(seed = 1) {
     tunnelCombo: { mult: 1, lastAtS: -Infinity, lit: false },
     popHitsLifetime: 0,
     meter: { count: 0, extraBallAwarded: false, specialAwarded: false },
+    // FIELD DAY (T9). `fieldDayLit`: the TREEHOUSE lamp — set the instant `completed` first
+    // contains all four base modes (see finishMode below), consumed the instant FIELD DAY
+    // actually starts (startFieldDay), same "flag dies at the point its privilege is
+    // exercised" convention LIT-1 established for sandboxLit/hopscotchJackpot.lit. `fieldDay`:
+    // this wizard mode's OWN scoring loop (shot count, current value, and the bonusX to
+    // restore when it ends) — deliberately separate from rules/multiball.js's jackpot/
+    // add-a-ball fields, which belong to RECESS MULTIBALL's different lock-and-collect design
+    // and are never read or written by FIELD DAY (see multiball.js's startFieldDay doc
+    // comment). `fieldDaysCompleted`: survives the `completed` reset below, so "how many times
+    // has this player finished FIELD DAY" isn't lost the instant its own trigger condition is
+    // consumed.
+    fieldDayLit: false,
+    fieldDay: { shotsHit: 0, value: FIELD_DAY_BASE_VALUE, bonusXBeforeFieldDay: null },
+    fieldDaysCompleted: 0,
   };
 }
 
@@ -220,7 +249,62 @@ function finishMode(modesState, success) {
   const name = modesState.activeMode.name;
   modesState.activeMode = null;
   modesState.completed.push(name);
+  // "Completing all four lights FIELD DAY at the TREEHOUSE" (§4.4). Timeout counts as
+  // completing per the existing house interpretation (see haiku-fs2's mode-completion-state
+  // audit: completed[] already doesn't distinguish success from timeout for the base four, and
+  // §4.4's own wording is ambiguous on whether a timeout counts — this is consistent with that
+  // prior, already-shipped reading, not a new judgment call here).
+  if (!modesState.fieldDayLit && MODE_ORDER.every((m) => modesState.completed.includes(m))) {
+    modesState.fieldDayLit = true;
+  }
   return { kind: 'modeEnd', mode: name, success };
+}
+
+/**
+ * TREEHOUSE hit while FIELD DAY is lit: starts the wizard mode. Returns `{ kind:
+ * 'fieldDayStart' }` or null if it isn't lit (caller falls back to ordinary TREEHOUSE/lock
+ * handling).
+ *
+ * Scope decisions, made deliberately (each is a real question the design doc leaves open):
+ *
+ * 1. `completed` resets to `[]` HERE, at START, not at FIELD DAY's end and not never. Consumed
+ *    at the point its privilege is exercised — the same convention LIT-1 already established
+ *    for sandboxLit/hopscotchJackpot.lit, and for the same reason: leaving `completed.length
+ *    === 4` true while FIELD DAY is still running would leave a stale re-trigger condition
+ *    live for the whole run (nothing currently re-checks it mid-run, but resetting at start
+ *    means nothing has to remember not to). `fieldDaysCompleted` (bumped when FIELD DAY itself
+ *    ends, in rules/game.js) preserves the historical count across the reset — a player who
+ *    somehow completes all four a second time in one game (the mode queue has no replay
+ *    mechanism today, so this can't happen yet, but the reset is written to stay coherent if
+ *    one is ever added) gets a fresh, independent climb toward a fresh FIELD DAY, not an
+ *    instant re-trigger off leftover entries.
+ * 2. FIELD DAY's own value/shot-count state is reset FRESH every time it starts (see the
+ *    `fieldDay` object below) — the doubling is scoped to a single run, not cumulative across
+ *    the game (see FIELD_DAY_DOUBLE_EVERY's own use in rules/game.js for the other half of
+ *    this decision).
+ * 3 & 4 (the 25× bonus lock and the 4-ball multiball's relationship to RECESS MULTIBALL's own
+ *    state) are rules/game.js's and rules/multiball.js's decisions respectively — see
+ *    startFieldDay's doc comment in multiball.js and the SW_TREEHOUSE branch in game.js.
+ */
+export function startFieldDay(modesState, atS) {
+  if (!modesState.fieldDayLit) return null;
+  modesState.fieldDayLit = false;
+  modesState.completed = [];
+  modesState.fieldDay = { shotsHit: 0, value: FIELD_DAY_BASE_VALUE, bonusXBeforeFieldDay: null };
+  return { kind: 'fieldDayStart', startAtS: atS };
+}
+
+/** Any of the 5 FIELD DAY shots (FIELD_DAY_SHOT_TAGS): scores the current value, then relights
+ * (every shot is always lit — see the design doc's own "relighting"), and every
+ * FIELD_DAY_DOUBLE_EVERY-th shot doubles the value for subsequent hits. Returns `{ points }`;
+ * the caller (rules/game.js) is the one that knows whether this tag is even eligible (i.e.
+ * whether FIELD DAY/multiball is active) — this function assumes the caller already checked. */
+export function onFieldDayShot(modesState) {
+  const fd = modesState.fieldDay;
+  const points = fd.value;
+  fd.shotsHit += 1;
+  if (fd.shotsHit % FIELD_DAY_DOUBLE_EVERY === 0) fd.value *= 2;
+  return { points, shotsHit: fd.shotsHit, nextValue: fd.value };
 }
 
 /** Called for every shot tag while a mode is active (independent of, and in addition to,
