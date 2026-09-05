@@ -413,8 +413,19 @@ function scoreSwitchTag(state, p, tag, atS) {
           p.score += hangTime.points;
           display.push({ kind: 'score', tag: 'hang_time', points: hangTime.points, total: p.score });
         } else if (hangTime.reward === 'bonusX') {
-          p.bonusX = Math.min(BONUS_X_MAX, p.bonusX + 1);
-          display.push({ kind: 'bonusX', player: activePlayerIndex(state), value: p.bonusX });
+          // FIELD DAY review (haiku-opencode2, 20260905-fieldday-review.md): this can only be
+          // reached while a mode is active (onMonkeyBarsExit only fires here via a MONKEY BARS
+          // hit that the FIELD_DAY_SHOT_TAGS early-return above already intercepts whenever
+          // FIELD DAY is running), so today it's already unreachable during the 25x lock. But
+          // that safety is three files and one early-return away from this write — the same
+          // shape of bug the SW_FUN_COMPLETE guard (processEvents, this file) exists to prevent (Math.min(10, 26)
+          // would silently LOWER a locked 25x to 10). An explicit guard at the write site means
+          // this stays correct even if onMonkeyBarsExit's own gating ever changes, instead of
+          // depending on a reader noticing the early return three files away.
+          if (!(p.multiball.active && p.multiball.fieldDay)) {
+            p.bonusX = Math.min(BONUS_X_MAX, p.bonusX + 1);
+            display.push({ kind: 'bonusX', player: activePlayerIndex(state), value: p.bonusX });
+          }
         } else if (hangTime.reward === 'ballSave') {
           p.ballSaveUntilS = Math.max(p.ballSaveUntilS ?? atS, atS) + DO_OVER_S;
         }

@@ -182,6 +182,10 @@ const kickbackState = game.createKickback();
 const tiltBob = tilt.createTiltBob();
 let flippersDisabled = false;
 const callouts = createCalloutLayer();
+// GAME-POLISH: rules/modes.js's own internal names, mapped to what the design doc actually
+// calls each mode (§4.4) — a 'modeStart'/'modeEnd' display event carries the internal name
+// (e.g. 'HIDE_SEEK'), never the player-facing one.
+const MODE_DISPLAY_NAMES = { KICKBALL: 'KICKBALL', HIDE_SEEK: 'HIDE & SEEK', DODGEBALL: 'DODGEBALL', JUMP_ROPE: 'JUMP ROPE' };
 // CALLOUT-1: TEACHER'S WATCHING describes CURRENT, ongoing risk ("you have a warning against
 // you right now") — it stops being true the instant the ball it warned about ends, so it's
 // tied to this ball's own generation number and ended the moment a new one is served (see the
@@ -979,6 +983,23 @@ function applyDisplayEvents(display) {
       }
     }
 
+    // GAME-POLISH: a mode starting or ending had NO player-facing signal at all before this —
+    // found by actually playing the game (see the handoff): the HUD doesn't show a mode name
+    // anywhere, and ui/callouts.js already exists and is already used for TILT/SUPER JACKPOT/
+    // FIELD DAY, so this is the same channel, not a new one.
+    if (d.kind === 'modeStart') {
+      callouts.show(MODE_DISPLAY_NAMES[d.mode] ?? d.mode, { durationMs: 2200 });
+    } else if (d.kind === 'modeEnd') {
+      const name = MODE_DISPLAY_NAMES[d.mode] ?? d.mode;
+      callouts.show(d.success ? `${name} COMPLETE` : `${name} OVER`);
+    } else if (d.kind === 'extraBall') {
+      // RECESS METER's own two awards (§4.4: "Filling it awards EXTRA BALL ... then SPECIAL")
+      // — same silent-award gap as modeStart/multiballStart, same fix.
+      callouts.show('EXTRA BALL!', { durationMs: 2200 });
+    } else if (d.kind === 'special') {
+      callouts.show('SPECIAL!', { durationMs: 2200 });
+    }
+
     // T8: MERRY-GO-ROUND lock/eject/multiball. Each of these display kinds corresponds 1:1,
     // in emission order, to a queued SW_MERRY_GO_ROUND capture from this same frame's physics
     // events — see mergeGoRoundQueue's doc comment.
@@ -999,6 +1020,12 @@ function applyDisplayEvents(display) {
       const releasing = [...mgrMountedSlots, thirdEntry];
       mgrMountedSlots = [];
       releasing.forEach((entry, i) => mgrReleaseQueue.push({ entry, atS: elapsedS + i * 0.4 }));
+      // GAME-POLISH: the 3-ball release used to be silent — no distinct signal from an
+      // ordinary single ball rolling back into play. §4.3's own name for this ("Locks and
+      // multiball — RECESS MULTIBALL").
+      callouts.show('RECESS MULTIBALL!', { durationMs: 2200 });
+    } else if (d.kind === 'multiballEnd') {
+      callouts.show('MULTIBALL OVER');
     } else if (d.kind === 'addABall') {
       // The SANDBOX shot that triggered this is a *separate* ball from whichever one the
       // scoop is already timing an ordinary eject for (armed above) — this spawns another.
@@ -1258,11 +1285,15 @@ window.__pinball = {
   world, flippers, advance, isDrained: recess.isDrained,
   get ball() { return balls[0]?.phys; }, // the primary/first ball, for single-ball-era scripts
   get balls() { return balls.map((b) => b.phys); },
+  get ballEntries() { return balls; }, // phys + mesh, for render-side debugging
+  camera, scene,
   rulesState, activePlayer: () => activePlayer(rulesState),
+  tiltBob, get flippersDisabled() { return flippersDisabled; },
   hopscotchBankState, sandBankState, funLamps, tetherballSpinner, pinwheelSpinner,
   slide, monkeyBars, tunnel, sandbox, scoop, merryGoRound,
   // Injects a synthetic switch-tag batch through the SAME processRules/applyDisplayEvents path
   // frame() uses — for debug scripts driving a specific rules-layer scenario (e.g. forcing a
   // FIELD DAY start) without waiting on the physical shot that would ordinarily produce the tag.
   injectTags: (tags) => applyDisplayEvents(processRules(rulesState, tags, elapsedS)),
+  callouts,
 };
