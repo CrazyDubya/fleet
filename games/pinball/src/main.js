@@ -236,7 +236,15 @@ function processMechanismEvents(events) {
       // gates above, so a ball merely grazing the mouth below RAMP_ENTRY_MIN_SPEED can't
       // silently flip the route without ever actually taking a path.
       if (event.gateEntered) {
-        game.setDiverterRoute(diverter, game.currentDiverterRoute(diverter) === 'A' ? 'B' : 'A');
+        // currentDiverterRoute returns null (having already console.error'd) on a corrupt
+        // toLayer rather than throwing — a second outside review caught that the first fix
+        // (throw) aborted this whole frame loop mid-iteration on corruption, silently dropping
+        // every OTHER event this frame (drains, scoring, everything). null here just skips the
+        // route-flip for this one event; the loop, and every other event in it, is unaffected.
+        const currentRoute = game.currentDiverterRoute(diverter);
+        if (currentRoute !== null) {
+          game.setDiverterRoute(diverter, currentRoute === 'A' ? 'B' : 'A');
+        }
         fired.push(tag);
         if (eventLog) eventLog.log(tag);
       }

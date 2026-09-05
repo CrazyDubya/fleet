@@ -99,13 +99,32 @@ test('a slow approach to the diverter does not transition — same RAMP_ENTRY_MI
 // plain `=== routeARampId ? 'A' : 'B'` ternary — any OTHER value (undefined, null, a corrupted
 // or typo'd ramp id) silently read as a perfectly normal route B instead of being recognisable
 // as corrupt.
-test('currentDiverterRoute throws, rather than silently reporting B, when toLayer is neither known route', () => {
+//
+// First fix made it throw. A SECOND outside review caught that this was worse, not better: the
+// only production caller (main.js's processMechanismEvents) runs it inside a per-frame event
+// loop with no try/catch, so a thrown error aborted the whole frame mid-iteration, silently
+// dropping every OTHER event that frame — drains, scoring, everything. The precedent it was
+// borrowed from (recess.js's degenerate-joint guard) runs at table CONSTRUCTION, before
+// anything has started, where throwing is correct; this runs mid-frame, where it isn't. Now
+// returns `null` (and console.error's, so it's still loud) instead — see the next test for the
+// actual failure this exists to prevent: a corrupt value must not take the rest of the frame
+// down with it.
+test('currentDiverterRoute returns null, rather than throwing or silently reporting B, when toLayer is neither known route', () => {
   const { diverter } = makeWorldWithDiverter();
-  diverter.gate.gate.toLayer = 'some_unrelated_ramp_id';
-  assert.throws(() => game.currentDiverterRoute(diverter), /corrupt/i);
+  const originalError = console.error;
+  const errors = [];
+  console.error = (...args) => errors.push(args.join(' '));
+  try {
+    diverter.gate.gate.toLayer = 'some_unrelated_ramp_id';
+    assert.equal(game.currentDiverterRoute(diverter), null);
 
-  diverter.gate.gate.toLayer = undefined;
-  assert.throws(() => game.currentDiverterRoute(diverter), /corrupt/i);
+    diverter.gate.gate.toLayer = undefined;
+    assert.equal(game.currentDiverterRoute(diverter), null);
+  } finally {
+    console.error = originalError;
+  }
+  assert.equal(errors.length, 2, 'still loud — one console.error per corrupt read');
+  for (const e of errors) assert.match(e, /corrupt/i);
 });
 
 // Found by an outside review (2026-09-05), confirmed real: setDiverterRoute/
@@ -129,11 +148,13 @@ test('production wiring: a real diverter entry alternates the route for the NEXT
     ball.vel = { x: dir.x * 3.0, y: dir.y * 3.0 };
     let events = [];
     for (let i = 0; i < 30 && ball.layer === 'playfield'; i++) events = events.concat(advance(world, STEP_DT));
-    // main.js's own branch: only a genuine transition (event.gateEntered) alternates the route.
+    // main.js's own branch: only a genuine transition (event.gateEntered) alternates the
+    // route, and only if currentDiverterRoute didn't report corruption (null).
     for (const ev of events) {
       const tag = ev.tag ?? ev.primitive?.shape?.tag;
       if (tag === diverter.gate.tag && ev.gateEntered) {
-        game.setDiverterRoute(diverter, game.currentDiverterRoute(diverter) === 'A' ? 'B' : 'A');
+        const currentRoute = game.currentDiverterRoute(diverter);
+        if (currentRoute !== null) game.setDiverterRoute(diverter, currentRoute === 'A' ? 'B' : 'A');
       }
     }
   }
@@ -145,4 +166,51 @@ test('production wiring: a real diverter entry alternates the route for the NEXT
   crossAndApplyProductionLogic();
   assert.equal(ball.layer, tunnel.ramp.id, 'second ball: route had already flipped to B by the time it crossed');
   assert.equal(game.currentDiverterRoute(diverter), 'A', 'flips back — an ordinary alternation, not a one-way latch');
+});
+
+// THE actual failure the corrupt-state fix exists to prevent (2026-09-05, second outside
+// review): main.js's processMechanismEvents runs a single `for (const event of events)` loop
+// over every physics event a frame produced, with no try/catch around any one branch. The
+// first fix for the corrupt-toLayer bug threw an Error from inside the diverter's branch —
+// which, in that loop, doesn't just fail the diverter's own event, it unwinds the whole
+// function, abandoning every event still queued after it in the SAME frame (a drain, a score,
+// anything). This reproduces that exact loop shape (the diverter branch's real logic, plus a
+// trailing generic branch standing in for "everything else main.js's real loop also handles")
+// and proves a corrupted diverter entry does NOT take the rest of the frame with it.
+test('a corrupt toLayer during a diverter entry does not drop later events in the same frame — the actual failure this guards against', () => {
+  const { diverter } = makeWorldWithDiverter();
+  diverter.gate.gate.toLayer = 'some_unrelated_ramp_id'; // corrupt, before any crossing
+
+  const originalError = console.error;
+  console.error = () => {}; // expected and already covered by its own test above; silence it here
+  let fired;
+  try {
+    // The exact shape of main.js's processMechanismEvents loop, reduced to the two branches
+    // relevant here: the diverter's own handling, and a generic fallback for every other tag a
+    // real frame's events array would also contain.
+    const events = [
+      { tag: diverter.gate.tag, gateEntered: true }, // the corrupt diverter entry
+      { tag: 'some_other_switch_tag' },              // must still be reached and processed
+      { tag: 'yet_another_tag_further_down_the_frame' },
+    ];
+    fired = [];
+    for (const event of events) {
+      const tag = event.tag;
+      if (tag === diverter.gate.tag) {
+        if (event.gateEntered) {
+          const currentRoute = game.currentDiverterRoute(diverter);
+          if (currentRoute !== null) game.setDiverterRoute(diverter, currentRoute === 'A' ? 'B' : 'A');
+          fired.push(tag);
+        }
+      } else {
+        fired.push(tag);
+      }
+    }
+  } finally {
+    console.error = originalError;
+  }
+
+  assert.deepEqual(fired, [diverter.gate.tag, 'some_other_switch_tag', 'yet_another_tag_further_down_the_frame'],
+    'every event after the corrupt diverter entry must still be processed — a corrupt route must not abort the frame loop');
+  assert.equal(diverter.gate.gate.toLayer, 'some_unrelated_ramp_id', 'the corrupt value itself is left alone — this only skips the route-flip decision, it does not try to "fix" the corruption');
 });

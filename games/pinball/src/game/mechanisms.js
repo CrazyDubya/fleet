@@ -237,22 +237,37 @@ export function setDiverterRoute(diverter, route) {
 
 /** The diverter's current route, read back from the same field setDiverterRoute writes —
  * never tracked separately, so this can never drift out of sync with what a ball entering
- * right now would actually get routed to.
+ * right now would actually get routed to. Returns `'A'`, `'B'`, or `null` if `toLayer` is
+ * neither — never silently promotes a corrupt value to a real route.
  *
  * Found by an outside review (2026-09-05), confirmed real: this used to be a plain
  * `=== routeARampId ? 'A' : 'B'` ternary, which means ANY other value — routeBRampId, yes, but
  * also undefined, null, or a corrupted/typo'd ramp id from some future bug — silently read as
- * a perfectly normal route B. A corrupt value must be distinguishable from a real one, not
- * quietly promoted to it. Now explicitly checks against both known values and throws on
- * anything else, the same "loud, not silent" standard this project settled on for recess.js's
- * degenerate-joint guard earlier today. */
+ * a perfectly normal route B.
+ *
+ * First fix THREW on a corrupt value instead, citing recess.js's degenerate-joint guard as
+ * precedent for "loud, not silent" — and a second review caught what that precedent doesn't
+ * actually transfer: recess.js's guard runs at table CONSTRUCTION, before anything has
+ * started, where throwing is exactly right (a bad table should never get built). This function
+ * runs inside main.js's PER-FRAME event loop (processMechanismEvents), with no try/catch
+ * between them — a thrown error there aborts the whole frame mid-loop, silently dropping every
+ * OTHER event that frame (drains, scoring, everything), which is a worse and better-hidden
+ * failure than the one being fixed. "Loud, not silent" means loud to whoever can act on it, not
+ * fatal to the caller — a guard's correct form depends on where it runs, not just on the
+ * principle behind it.
+ *
+ * Now: `console.error`s (loud — visible in the console, distinguishable from a real route in
+ * the return value) and returns `null` rather than throwing. The caller (main.js) checks for
+ * `null` and skips only the route-flip for that one event; every other event in the same frame
+ * is unaffected. See test/diverter.test.mjs for the frame-survival proof this exists to satisfy. */
 export function currentDiverterRoute(diverter) {
   const toLayer = diverter.gate.gate.toLayer;
   if (toLayer === diverter.routeARampId) return 'A';
   if (toLayer === diverter.routeBRampId) return 'B';
-  throw new Error(
+  console.error(
     `currentDiverterRoute: diverter.gate.gate.toLayer is ${JSON.stringify(toLayer)}, which is ` +
     `neither routeARampId (${JSON.stringify(diverter.routeARampId)}) nor routeBRampId ` +
     `(${JSON.stringify(diverter.routeBRampId)}) — the diverter's routing state is corrupt.`
   );
+  return null;
 }
