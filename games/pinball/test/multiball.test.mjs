@@ -102,6 +102,106 @@ test('jackpot: lights when all four MODE_SHOT_TAGS are shot, collects at THE SLI
   assert.equal(p.multiball.jackpotReady, false, 'collected — relit for a fresh cycle');
 });
 
+/** Lights and collects one regular multiball jackpot (all four MODE_SHOT_TAGS, collected at
+ * THE SLIDE) starting at atSBase — returns the display array from the collecting SLIDE shot. */
+function collectOneJackpot(state, atSBase) {
+  processEvents(state, [SW_MONKEYBARS_EXIT], atSBase);
+  processEvents(state, [SW_TUNNEL_EXIT], atSBase + 1);
+  processEvents(state, [SW_SANDBOX_ENTRY], atSBase + 2);
+  return processEvents(state, [SW_SLIDE_EXIT], atSBase + 3);
+}
+
+test('super jackpot: lights after exactly 3 regular jackpot collections, not before', () => {
+  const state = freshGame();
+  const p = activePlayer(state);
+  lockThreeBalls(state);
+
+  collectOneJackpot(state, 10);
+  assert.equal(p.multiball.jackpotsCollected, 1);
+  assert.equal(p.multiball.superJackpotLit, false);
+
+  collectOneJackpot(state, 20);
+  assert.equal(p.multiball.jackpotsCollected, 2);
+  assert.equal(p.multiball.superJackpotLit, false);
+
+  collectOneJackpot(state, 30);
+  assert.equal(p.multiball.jackpotsCollected, 3);
+  assert.equal(p.multiball.superJackpotLit, true, 'the 3rd regular jackpot must light the super');
+});
+
+test('super jackpot: collected at MONKEY BARS for 1,500,000, and relights (resets the count for the next climb)', () => {
+  const state = freshGame();
+  const p = activePlayer(state);
+  lockThreeBalls(state);
+  collectOneJackpot(state, 10);
+  collectOneJackpot(state, 20);
+  collectOneJackpot(state, 30);
+  assert.equal(p.multiball.superJackpotLit, true);
+
+  const before = p.score;
+  const display = processEvents(state, [SW_MONKEYBARS_EXIT], 40);
+  assert.ok(display.some((d) => d.kind === 'score' && d.tag === 'super_jackpot' && d.points === 1500000));
+  assert.ok(display.some((d) => d.kind === 'superJackpotAwarded'));
+  assert.equal(p.score - before, 1500000);
+  assert.equal(p.multiball.superJackpotLit, false, 'collected — no longer lit');
+  assert.equal(p.multiball.jackpotsCollected, 0, "relit: §4.4's own phrase — the next super needs its own fresh 3 collections, this one didn't count as one of them");
+});
+
+test('super jackpot: MONKEY BARS scores normally when the super is not lit', () => {
+  const state = freshGame();
+  const p = activePlayer(state);
+  lockThreeBalls(state);
+  const before = p.score;
+  const display = processEvents(state, [SW_MONKEYBARS_EXIT], 10);
+  assert.ok(!display.some((d) => d.kind === 'superJackpotAwarded'));
+  assert.ok(display.some((d) => d.kind === 'score' && d.tag === SW_MONKEYBARS_EXIT));
+  assert.ok(p.score - before < 1500000, 'ordinary MONKEY BARS points, not the super value');
+});
+
+test('a partial climb toward the super jackpot does not survive multiball ending (drain to 1 ball)', () => {
+  const state = freshGame();
+  const p = activePlayer(state);
+  lockThreeBalls(state);
+  collectOneJackpot(state, 10);
+  assert.equal(p.multiball.jackpotsCollected, 1);
+
+  processEvents(state, [SW_BALL_ADDED], 20);
+  processEvents(state, [SW_BALL_ADDED], 20.4);
+  processEvents(state, [SW_BALL_ADDED], 20.8);
+  processEvents(state, [SW_BALL_LOST], 30);
+  processEvents(state, [SW_BALL_LOST], 31); // back to 1 ball — multiball ends
+  assert.equal(p.multiball.active, false);
+  assert.equal(p.multiball.jackpotsCollected, 0, 'the partial count from the ended multiball is discarded, not carried');
+
+  lockThreeBalls(state);
+  assert.equal(p.multiball.jackpotsCollected, 0, 'a brand new multiball climbs from zero, not from where the last one left off');
+});
+
+test('measured: a full multiball with 3 jackpots then a super scores 3,000,000 in jackpot/super points alone', () => {
+  // No re-lock in this sequence, so each of the 3 regular jackpots collects at its unescalated
+  // 500,000 base (collectJackpot resets jackpotValue after every payout regardless — a re-lock's
+  // doubling, tested separately above, never carries between cycles). Summed from the actual
+  // 'score' display events this run produced, not a hand-computed expectation: 3 x 500,000 +
+  // 1,500,000 = 3,000,000, confirmed by running it below.
+  const state = freshGame();
+  const p = activePlayer(state);
+  lockThreeBalls(state);
+
+  let jackpotPoints = 0;
+  for (const atSBase of [10, 20, 30]) {
+    const display = collectOneJackpot(state, atSBase);
+    const scored = display.find((d) => d.kind === 'score' && d.tag === 'multiball_jackpot');
+    assert.ok(scored, `jackpot at atS=${atSBase} must actually collect`);
+    jackpotPoints += scored.points;
+  }
+  const superDisplay = processEvents(state, [SW_MONKEYBARS_EXIT], 40);
+  const superScored = superDisplay.find((d) => d.kind === 'score' && d.tag === 'super_jackpot');
+  assert.ok(superScored, 'the super jackpot must actually collect on this shot');
+  jackpotPoints += superScored.points;
+
+  assert.equal(jackpotPoints, 3000000, 'this is the real measured total for 3 base (unescalated) jackpots + one super, not a hand-computed expectation');
+});
+
 test('add-a-ball at the SANDBOX fires once per multiball', () => {
   const state = freshGame();
   const p = activePlayer(state);

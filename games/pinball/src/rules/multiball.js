@@ -13,6 +13,21 @@ import { MODE_SHOT_TAGS } from './modes.js';
 
 export const LOCK_MAX = 3;
 export const JACKPOT_BASE_POINTS = 500000;
+// SUPER JACKPOT (§4.4: "After 3 jackpots, SUPER JACKPOT lights at MONKEY BARS for 1 500 000
+// and relights the jackpots") — the design doc's own sourced figure, not tuned.
+export const SUPER_JACKPOT_POINTS = 1500000;
+// How many regular jackpot collections light the super jackpot. Scoped to the MULTIBALL RUN
+// (reset alongside jackpotValue/jackpotLit/addABallUsed at the 3rd lock below, in
+// onMerryGoRoundEntry) — deliberately not ball-scoped and not game-scoped. Game-scoped would
+// let a climb toward super started in an earlier multiball this game silently carry into a
+// later one; ball-scoped is the wrong UNIT even though it usually coincides with a multiball's
+// own lifetime, because what actually bounds this counter is "how long has multiball been
+// running", the same thing `m.active`/`onBallLost` already track, not which numbered ball is
+// live. A state audit today found two OTHER pieces of state given the wrong scope
+// (haiku-fs2's mode-completion-state audit; sandboxLit/hopscotchJackpot.lit, fixed as LIT-1,
+// paid out unearned score on the next ball) — this counter's scope is decided here,
+// deliberately, rather than discovered later as a third instance of the same bug.
+export const JACKPOTS_FOR_SUPER = 3;
 export const MULTIBALL_SAVE_S = 20; // "Ball save (DO-OVER) is on for 20s from multiball start" (§4.4)
 export const RELOCK_MIN_INTERVAL_S = 1; // no real relock is physically possible faster than
   // this (ball must eject, travel, and re-enter) — defence in depth against a future geometry
@@ -33,6 +48,8 @@ export function createMultiballState() {
     jackpotValue: JACKPOT_BASE_POINTS,
     addABallUsed: false, // "once per multiball at the SANDBOX" (§4.4)
     lastRelockAtS: -Infinity, // last genuine relock's atS, for RELOCK_MIN_INTERVAL_S
+    jackpotsCollected: 0, // toward JACKPOTS_FOR_SUPER — see collectJackpot/collectSuperJackpot
+    superJackpotLit: false,
   };
 }
 
@@ -85,6 +102,10 @@ export function onMerryGoRoundEntry(m, atS) {
   m.jackpotValue = JACKPOT_BASE_POINTS;
   m.addABallUsed = false;
   m.lastRelockAtS = -Infinity;
+  // A fresh multiball run always starts its own climb toward the super jackpot at 0 — see
+  // JACKPOTS_FOR_SUPER's own doc comment on why this is scoped to the run, not the game.
+  m.jackpotsCollected = 0;
+  m.superJackpotLit = false;
   return { action: 'startMultiball', saveUntilS: atS + MULTIBALL_SAVE_S };
 }
 
@@ -97,16 +118,38 @@ export function onModeShotDuringMultiball(m, tag) {
 }
 
 /** THE SLIDE, with the jackpot lit: collects it and starts a fresh lighting cycle at base
- * value (§4.4's "relights the jackpots"; the escalated value from re-locks does NOT carry
- * into the next cycle — it's this jackpot's payoff, not a permanent multiplier). Returns 0
- * if the jackpot isn't ready (caller falls back to normal SLIDE scoring). */
+ * value (the ordinary per-jackpot relight, which has always happened on every single
+ * collection here — distinct from SUPER JACKPOT's own "relights the jackpots" at
+ * JACKPOTS_FOR_SUPER, see collectSuperJackpot's own doc comment; the escalated value from
+ * re-locks does NOT carry into the next cycle — it's this jackpot's payoff, not a permanent
+ * multiplier). Also counts toward the super jackpot: every THIRD collection lights it. Returns
+ * 0 if the jackpot isn't ready (caller falls back to normal SLIDE scoring). */
 export function collectJackpot(m) {
   if (!m.active || !m.jackpotReady) return 0;
   const value = m.jackpotValue;
   m.jackpotLit = new Set();
   m.jackpotReady = false;
   m.jackpotValue = JACKPOT_BASE_POINTS;
+  m.jackpotsCollected += 1;
+  if (m.jackpotsCollected >= JACKPOTS_FOR_SUPER) m.superJackpotLit = true;
   return value;
+}
+
+/** MONKEY BARS, with the super jackpot lit: collects SUPER_JACKPOT_POINTS and resets the
+ * count back to 0, so the NEXT super jackpot needs its own fresh JACKPOTS_FOR_SUPER regular
+ * collections — collecting the super does not itself count as one of them. This is the
+ * design doc's own "relights the jackpots" clause, read as describing what collecting the
+ * SUPER does (re-arm the climb toward the next one), not the ordinary per-jackpot relight
+ * collectJackpot already does unconditionally on every collection regardless of this counter —
+ * the sentence doesn't fully settle which of the two it means, and both readings are
+ * consistent with everything else §4.4 says, so this is the interpretation taken, stated here
+ * rather than left implicit. Returns 0 if the super jackpot isn't lit (caller falls back to
+ * normal MONKEY BARS scoring). */
+export function collectSuperJackpot(m) {
+  if (!m.active || !m.superJackpotLit) return 0;
+  m.superJackpotLit = false;
+  m.jackpotsCollected = 0;
+  return SUPER_JACKPOT_POINTS;
 }
 
 /** SANDBOX entry while multiball is active: "add-a-ball once per multiball" (§4.4). Returns
@@ -136,6 +179,11 @@ export function onBallLost(m) {
   m.ballsInPlay = Math.max(0, m.ballsInPlay - 1);
   if (m.ballsInPlay > 1) return null;
   m.active = false;
+  // A partial climb toward the super jackpot does not survive the multiball run it happened
+  // in (see JACKPOTS_FOR_SUPER's own doc comment on scope) — one collected jackpot when
+  // multiball ends this way is simply gone, not a head start on the next multiball's own count.
+  m.jackpotsCollected = 0;
+  m.superJackpotLit = false;
   return { kind: 'multiballEnd' };
 }
 
@@ -148,5 +196,8 @@ export function forceEnd(m) {
   m.active = false;
   m.locks = 0;
   m.lockLit = false;
+  // Same discard as onBallLost's ordinary multiball end — see its own comment.
+  m.jackpotsCollected = 0;
+  m.superJackpotLit = false;
   return { kind: 'multiballForceEnd' };
 }

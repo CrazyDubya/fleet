@@ -1002,6 +1002,10 @@ function applyDisplayEvents(display) {
       callouts.show("SENT TO THE PRINCIPAL");
     } else if (d.kind === 'slamTilt') {
       callouts.show('SLAM TILT');
+    } else if (d.kind === 'superJackpotAwarded') {
+      // JACKPOT-1: the same transient callout layer TILT-1B built (ui/callouts.js) — no
+      // second message channel, per that dispatch's own instruction.
+      callouts.show('SUPER JACKPOT!');
     }
 
     if (eventLog) eventLog.log(`${d.kind}${'tag' in d ? ':' + d.tag : ''}`);

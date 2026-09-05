@@ -341,9 +341,20 @@ function scoreSwitchTag(state, p, tag, atS) {
         display.push({ kind: 'score', tag, points, total: p.score });
       }
     } else if (tag === SW_MONKEYBARS_EXIT) {
-      points = SWITCH_POINTS.get(tag);
-      p.score += points;
-      display.push({ kind: 'score', tag, points, total: p.score });
+      // Priority, same reasoning as THE SLIDE's own mbJackpot/hopscotch/plain-combo order
+      // above: the super jackpot outranks this shot's ordinary points, matching a real
+      // machine's highest-stakes shot taking precedence over its own base value.
+      const superJackpot = multiball.collectSuperJackpot(p.multiball);
+      if (superJackpot > 0) {
+        points = superJackpot;
+        p.score += points;
+        display.push({ kind: 'score', tag: 'super_jackpot', points, total: p.score });
+        display.push({ kind: 'superJackpotAwarded' });
+      } else {
+        points = SWITCH_POINTS.get(tag);
+        p.score += points;
+        display.push({ kind: 'score', tag, points, total: p.score });
+      }
       const hangTime = modes.onMonkeyBarsExit(p.modesState);
       if (hangTime) {
         if (hangTime.reward === 'points') {
