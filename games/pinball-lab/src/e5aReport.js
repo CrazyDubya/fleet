@@ -135,7 +135,7 @@ async function main() {
     c0Cp: c0, c0OnTarget: c0Ok,
     trialCount: meta.trialCount, secs: meta.secs,
     assemblies,
-    curve: { pearsonR, maxShotRate, minShotRate, nAssemblies: assemblies.length },
+    curve: { pearsonR, maxShotRate, minShotRate, nAssemblies: assemblies.length, axisGuardOk: axisGuard.ok },
     axisGuard,
     verdict,
   };
@@ -179,7 +179,13 @@ async function main() {
     lines.push(`| ${fmt(a.hsSRaw, 4)} | ${fmt(a.hsSPredicted, 4)} | ${fmt(a.measuredHsSMean, 4)} | ${a.trials} | ${fmt(a.crRate * 100, 2)} | ${fmt(a.cpRate * 100, 2)} | ${fmt(a.shotRate * 100, 3)} | ${fmt(a.retrapRate * 100, 2)} | ${fmt(a.drainRate * 100, 2)} |`);
   }
   lines.push('');
-  lines.push(`Pearson r(hsS, shotRate) = ${fmt(pearsonR, 3)} across ${assemblies.length} assemblies. Max shot rate ${fmt(maxShotRate * 100, 3)}%, min ${fmt(minShotRate * 100, 3)}%.`);
+  // LAB-28 (V5): `pearsonR`/`maxShotRate` are computed AFTER `axisGuard` runs, over the same
+  // `xs` the guard already found untrustworthy when it fails — the verdict above already
+  // accounts for that (INDETERMINATE), but this raw stat line used to assert the numbers with
+  // no marker of its own, so a reader skimming past the verdict banner could still quote
+  // "Pearson r = 0.83" as a fact the guard never actually cleared.
+  lines.push(`Pearson r(hsS, shotRate) = ${fmt(pearsonR, 3)} across ${assemblies.length} assemblies. Max shot rate ${fmt(maxShotRate * 100, 3)}%, min ${fmt(minShotRate * 100, 3)}%.` +
+    (axisGuard.ok ? '' : ' ⚠ computed over an axis the ranking guard above marked invalid — not a validated correlation.'));
   lines.push('');
   lines.push('## Notes');
   lines.push('');

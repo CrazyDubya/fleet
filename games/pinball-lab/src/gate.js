@@ -384,6 +384,28 @@ export function rankingValidityResult(values, { topN = null, support = null, min
   return { ok: reasons.length === 0, n, distinctCount, maxTieFraction, boundaryAmbiguity: null, minSelectedSupport: null, reason: reasons.length ? reasons.join('; ') : null };
 }
 
+// LAB-28, a cross-family review (2026-09-05): three writers (aggregate.js, e4Report.js,
+// lab2Report.js) read a previously-run corpus's `meta.flagGateOk` back with the pattern
+// `meta.flagGateOk !== false` to decide whether a declared-premise banner reads as passed. That
+// treats a MISSING field — a meta.json hand-made, or written before this field existed, or from
+// any pipeline stage that never called `flagGateResult` — identically to an explicit `false` not
+// being present, i.e. as a PASS. An empty `{}` evaluates `{}.flagGateOk !== false` to `true`,
+// exactly as a gate that ran and passed would. "not checked must never read as passed" is this
+// file's own rule everywhere else in it (`flagGateResult`'s zero-trials case,
+// `rankingValidityResult`'s empty-population case) — this was the one place it was broken.
+// Absence is now a hard error: a writer that cannot find a recorded boolean refuses to publish
+// rather than silently blessing an unexamined corpus.
+export function requireFlagGateOk(value, source) {
+  if (typeof value !== 'boolean') {
+    throw new Error(
+      `${source}: meta.flagGateOk is ${JSON.stringify(value)}, not a recorded boolean — the §2.7 ` +
+      'flag gate never ran (or ran before this field existed) against this input, so its pass/fail ' +
+      'cannot be read back here. A missing gate result must not be treated as a passing one.'
+    );
+  }
+  return value;
+}
+
 export const STALLED_BIT = 8;
 
 /** Is a trial's flag word `f` valid once STALLED is treated as E4's measurement rather than

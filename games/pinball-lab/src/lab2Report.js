@@ -12,7 +12,7 @@ import readline from 'node:readline';
 import path from 'node:path';
 import { mean, sd, percentile } from './metrics.js';
 import { cfgId as hashCfg } from './sweep.js';
-import { rankingValidityResult, premiseHeaderLines } from './gate.js';
+import { rankingValidityResult, premiseHeaderLines, requireFlagGateOk } from './gate.js';
 
 const GEOMETRY_KEYS = ['restAngleDeg', 'activeAngleDeg', 'upMs', 'omegaProfile', 'radius', 'restitution'];
 const HS_BINS = 10;
@@ -46,7 +46,7 @@ export function cradleRowStats(records) {
   }
   return {
     trials, settled,
-    cradleRate: trials > 0 ? settled / trials : 0,
+    cradleRate: trials > 0 ? settled / trials : null,
     settleTimeMeanS: settleTimes.length ? mean(settleTimes) : null,
     bouncesMean: bounces.length ? mean(bounces) : null,
     csMedianMps: csVals.length ? percentile(csVals, 50) : null,
@@ -183,6 +183,16 @@ async function main() {
     }
   }
 
+  // LAB-28 (V4): `totalTrials ? x / totalTrials : 0` below would read a zero-trial run (an
+  // empty --stageB cfg set, or every shard failing to stream) as a measured, clean 0% flagged —
+  // identical to gate.js's own zero-trials principle (`flagGateResult`, `rankingValidityResult`)
+  // that a corpus with no trials carries no statistical power and must not read as passing.
+  // Refused here, before any number derived from `totalTrials` is computed, rather than
+  // threading a `null` sentinel through every `* 100` in the markdown below.
+  if (totalTrials === 0) {
+    throw new Error(`lab2Report: --stageB ${stageBDir} produced zero trials — an empty corpus carries no statistical power and must not be summarised as a clean 0% flagged/contacted run.`);
+  }
+
   // --- Fan width + timing sensitivity per geometry ---
   const geometryResults = [];
   for (const g of geoms.values()) {
@@ -265,7 +275,7 @@ async function main() {
     // LAB-22: Stage B declares a §2.7 premise (a pure TIMEOUT tail from §3.3's 0.3 m/s
     // floor against the 2.0s cap); echo it where a reader of the summary will meet it.
     declaredPremise: stageBMeta.declaredPremise ?? null,
-    declaredPremiseGate: { fraction: stageBMeta.flaggedFraction, ok: stageBMeta.flagGateOk !== false },
+    declaredPremiseGate: { fraction: stageBMeta.flaggedFraction, ok: requireFlagGateOk(stageBMeta.flagGateOk, 'lab2Report (--stageB meta.json)') },
     cradleMeta: { trialCount: cradleMeta.trialCount, secs: cradleMeta.secs },
     totals: {
       trials: totalTrials, flagged: totalFlagged, flaggedFraction: totalTrials ? totalFlagged / totalTrials : 0,
@@ -308,6 +318,12 @@ function fmt(x, digits = 2) {
   return x.toFixed(digits);
 }
 
+// LAB-28 (V4): `fmt((x ?? 0) * 100, d)` coerces "not measured" (`null`) to a measured 0% before
+// fmt ever sees it. A caller with a value that may be null must scale through this helper.
+function fmtPct(x, digits = 1) {
+  return fmt(x === null || x === undefined ? null : x * 100, digits);
+}
+
 function toMarkdown(summary, best) {
   const lines = [];
   lines.push(`# E1 — LAB-2 flipper transfer function (\`${summary.runId}\`)`);
@@ -321,7 +337,11 @@ function toMarkdown(summary, best) {
     `NAN ${(summary.totals.flagCounts.NAN / summary.totals.trials * 100).toFixed(3)}%)`);
   lines.push(`- **flipper contact rate**: ${(summary.totals.contactRate * 100).toFixed(1)}%  ·  **geometries characterised**: ${summary.geometryCount}`);
   lines.push('');
-  lines.push(...premiseHeaderLines(summary.declaredPremise ?? null, summary.declaredPremiseGate ?? { fraction: summary.totals.flaggedFraction, ok: true }));
+  // LAB-28 (V3): `declaredPremiseGate` is always constructed in `main()` above (and would have
+  // thrown via `requireFlagGateOk` before `summary` even existed if it couldn't be), so a `??`
+  // fallback here could only ever mask a wiring bug in a future caller by quietly defaulting to
+  // `ok: true` — the exact "absence reads as passed" failure this file exists to prevent.
+  lines.push(...premiseHeaderLines(summary.declaredPremise ?? null, summary.declaredPremiseGate));
   lines.push('> §2.7: ESCAPED and NAN are near-zero (no solver artifact); TIMEOUT and' +
     ' IMPACTS_EXHAUSTED dominate the flagged fraction — the same pattern LAB-1b found for the' +
     ' main family (slow-speed injections still falling at the 2.0s cap; the flipper firing' +
@@ -331,6 +351,16 @@ function toMarkdown(summary, best) {
 
   lines.push('## Fan width / timing sensitivity / cradle, per geometry');
   lines.push('');
+  // LAB-28 (V2): this table is sorted by fanWidthXaDeg for readability, unconditionally — no
+  // guard covers this full-population ordering (`fanWidthRankingGuard` below answers a
+  // different, narrower question: whether the top-1 CUT out of `rankedUnderCeiling` is
+  // unambiguous, not whether this whole table's order is meaningful). Stated explicitly rather
+  // than left implied by the "Ranked under ceiling" section's own caveat, which a reader could
+  // easily assume already covers this table too.
+  lines.push('> Sorted by `fanWidthXaDeg` for readability only — this is not a validated ranking ' +
+    '(no guard tests the full population\'s ordering; `fanWidthRankingGuard` below tests only the ' +
+    'top-1 cut over the sensitivity-ceiling-filtered population, a narrower question).');
+  lines.push('');
   lines.push('| geom | rest° | active° | upMs | ω | r | e | fan(xa)° | sens(°/ms) | cradle% | minCs(m/s) | vo/vi grad | pareto |');
   lines.push('|---|---|---|---|---|---|---|---|---|---|---|---|---|');
   for (const g of summary.geometries) {
@@ -338,7 +368,7 @@ function toMarkdown(summary, best) {
     lines.push(
       `| ${g.geometryKey} | ${g.geometry.restAngleDeg} | ${g.geometry.activeAngleDeg} | ${g.geometry.upMs} | ` +
       `${g.geometry.omegaProfile} | ${g.geometry.radius} | ${g.geometry.restitution} | ` +
-      `${fmt(g.fanWidthXaDeg, 1)} | ${fmt(g.timingSensitivityDegPerMs, 3)} | ${fmt((g.cradleRate ?? 0) * 100, 1)} | ` +
+      `${fmt(g.fanWidthXaDeg, 1)} | ${fmt(g.timingSensitivityDegPerMs, 3)} | ${fmtPct(g.cradleRate, 1)} | ` +
       `${fmt(g.cradleMinContactSpeedMedianMps, 3)} | ${fmt(g.voViGradientPerHs, 3)} | ${onPareto} |`
     );
   }
@@ -358,7 +388,7 @@ function toMarkdown(summary, best) {
   const byKey = new Map(summary.geometries.map((g) => [g.geometryKey, g]));
   summary.rankedUnderCeiling.forEach((key, i) => {
     const g = byKey.get(key);
-    lines.push(`| ${i + 1} | ${key} | ${fmt(g.fanWidthXaDeg, 1)} | ${fmt(g.timingSensitivityDegPerMs, 3)} | ${fmt((g.cradleRate ?? 0) * 100, 1)} |`);
+    lines.push(`| ${i + 1} | ${key} | ${fmt(g.fanWidthXaDeg, 1)} | ${fmt(g.timingSensitivityDegPerMs, 3)} | ${fmtPct(g.cradleRate, 1)} |`);
   });
   lines.push('');
 
@@ -378,7 +408,7 @@ function toMarkdown(summary, best) {
       `(P95−P5 of shot-line angle over the full timing sweep) at **${fmt(best.fanWidthXaDeg, 1)}°**, with a median ` +
       `timing sensitivity of **${fmt(best.timingSensitivityDegPerMs, 3)}°/ms** (at or under the ` +
       `${SENSITIVITY_CEILING}°/ms ceiling — a 10ms reaction-time error moves the shot by roughly ` +
-      `${fmt((best.timingSensitivityDegPerMs ?? 0) * 10, 1)}°, still aimable), a cradle rate of **${fmt((best.cradleRate ?? 0) * 100, 1)}%** ` +
+      `${fmt((best.timingSensitivityDegPerMs ?? 0) * 10, 1)}°, still aimable), a cradle rate of **${fmtPct(best.cradleRate, 1)}%** ` +
       `(fraction of held-active trials settling within 1.5s — the "feels heavy" number), and a vo/vi-vs-hs gradient of ` +
       `**${fmt(best.voViGradientPerHs, 3)} per unit hs** (positive means tip contact returns more energy than base ` +
       `contact, i.e. the ball rewards a good hit rather than saturating everywhere).`

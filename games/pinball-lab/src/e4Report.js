@@ -11,7 +11,7 @@ import readline from 'node:readline';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { mean, percentile } from './metrics.js';
-import { validExclStalled, rankingValidityResult, premiseHeaderLines } from './gate.js';
+import { validExclStalled, rankingValidityResult, premiseHeaderLines, requireFlagGateOk } from './gate.js';
 
 async function* streamShards(dir, meta) {
   for (const shard of meta.shards) {
@@ -31,6 +31,14 @@ function loadMeta(dir) {
 function fmt(x, digits = 3) {
   if (x === null || x === undefined || !Number.isFinite(x)) return '—';
   return x.toFixed(digits);
+}
+
+// LAB-28 (V4): `fmt(x * 100, d)` turns a `null` "not measured" sentinel into the number 0 before
+// fmt ever sees it (`null * 100 === 0`), rendering it as `0.00` — indistinguishable from a
+// genuinely measured 0%. Callers with a value that may be null must multiply through this
+// helper instead of doing `x * 100` inline.
+function fmtPct(x, digits = 3) {
+  return fmt(x === null || x === undefined ? null : x * 100, digits);
 }
 
 async function main() {
@@ -197,11 +205,28 @@ async function main() {
   const releaseRankingGuard = rankingValidityResult(releaseTable.map((r) => r.shotRate));
 
   // --- §8 item 3: the E1 decomposition — C0 vs C0b vs best pocket, as three headline numbers. ---
-  const bestCp = Math.max(
-    a1Ranked[0]?.cp ?? 0, a2Ranked[0]?.cp ?? 0, bRanked[0]?.cpRate ?? 0
-  );
-  const c0Cp = (a2Controls.C0?.cp ?? 0) / (a2Controls.C0?.trials || 1);
-  const c0bCp = (a2Controls.C0b?.cp ?? 0) / (a2Controls.C0b?.trials || 1);
+  // LAB-28 (V5, cross-family review 2026-09-05): `bestCp` is the max of three ALREADY-RANKED
+  // top rows (a1Ranked[0], a2Ranked[0], bRanked[0]) — each fed a ranking guard above, but the
+  // guard was never re-consulted for the max taken across them, so a headline number could ride
+  // on a table whose own guard had already failed with nothing downstream noticing. The winning
+  // candidate's own guard verdict now travels with it.
+  const bestCandidates = [
+    { cp: a1Ranked[0]?.cp ?? null, guardOk: a1RankingGuard.ok },
+    { cp: a2Ranked[0]?.cp ?? null, guardOk: a2RankingGuard.ok },
+    { cp: bRanked[0]?.cpRate ?? null, guardOk: bRankingGuard.ok },
+  ].filter((c) => c.cp !== null);
+  const bestCandidate = bestCandidates.length
+    ? bestCandidates.reduce((best, c) => (c.cp > best.cp ? c : best))
+    : null;
+  const bestCp = bestCandidate?.cp ?? null;
+  const bestCpGuardOk = bestCandidate?.guardOk ?? false;
+  // LAB-28 (V4): `?? 0` here made "no C0/C0b control data present" read identically to "measured
+  // 0% cradle rate" — both an upstream wiring error (empty controls) and a genuinely clean
+  // corpus produced the same number with no way for a reader to tell them apart. `null` is the
+  // sentinel this project already uses everywhere else for "not measured" (`fmt()` renders it as
+  // `—` in every writer here).
+  const c0Cp = a2Controls.C0 ? a2Controls.C0.cp / a2Controls.C0.trials : null;
+  const c0bCp = a2Controls.C0b ? a2Controls.C0b.cp / a2Controls.C0b.trials : null;
 
   // A corpus that cannot name its instrument commit cannot be audited from itself (opus2,
   // 2026-09-04 solver-fix audit — E4/E5a were the two writers missing this; recovering the
@@ -226,7 +251,7 @@ async function main() {
       sliceC0Cp: sliceArms.c0 ? sliceArms.c0.cp / sliceArms.c0.trials : null,
       sliceC0bCp: sliceArms.c0b ? sliceArms.c0b.cp / sliceArms.c0b.trials : null,
     },
-    e1Decomposition: { c0Cp, c0bCp, bestPocketCp: bestCp },
+    e1Decomposition: { c0Cp, c0bCp, bestPocketCp: bestCp, bestPocketCpGuardOk: bestCpGuardOk },
     totals: {
       a1: { trials: a1.meta.trialCount, secs: a1.meta.secs, flaggedExclStalled: a1.meta.flaggedFractionExclStalled, creep: a1.meta.creep },
       a2: { trials: a2.meta.trialCount, secs: a2.meta.secs, flaggedExclStalled: a2.meta.flaggedFractionExclStalled, creep: a2.meta.creep },
@@ -251,7 +276,7 @@ async function main() {
     // sweep); it is carried through to the summary header so the claim is visible there.
     declaredPremise: a1.meta.declaredPremise ?? null,
     declaredPremiseStage: 'A1',
-    declaredPremiseGate: { fraction: a1.meta.flaggedFractionExclStalled, ok: a1.meta.flagGateOk !== false },
+    declaredPremiseGate: { fraction: a1.meta.flaggedFractionExclStalled, ok: requireFlagGateOk(a1.meta.flagGateOk, 'e4Report (--a1 meta.json)') },
     rankingGuard: { a1: a1RankingGuard, a2: a2RankingGuard, b: bRankingGuard, releaseDispersion: releaseRankingGuard },
   };
 
@@ -352,9 +377,9 @@ export function toMarkdown(summary, csvRelPath) {
   lines.push('');
   lines.push(`| arm | cp |`);
   lines.push(`|---|---|`);
-  lines.push(`| C0 (E1's bare arena, 2.0s window) | ${fmt(summary.e1Decomposition.c0Cp * 100, 2)}% |`);
-  lines.push(`| C0b (bare arena, E4's 4.0s window) | ${fmt(summary.e1Decomposition.c0bCp * 100, 2)}% |`);
-  lines.push(`| best pocket assembly | ${fmt(summary.e1Decomposition.bestPocketCp * 100, 1)}% |`);
+  lines.push(`| C0 (E1's bare arena, 2.0s window) | ${fmtPct(summary.e1Decomposition.c0Cp, 2)}% |`);
+  lines.push(`| C0b (bare arena, E4's 4.0s window) | ${fmtPct(summary.e1Decomposition.c0bCp, 2)}% |`);
+  lines.push(`| best pocket assembly | ${fmtPct(summary.e1Decomposition.bestPocketCp, 1)}${summary.e1Decomposition.bestPocketCpGuardOk === false ? ' ⚠' : ''}% |`);
   lines.push('');
   lines.push(`C0 reproduces LAB-2's near-zero cradle rate. C0b, at E4's longer 4.0s settle window, is ALSO near zero — so E1's null result was a geometry problem, not (primarily) a time-budget problem (§1.2's confound is resolved: geometry dominates).`);
   lines.push('');

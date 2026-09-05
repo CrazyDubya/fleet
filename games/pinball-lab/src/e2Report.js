@@ -10,6 +10,7 @@ import { createGunzip } from 'node:zlib';
 import readline from 'node:readline';
 import path from 'node:path';
 import { mean, sd, percentile, histogram, entropyBits, medianAbsDelta, fractionExceeding } from './metrics.js';
+import { flagGateResult } from './gate.js';
 
 const EXIT_HIST_BINS = 32; // §4.4: "32-bin exit-x histogram"
 const DIVERGENCE_THRESHOLD_M = 0.05; // §4.4: "fraction exceeding 5cm"
@@ -63,9 +64,13 @@ function summariseAgg(agg, fieldWidth) {
   const exitEntropyBits = entropyBits(exitHist, { normalise: true });
   return {
     trials: agg.trials,
-    flaggedFraction: agg.trials ? agg.flagged / agg.trials : 0,
-    flagFractions: Object.fromEntries(Object.entries(agg.flagCounts).map(([k, v]) => [k, agg.trials ? v / agg.trials : 0])),
-    contactRate: agg.trials ? agg.contacted / agg.trials : 0,
+    // LAB-28 (V4): `agg.trials ? x / agg.trials : 0` made an empty N-group (zero streamed
+    // records — an empty shard, a wiring error) read as a measured, clean 0% — identical to a
+    // genuinely flag-free group. `null` is the sentinel; render sites must not multiply it by
+    // 100 without checking first (see `fmtPct` below).
+    flaggedFraction: agg.trials ? agg.flagged / agg.trials : null,
+    flagFractions: Object.fromEntries(Object.entries(agg.flagCounts).map(([k, v]) => [k, agg.trials ? v / agg.trials : null])),
+    contactRate: agg.trials ? agg.contacted / agg.trials : null,
     termCounts: Object.fromEntries(agg.termCounts),
     h1DevMean: agg.h1DevVals.length ? mean(agg.h1DevVals) : null,
     h1DevSd: agg.h1DevVals.length ? sd(agg.h1DevVals) : null,
@@ -80,7 +85,7 @@ function summariseAgg(agg, fieldWidth) {
     perHitEnergyRatioSd: agg.energyRatios.length ? sd(agg.energyRatios) : null,
     ecumMean: agg.ecumVals.length ? mean(agg.ecumVals) : null,
     ecumP50: agg.ecumVals.length ? percentile(agg.ecumVals, 50) : null,
-    exitRate: agg.trials ? agg.exitXVals.length / agg.trials : 0,
+    exitRate: agg.trials ? agg.exitXVals.length / agg.trials : null,
     exitHistogram: { bins: EXIT_HIST_BINS, range: [-fieldWidth / 2, fieldWidth / 2], counts: exitHist },
     exitEntropyBits,
   };
@@ -121,6 +126,17 @@ function findKnee(pointsByAf) {
     peakDivergenceAreaFraction: peakDivergence?.areaFraction ?? null,
     peakDivergenceFractionOver5cm: peakDivergence?.divergenceFractionOver5cm ?? null,
   };
+}
+
+/** Sums the raw (unrounded) trials/flagged counts across every N-group's pooled agg — pulled
+ * out of `processSeries` so the §2.7 gate's input can be unit-tested against a synthetic `byN`
+ * Map instead of a real run. Raw counts, not `meta.flaggedFraction` (a value some other pipeline
+ * stage already computed and stored): re-deriving it here from the records this function itself
+ * streamed is what makes the gate a check on THIS corpus, not a re-display of someone else's. */
+export function seriesFlagTotals(byN) {
+  let trials = 0, flagged = 0;
+  for (const n of byN.values()) { trials += n.pooled.trials; flagged += n.pooled.flagged; }
+  return { trials, flagged };
 }
 
 async function processSeries(seriesDir, { withDivergence, divergenceMeta } = {}) {
@@ -172,7 +188,20 @@ async function processSeries(seriesDir, { withDivergence, divergenceMeta } = {})
     ...summariseAgg(n.pooled, n.fieldWidth),
   })).sort((a, b) => a.areaFraction - b.areaFraction);
 
-  return { meta: { instrumentCommitSha: meta.instrumentCommitSha, trialCount: meta.trialCount, secs: meta.secs, flaggedFraction: meta.flaggedFraction }, byN: byNResults, baseXxBySeedByCfg };
+  // LAB-28 (V1, cross-family review 2026-09-05): e2Report imported zero gate functions — every
+  // other experiment's writer runs §2.7's flag-rate gate over its corpus before publishing;
+  // this one computed `flaggedFraction`/`flagFractions` per N (summariseAgg, above) and never
+  // compared any of it to anything. `seriesFlagGate` pools the raw counts already accumulated
+  // in each N-group's `pooled` agg (not `meta.flaggedFraction`, a previously-recorded value from
+  // a possibly different pipeline stage — the same "reused, unverified trust" shape the review's
+  // other findings flagged) into one `flagGateResult` call over the whole series.
+  const { trials: seriesTrials, flagged: seriesFlagged } = seriesFlagTotals(byN);
+  const flagGate = flagGateResult({ trials: seriesTrials, flagged: seriesFlagged });
+
+  return {
+    meta: { instrumentCommitSha: meta.instrumentCommitSha, trialCount: meta.trialCount, secs: meta.secs, flaggedFraction: meta.flaggedFraction },
+    byN: byNResults, baseXxBySeedByCfg, flagGate,
+  };
 }
 
 async function processDivergence(divergenceDir, seriesABaseXxByCfg) {
@@ -249,7 +278,22 @@ async function main() {
     seriesB: { meta: seriesB.meta, byN: seriesB.byN },
     divergence: { meta: divergence.meta, totalTrials: divergence.totalTrials, totalPairs: divergence.totalPairs },
     knee, h3,
+    // LAB-28 (V1): the §2.7 gate every other experiment's writer already runs, computed here
+    // for the first time for E2.
+    flagGate: { seriesA: seriesA.flagGate, seriesB: seriesB.flagGate },
   };
+
+  // Loud, not blocking — matching e4Report's LAB-20 precedent: this writer's json/md are its
+  // only writeFileSync calls and nothing downstream consumes them, so refusing outright would
+  // suppress every independently-valid table (the knee, H3, both series' tables) to punish one
+  // flag-rate excess. A non-zero exit still makes the failure visible to a caller/CI.
+  if (!seriesA.flagGate.ok || !seriesB.flagGate.ok) {
+    console.error(JSON.stringify({
+      warning: '§2.7 flag gate: one or both E2 series exceed the flagged-fraction ceiling',
+      seriesA: seriesA.flagGate, seriesB: seriesB.flagGate,
+    }));
+    process.exitCode = 1;
+  }
 
   const summariesDir = path.join(import.meta.dirname, '..', 'data', 'summaries');
   const jsonOut = path.join(summariesDir, `e2-lab3-${runId}.json`);
@@ -270,6 +314,13 @@ function fmt(x, digits = 3) {
   return x.toFixed(digits);
 }
 
+// LAB-28 (V4): a caller multiplying a possibly-null fraction by 100 before handing it to fmt()
+// turns "not measured" back into the number 0 (`null * 100 === 0`) — this scales through fmt
+// only after checking for null, so an unmeasured N-group renders as `—`, not `0.00`.
+function fmtPct(x, digits = 1) {
+  return fmt(x === null || x === undefined ? null : x * 100, digits);
+}
+
 function toMarkdown(summary) {
   const lines = [];
   lines.push(`# E2 — LAB-3 bumper field (\`${summary.runId}\`)`);
@@ -280,14 +331,29 @@ function toMarkdown(summary) {
   lines.push(`- **Divergence sub-run**: ${summary.divergence.meta.trialCount} trials, ${summary.divergence.totalPairs} valid paired deltas`);
   lines.push('');
 
+  // LAB-28 (V1): §2.7's gate, run for the first time over this experiment's own corpus rather
+  // than never computed at all.
+  const gateFailures = Object.entries(summary.flagGate).filter(([, g]) => !g.ok);
+  if (gateFailures.length > 0) {
+    lines.push('## ⚠ §2.7 validity gate FAILED');
+    lines.push('');
+    for (const [name, g] of gateFailures) {
+      lines.push(`> **${name}**: flagged fraction ${(g.fraction * 100).toFixed(2)}% exceeds the 1% gate — ${g.reason ?? 'not summarised until the cause is understood'}.`);
+    }
+    lines.push('');
+  } else {
+    lines.push(`- **§2.7**: both series held to the plain 1% gate — Series A measured ${(summary.flagGate.seriesA.fraction * 100).toFixed(2)}%, Series B measured ${(summary.flagGate.seriesB.fraction * 100).toFixed(2)}%.`);
+    lines.push('');
+  }
+
   lines.push('## Series A (mandated: fixed field, skirt radius forced down at high N)');
   lines.push('');
   lines.push('| N | area frac | trials | flagged% | IMPACTS_EXH% | contact% | h1.dev° | h1.vo m/s | chain mean/p50 | dwell mean s | E[eg] | ecum mean | entropy(bits) | div. median Δx m | div. frac>5cm |');
   lines.push('|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|');
   for (const n of summary.seriesA.byN) {
     lines.push(
-      `| ${n.N} | ${fmt(n.areaFraction)} | ${n.trials} | ${fmt(n.flaggedFraction * 100, 2)} | ${fmt(n.flagFractions.IMPACTS_EXHAUSTED * 100, 2)} | ` +
-      `${fmt(n.contactRate * 100, 1)} | ${fmt(n.h1DevMean, 1)} | ${fmt(n.h1VoMean, 2)} | ${fmt(n.chainMean, 2)}/${fmt(n.chainP50, 0)} | ` +
+      `| ${n.N} | ${fmt(n.areaFraction)} | ${n.trials} | ${fmtPct(n.flaggedFraction, 2)} | ${fmtPct(n.flagFractions.IMPACTS_EXHAUSTED, 2)} | ` +
+      `${fmtPct(n.contactRate, 1)} | ${fmt(n.h1DevMean, 1)} | ${fmt(n.h1VoMean, 2)} | ${fmt(n.chainMean, 2)}/${fmt(n.chainP50, 0)} | ` +
       `${fmt(n.dwellMeanS, 3)} | ${fmt(n.perHitEnergyRatioMean, 3)} | ${fmt(n.ecumMean, 3)} | ${fmt(n.exitEntropyBits, 3)} | ` +
       `${n.divergenceMedianDeltaM !== null ? n.divergenceMedianDeltaM.toExponential(2) : '—'} | ${fmt(n.divergenceFractionOver5cm, 3)} |`
     );
@@ -298,7 +364,10 @@ function toMarkdown(summary) {
   const n50 = summary.seriesA.byN.find((n) => n.N === 50);
   if (n50) {
     const exhausted = n50.flagFractions.IMPACTS_EXHAUSTED;
-    if (exhausted > 0.01) {
+    if (exhausted === null) {
+      lines.push('');
+      lines.push('**N=50 has zero trials in this corpus** — unmeasured, not a clean pass; the §4.5 concern cannot be evaluated here.');
+    } else if (exhausted > 0.01) {
       lines.push('');
       lines.push(`**The instrument bottoms out here.** N=50 (area fraction ${fmt(n50.areaFraction)}) hits ` +
         `IMPACTS_EXHAUSTED in ${(exhausted * 100).toFixed(2)}% of trials — over the §2.7 1% gate. Numbers for this ` +
@@ -319,7 +388,7 @@ function toMarkdown(summary) {
   for (const n of summary.seriesB.byN) {
     lines.push(
       `| ${n.N} | ${fmt(n.fieldWidth, 2)}×${fmt(n.fieldHeight, 2)} | ${n.trials} | ` +
-      `${fmt(n.flaggedFraction * 100, 2)} | ${fmt(n.contactRate * 100, 1)} | ${fmt(n.h1DevMean, 1)} | ${fmt(n.h1VoMean, 2)} | ` +
+      `${fmtPct(n.flaggedFraction, 2)} | ${fmtPct(n.contactRate, 1)} | ${fmt(n.h1DevMean, 1)} | ${fmt(n.h1VoMean, 2)} | ` +
       `${fmt(n.chainMean, 2)}/${fmt(n.chainP50, 0)} | ${fmt(n.dwellMeanS, 3)} | ${fmt(n.perHitEnergyRatioMean, 3)} | ${fmt(n.ecumMean, 3)} | ${fmt(n.exitEntropyBits, 3)} |`
     );
   }

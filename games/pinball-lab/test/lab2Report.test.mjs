@@ -42,20 +42,26 @@ test('cradleRowStats: a known record set yields the exact expected cradleRate/se
   assert.equal(result.csMedianMps, 0.25);
 });
 
-test('cradleRowStats: no contacting trials at all reports null csMedianMps and zero cradleRate', () => {
+test('cradleRowStats: no contacting trials at all reports null csMedianMps and a measured zero cradleRate', () => {
   const records = [{ cr: 0, st: null, bn: 0, cs: null }, { cr: 0, st: null, bn: 0, cs: null }];
   const result = cradleRowStats(records);
   assert.equal(result.trials, 2);
   assert.equal(result.settled, 0);
-  assert.equal(result.cradleRate, 0);
+  assert.equal(result.cradleRate, 0, 'two real trials, zero settled, is a genuinely measured 0% — distinct from the empty-array case below');
   assert.equal(result.csMedianMps, null);
 });
 
-test('cradleRowStats: an empty record array reports zeroed/null fields, not a crash', () => {
+// LAB-28 (V4, cross-family review 2026-09-05): `trials > 0 ? settled / trials : 0` used to
+// report `cradleRate: 0` for zero trials too — identical to the two-real-trials-zero-settled
+// case above, with no way for a reader of the published summary to tell "measured, genuinely
+// zero" apart from "never measured at all". `null` is this project's existing sentinel for "not
+// measured" (see `settleTimeMeanS`/`bouncesMean`/`csMedianMps` right below it in the same
+// return, and `fmtPct` in lab2Report.js which renders it as `—`, not `0.0`).
+test('cradleRowStats: an empty record array reports null cradleRate (unmeasured), not a measured-zero 0', () => {
   const result = cradleRowStats([]);
   assert.equal(result.trials, 0);
   assert.equal(result.settled, 0);
-  assert.equal(result.cradleRate, 0);
+  assert.equal(result.cradleRate, null, 'zero trials carries no statistical power — must not read as a passing/clean measured rate');
   assert.equal(result.settleTimeMeanS, null);
   assert.equal(result.bouncesMean, null);
   assert.equal(result.csMedianMps, null);
