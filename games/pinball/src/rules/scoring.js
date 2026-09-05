@@ -15,7 +15,7 @@ import {
   SW_SAND_COMPLETE,
   SW_TREEHOUSE,
   SW_PINWHEEL_SPIN,
-  SW_SLIDE_EXIT, SW_MONKEYBARS_EXIT, SW_TUNNEL_EXIT,
+  SW_SLIDE_EXIT, SW_MONKEYBARS_EXIT, SW_TUNNEL_EXIT, SW_ORBIT_EXIT,
   SW_SANDBOX_ENTRY, SW_SANDBOX_EJECT,
 } from '../table/switches.js';
 
@@ -29,6 +29,11 @@ export const SWITCH_POINTS = new Map([
   [SW_TREEHOUSE, 10000],
   [SW_PINWHEEL_SPIN, 1000],
   [SW_MONKEYBARS_EXIT, 150000], [SW_TUNNEL_EXIT, 50000],
+  // ORBIT (2026-09-05): not in the design doc (this mechanism wasn't), so the value is a
+  // design choice, not a sourced figure — pitched between the tunnel (another orbit-shaped
+  // shot, 50000) and the monkey bars (a harder, overhead ramp, 150000), since a full
+  // around-the-table orbit is a comparable-difficulty shot to the tunnel but longer.
+  [SW_ORBIT_EXIT, 75000],
   [SW_SANDBOX_EJECT, 10000],
 ]);
 

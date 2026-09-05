@@ -11,8 +11,8 @@ test('drainTagFor: SW_DRAIN iff no live balls remain, SW_BALL_LOST otherwise', (
 });
 
 test('mechanismTags includes each supplied ramp id\'s exit and rollback tags', () => {
-  const tags = mechanismTags({ slide: 'slide', monkeyBars: 'monkey_bars', tunnel: 'tunnel' });
-  for (const id of ['slide', 'monkey_bars', 'tunnel']) {
+  const tags = mechanismTags({ slide: 'slide', monkeyBars: 'monkey_bars', tunnel: 'tunnel', orbit: 'orbit' });
+  for (const id of ['slide', 'monkey_bars', 'tunnel', 'orbit']) {
     assert.ok(tags.has(`${id}_exit`), `expected ${id}_exit in mechanismTags`);
     assert.ok(tags.has(`${id}_rollback`), `expected ${id}_rollback in mechanismTags`);
   }

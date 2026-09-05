@@ -12,12 +12,14 @@ function makeWorldWithRamps() {
   const slide = ramps.buildSlideRamp();
   const monkeyBars = ramps.buildMonkeyBarsRamp();
   const tunnel = ramps.buildTunnelRamp();
+  const orbit = ramps.buildOrbitRamp();
   addRamp(world, slide.ramp);
   addRamp(world, monkeyBars.ramp);
   addRamp(world, tunnel.ramp);
-  setLayerZones(world, 'playfield', [slide.gate, monkeyBars.gate, tunnel.gate]);
+  addRamp(world, orbit.ramp);
+  setLayerZones(world, 'playfield', [slide.gate, monkeyBars.gate, tunnel.gate, orbit.gate]);
   const ball = addBall(world, { id: 'b0', pos: { x: 0, y: 0 }, vel: { x: 0, y: 0 }, radius: BALL_RADIUS });
-  return { world, ball, slide, monkeyBars, tunnel };
+  return { world, ball, slide, monkeyBars, tunnel, orbit };
 }
 
 // world.js requires a 'playfield' entry in `layers` even if empty, so plain collision
@@ -104,6 +106,43 @@ test('THE TUNNEL: a real shot enters the orbit cleanly and exits toward the spri
   }
   assert.ok(exited);
   assert.ok(distance(ball.pos, ramps.SPRING_RIDER_FEED) < 1e-6);
+});
+
+test('THE ORBIT: a real shot completes the full loop and exits toward the right flipper, at the exact authored hand-off', () => {
+  const { world, ball, orbit } = makeWorldWithRamps();
+  shootThroughGate(world, ball, orbit.gate, orbit.ramp, 4.6);
+  assert.equal(ball.layer, 'orbit', 'a real shot must transition onto the orbit layer');
+
+  let exited = false;
+  for (let i = 0; i < 600 && !exited; i++) {
+    advance(world, STEP_DT);
+    if (ball.layer === 'playfield') exited = true;
+  }
+  assert.ok(exited, 'a strong enough shot must complete the loop and come back to playfield');
+  assert.ok(distance(ball.pos, ramps.ORBIT_EXIT_FEED) < 1e-6, 'must exit at exactly the authored hand-off point, not somewhere approximate');
+  assert.ok(Math.abs(length(ball.vel) - orbit.ramp.exit.speed) < 1e-6, 'must exit at exactly the authored speed');
+});
+
+// This is the one that matters (RAMP_ENTRY_MIN_SPEED exists, and a full loop is where a
+// marginal shot behaves worst): a ball that enters but can't carry all the way around must
+// roll back down and return to the playfield near the ENTRY, moving backward — never teleport
+// to the exit, and never get stuck stranded mid-track forever.
+test('a shot too weak to complete THE ORBIT rolls back near the entry, moving backward — never teleports, never sticks', () => {
+  const { world, ball, orbit } = makeWorldWithRamps();
+  // Clears RAMP_ENTRY_MIN_SPEED (transitions onto the ramp) but far short of what a ~10°
+  // incline over this track's real length needs to reach the crest.
+  shootThroughGate(world, ball, orbit.gate, orbit.ramp, 0.6);
+  assert.equal(ball.layer, 'orbit', 'sanity: the shot did transition onto the ramp');
+
+  let rolledBack = false;
+  for (let i = 0; i < 600 && !rolledBack; i++) {
+    advance(world, STEP_DT);
+    if (ball.layer === 'playfield') rolledBack = true;
+  }
+  assert.ok(rolledBack, 'a too-weak shot must roll back out rather than getting stuck stranded on the track');
+  assert.ok(distance(ball.pos, orbit.ramp.points[0]) < 0.02, 'must roll back out near the ENTRY, not teleport to the exit on the far side of the table');
+  const tangent = entryTangent(orbit.ramp);
+  assert.ok(ball.vel.x * tangent.x + ball.vel.y * tangent.y < 0, 'must be moving backward (away from the ramp, back toward the entry) on roll-back, not still heading forward');
 });
 
 test('a ramp shot that runs out of speed before the crest rolls back to the playfield near the entry, moving backward', () => {

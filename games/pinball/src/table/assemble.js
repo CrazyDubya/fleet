@@ -39,6 +39,7 @@ export function buildTable() {
   const slide = ramps.buildSlideRamp();
   const monkeyBars = ramps.buildMonkeyBarsRamp();
   const tunnel = ramps.buildTunnelRamp();
+  const orbit = ramps.buildOrbitRamp();
   const sandbox = ramps.buildSandbox();
   const merryGoRound = mech.buildMerryGoRound();
   // Routes onto two of the ramps already built above — see buildDiverter's own doc comment
@@ -72,15 +73,16 @@ export function buildTable() {
     slide.gate,
     monkeyBars.gate,
     tunnel.gate,
+    orbit.gate,
     diverter.gate,
   ];
 
   const captureZones = [sandbox.captureZone, merryGoRound.captureZone];
-  const rampTracks = [slide.ramp, monkeyBars.ramp, tunnel.ramp];
+  const rampTracks = [slide.ramp, monkeyBars.ramp, tunnel.ramp, orbit.ramp];
 
   return {
     wallSegments, popBumpers, slingshots, hopscotch, sandBank, treehouse, funLaneDefs,
-    spinnerDefs, swingSetPosts, kickback, slide, monkeyBars, tunnel, sandbox, merryGoRound,
+    spinnerDefs, swingSetPosts, kickback, slide, monkeyBars, tunnel, orbit, sandbox, merryGoRound,
     diverter, ejectionSites, mgrRelease, sandboxAddABallPlacement,
     primitives, zones, captureZones, rampTracks,
   };

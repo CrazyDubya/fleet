@@ -30,12 +30,12 @@ test('buildTable assembles every known playfield contributor, with the right cou
   const expectedZoneCount =
     mech.buildFunLanes().length +
     2 + // tetherball + pinwheel spinners
-    3 + // slide/monkeyBars/tunnel gates
+    4 + // slide/monkeyBars/tunnel/orbit gates
     1; // diverter gate
   assert.equal(table.zones.length, expectedZoneCount);
 
   assert.equal(table.captureZones.length, 2); // sandbox + merry-go-round
-  assert.equal(table.rampTracks.length, 3); // slide/monkeyBars/tunnel
+  assert.equal(table.rampTracks.length, 4); // slide/monkeyBars/tunnel/orbit
 
   // Every primitive/zone shape is a real physics shape (segment or circle), not a stray
   // undefined slipped in by a bad spread.
@@ -51,7 +51,7 @@ test('wireTable puts exactly buildTable()\'s lists onto the world\'s playfield l
   assert.deepEqual(world.layers.get('playfield'), table.primitives);
   assert.deepEqual(world.zones.get('playfield'), table.zones);
   assert.deepEqual(world.captureZones.get('playfield'), table.captureZones);
-  assert.equal(world.ramps.size, 3);
+  assert.equal(world.ramps.size, 4);
   for (const ramp of table.rampTracks) assert.equal(world.ramps.get(ramp.id), ramp);
 });
 

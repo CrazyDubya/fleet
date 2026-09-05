@@ -6,7 +6,7 @@ import { createRampTrack, entryTangent } from '../physics/ramp.js';
 import { perp, normalize, scale } from '../physics/vec2.js';
 import { RAMP_ENTRY_MIN_SPEED, SCOOP_EJECT } from '../physics/constants.js';
 import {
-  SW_SLIDE_ENTER, SW_MONKEYBARS_ENTER, SW_TUNNEL_ENTER,
+  SW_SLIDE_ENTER, SW_MONKEYBARS_ENTER, SW_TUNNEL_ENTER, SW_ORBIT_ENTER,
   SW_SANDBOX_ENTRY, SW_SANDBOX_EJECT, SW_DIVERTER_ENTER,
 } from './switches.js';
 
@@ -128,6 +128,50 @@ export function buildTunnelRamp() {
   });
 
   return { ramp, gate: gateForRamp(ramp, SW_TUNNEL_ENTER) };
+}
+
+/**
+ * THE ORBIT (full orbit, left-to-right). fs2's own structural mapping named the closest
+ * analogue: the tunnel ramp above is already described as "a lateral loop" — no new physics
+ * primitive is needed for a second one; ramp tracks already support arbitrary loop geometry.
+ * A real orbit sends the ball around the outside of the playfield and back to the OPPOSITE
+ * flipper, which is the shot that makes a table feel fast; this models that directly, entering
+ * on the left and exiting toward the right flipper's side, mirroring the tunnel's own "enter
+ * one side, climb, cross the top" shape but returning to the other flipper rather than into
+ * the spring riders.
+ *
+ * Entry (-0.135, 0.32): open field directly above the left apron's own top corner (recess.js's
+ * APRON_TOP_Y=0.3) — the same height tunnel's own entry sits at on the right, and, like it,
+ * bounded only by the plain outer wall (recess.js's 'left' segment, 10.8cm away) with nothing
+ * else nearby. No real-machine source for the exact figure; a design choice, same footing as
+ * every other unsourced placement this project records plainly.
+ *
+ * ORBIT_EXIT_FEED (0.08, 0.25): verified clear of every collider on the table (nearest: the
+ * right slingshot at 6.3cm ball-surface clearance, the outlane divider at 11.7cm) before being
+ * chosen — not eyeballed. This is a design choice for WHERE the ball re-enters open play, aimed
+ * toward the right flipper's general area; unlike the slide/monkeyBars re-aim dispatch, this
+ * has NOT been run through mechanism-handoffs.test.mjs's full reachability sweep (81 samples,
+ * every flipper state) — that level of verification is a reasonable follow-up, not something
+ * this dispatch's stated tests (loop completion, weak-shot rollback) require. Stated plainly
+ * rather than implied: this promises a safe, open landing spot near the right flipper, not a
+ * measured guarantee of contact the way LEFT_INLANE_FEED/UPPER_LEFT_FLIPPER_FEED now are.
+ */
+export const ORBIT_EXIT_FEED = { x: 0.08, y: 0.25 };
+
+export function buildOrbitRamp() {
+  const points = [
+    { x: -0.135, y: 0.32, z: 0.01 },
+    { x: -0.22, y: 0.55, z: 0.03 },
+    { x: -0.2, y: 0.78, z: 0.05 },
+    { x: 0.0, y: 0.92, z: 0.05 },
+    { x: 0.19, y: 0.75, z: 0.03 },
+    { x: 0.2, y: 0.5, z: 0.01 },
+  ];
+  const ramp = createRampTrack({
+    id: 'orbit', points, pitchDeg: 10, friction: 0.35,
+    exit: { pos: ORBIT_EXIT_FEED, dir: normalize({ x: -0.15, y: -1 }), speed: 1.6 },
+  });
+  return { ramp, gate: gateForRamp(ramp, SW_ORBIT_ENTER) };
 }
 
 /**

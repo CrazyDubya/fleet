@@ -14,7 +14,7 @@ import {
   SW_SLING_LEFT, SW_SLING_RIGHT,
   SW_KICKBACK,
   SW_HOPSCOTCH, SW_SAND, SW_TREEHOUSE,
-  SW_SLIDE_ENTER, SW_MONKEYBARS_ENTER, SW_TUNNEL_ENTER, SW_DIVERTER_ENTER,
+  SW_SLIDE_ENTER, SW_MONKEYBARS_ENTER, SW_TUNNEL_ENTER, SW_ORBIT_ENTER, SW_DIVERTER_ENTER,
   SW_SANDBOX_ENTRY, SW_SANDBOX_EJECT,
   SW_MERRY_GO_ROUND, SW_BALL_ADDED,
   drainTagFor, mechanismTags,
@@ -60,7 +60,7 @@ const table = buildTable();
 wireTable(world, table);
 const {
   wallSegments, popBumpers, slingshots, hopscotch, sandBank, treehouse, funLaneDefs,
-  spinnerDefs, swingSetPosts, kickback, slide, monkeyBars, tunnel, sandbox, merryGoRound,
+  spinnerDefs, swingSetPosts, kickback, slide, monkeyBars, tunnel, orbit, sandbox, merryGoRound,
   diverter, ejectionSites, mgrRelease, sandboxAddABallPlacement,
 } = table;
 
@@ -170,13 +170,13 @@ launchBall(rulesState, elapsedS);
 // launch-lane floor, the flipper capsules themselves) is plumbing, not a switch, and must
 // not reach rules/event log. See switches.js's mechanismTags for why the allowlist itself
 // lives there and not here.
-const MECHANISM_TAGS = mechanismTags({ slide: slide.ramp.id, monkeyBars: monkeyBars.ramp.id, tunnel: tunnel.ramp.id });
+const MECHANISM_TAGS = mechanismTags({ slide: slide.ramp.id, monkeyBars: monkeyBars.ramp.id, tunnel: tunnel.ramp.id, orbit: orbit.ramp.id });
 
 // Looked up by a ramp's own id (the same id its `_exit`/`_rollback` tags are built from, per
 // switches.js's mechanismTags) so the presentation tween below can read that ramp's own real
 // `points`/`exit` — never a duplicated coordinate. `[ramp.id]: ramp` keys off the SAME `.ramp`
 // object main.js already renders from (buildSlideMesh(slide.ramp.points) etc, per fs2's audit).
-const RAMPS_BY_ID = { [slide.ramp.id]: slide.ramp, [monkeyBars.ramp.id]: monkeyBars.ramp, [tunnel.ramp.id]: tunnel.ramp };
+const RAMPS_BY_ID = { [slide.ramp.id]: slide.ramp, [monkeyBars.ramp.id]: monkeyBars.ramp, [tunnel.ramp.id]: tunnel.ramp, [orbit.ramp.id]: orbit.ramp };
 
 function tagOf(event) {
   return event.tag ?? event.primitive?.shape?.tag;
@@ -218,7 +218,7 @@ function processMechanismEvents(events) {
       game.registerSpinnerHit(pinwheelSpinner);
       fired.push(tag);
       if (eventLog) eventLog.log(tag);
-    } else if (tag === SW_SLIDE_ENTER || tag === SW_MONKEYBARS_ENTER || tag === SW_TUNNEL_ENTER) {
+    } else if (tag === SW_SLIDE_ENTER || tag === SW_MONKEYBARS_ENTER || tag === SW_TUNNEL_ENTER || tag === SW_ORBIT_ENTER) {
       // Only a successful gate entry (the ball actually switched layers) is worth logging —
       // a slow crossing that didn't clear RAMP_ENTRY_MIN_SPEED fires the same tag but never
       // transitions (see physics/world.js's tryEnterGate).

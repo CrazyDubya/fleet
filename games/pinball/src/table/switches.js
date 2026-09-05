@@ -42,6 +42,15 @@ export const SW_MONKEYBARS_EXIT = 'monkeybars_exit';
 export const SW_TUNNEL_ENTER = 'tunnel_enter';
 export const SW_TUNNEL_EXIT = 'tunnel_exit';
 
+// FULL ORBIT (2026-09-05). fs2's own structural mapping: closest analogue is the tunnel ramp
+// (already a lateral loop); no new physics primitive, any orbit geometry is just a ramp track
+// with the right points. Enters on the LEFT (open field above the apron's own top, y=0.32 —
+// mirrors the tunnel's own entry height on the other side), climbs up and over the top of the
+// table, and exits toward the RIGHT flipper's side — "around the outside, back to the opposite
+// flipper," per the real-machine shot this models.
+export const SW_ORBIT_ENTER = 'orbit_enter';
+export const SW_ORBIT_EXIT = 'orbit_exit';
+
 export const SW_SANDBOX_ENTRY = 'sandbox_entry';
 export const SW_SANDBOX_EJECT = 'sandbox_eject';
 
@@ -81,7 +90,7 @@ export function drainTagFor({ liveBallsRemaining }) {
  * ramp's exit/rollback tag family, derived from that ramp's own id (table/ramps.js) rather
  * than a switches.js export, since "did the shot make it" isn't itself scored — see
  * physics/world.js's stepRampLayerBall/tryEnterGate. */
-export function mechanismTags({ slide, monkeyBars, tunnel }) {
+export function mechanismTags({ slide, monkeyBars, tunnel, orbit }) {
   return new Set([
     SW_POP_DUCK, SW_POP_HORSE, SW_POP_ROCKET,
     SW_SLING_LEFT, SW_SLING_RIGHT,
@@ -90,10 +99,10 @@ export function mechanismTags({ slide, monkeyBars, tunnel }) {
     SW_TREEHOUSE,
     ...SW_FUN,
     SW_TETHERBALL_SPIN, SW_PINWHEEL_SPIN,
-    SW_SLIDE_ENTER, SW_MONKEYBARS_ENTER, SW_TUNNEL_ENTER,
+    SW_SLIDE_ENTER, SW_MONKEYBARS_ENTER, SW_TUNNEL_ENTER, SW_ORBIT_ENTER,
     SW_DIVERTER_ENTER,
-    `${slide}_exit`, `${monkeyBars}_exit`, `${tunnel}_exit`,
-    `${slide}_rollback`, `${monkeyBars}_rollback`, `${tunnel}_rollback`,
+    `${slide}_exit`, `${monkeyBars}_exit`, `${tunnel}_exit`, `${orbit}_exit`,
+    `${slide}_rollback`, `${monkeyBars}_rollback`, `${tunnel}_rollback`, `${orbit}_rollback`,
     SW_SANDBOX_ENTRY, SW_SANDBOX_EJECT,
     SW_MERRY_GO_ROUND,
   ]);
