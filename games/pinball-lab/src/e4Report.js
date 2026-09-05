@@ -42,6 +42,43 @@ function fmtPct(x, digits = 3) {
   return fmt(x === null || x === undefined ? null : x * 100, digits);
 }
 
+// RETIRE-REST §7: these tables were selected into saturation (decisions-doc §7 — E4's top-N
+// cuts and "best pocket assembly" order rows that are tied at the ceiling). Publishing the
+// equivalence class rather than the cut: how many rows tie at the top value, and which
+// configuration fields are IDENTICAL across every one of them (the fields that vary within
+// the tie are omitted — a shared field is the only thing "what they share" can mean).
+// `rows` is the FULL population the tie is drawn from, not a pre-sliced top-N — a tie counted
+// against an already-cut top-20 would undercount how many rows actually share the max value.
+function equivalenceClassAtTop(rows, valueFn, fieldsFn) {
+  if (!rows.length) return null;
+  const values = rows.map(valueFn);
+  const maxVal = Math.max(...values);
+  const tied = rows.filter((r, i) => values[i] === maxVal);
+  const fieldSets = tied.map(fieldsFn);
+  const keys = Object.keys(fieldSets[0]);
+  const shared = {};
+  const varies = [];
+  for (const k of keys) {
+    const distinct = new Set(fieldSets.map((f) => JSON.stringify(f[k])));
+    if (distinct.size === 1) shared[k] = fieldSets[0][k];
+    else varies.push(k);
+  }
+  return { value: maxVal, tieCount: tied.length, total: rows.length, shared, varies };
+}
+
+function fmtFieldValue(k, v) {
+  if (v === true) return 'on';
+  if (v === false) return 'off';
+  if (v === null || v === undefined) return 'off';
+  return String(v);
+}
+
+function sharedFieldsText(shared) {
+  const entries = Object.entries(shared);
+  if (!entries.length) return 'nothing — even the configuration fields differ across the tied rows';
+  return entries.map(([k, v]) => `${k}=${fmtFieldValue(k, v)}`).join(', ');
+}
+
 async function main() {
   const args = Object.fromEntries(
     process.argv.slice(2).reduce((pairs, arg, i, arr) => {
@@ -102,6 +139,9 @@ async function main() {
   // ceiling regardless of whether the metric has real resolution).
   // LAB-21: cp is a count-ratio, so it supplies its denominators for the raw-event check.
   const a1RankingGuard = rankingValidityResult(a1Ranked.map((r) => r.cp), { topN: 1, support: a1Ranked.map((r) => r.trials) });
+  const a1TopTie = equivalenceClassAtTop(a1Ranked, (r) => r.cp, (r) => ({
+    gapX: r.guide.gapX, tiltDeg: r.guide.tiltDeg, endDy: r.guide.endDy, guideE: r.guide.guideE, radius: r.radius,
+  }));
 
   // --- A2: the ranked assembly table (§8 item 2), controls' cp for the E1 decomposition. ---
   const a2ByCfg = new Map();
@@ -136,6 +176,10 @@ async function main() {
     medianBn: row.bnVals.length ? percentile(row.bnVals, 50) : null,
   })).sort((x, y) => y.cp - x.cp);
   const a2RankingGuard = rankingValidityResult(a2Ranked.map((r) => r.cp), { topN: 20, support: a2Ranked.map((r) => r.trials) });
+  const a2TopTie = equivalenceClassAtTop(a2Ranked, (r) => r.cp, (r) => ({
+    gapX: r.guide.gapX, tiltDeg: r.guide.tiltDeg, endDy: r.guide.endDy, guideE: r.guide.guideE,
+    radius: r.radius, feed: r.feed, post: r.post, outlaneW: r.outlaneW,
+  }));
 
   // --- Stage B: the (gapX x activeAngle) pocket-map heatmap, cv-vs-restAngle (§1.3/H7),
   // release-independent ranking by cp. ---
@@ -176,6 +220,10 @@ async function main() {
   const cvTable = [...cvByRest.entries()].map(([restAngleDeg, v]) => ({ restAngleDeg: Number(restAngleDeg), trials: v.trials, cvRate: v.cv / v.trials })).sort((x, y) => x.restAngleDeg - y.restAngleDeg);
   const bRanked = [...bByCfg.values()].map((row) => ({ cfg: row.cfg, cpRate: row.cp / row.trials, trials: row.trials })).sort((x, y) => y.cpRate - x.cpRate);
   const bRankingGuard = rankingValidityResult(bRanked.map((r) => r.cpRate), { topN: 20, support: bRanked.map((r) => r.trials) });
+  const bTopTie = equivalenceClassAtTop(bRanked, (r) => r.cpRate, (r) => ({
+    restAngleDeg: r.cfg.restAngleDeg, activeAngleDeg: r.cfg.activeAngleDeg, restitution: r.cfg.restitution,
+    inj: r.cfg.inj, pol: r.cfg.pol,
+  }));
 
   // --- Stage C: release dispersion (§5.4) per assembly, rel mix, controls. ---
   const cByAssembly = new Map(); // baseAssemblyId -> {rxaVals, relCounts, trials}
@@ -215,15 +263,17 @@ async function main() {
   // on a table whose own guard had already failed with nothing downstream noticing. The winning
   // candidate's own guard verdict now travels with it.
   const bestCandidates = [
-    { cp: a1Ranked[0]?.cp ?? null, guardOk: a1RankingGuard.ok },
-    { cp: a2Ranked[0]?.cp ?? null, guardOk: a2RankingGuard.ok },
-    { cp: bRanked[0]?.cpRate ?? null, guardOk: bRankingGuard.ok },
+    { cp: a1Ranked[0]?.cp ?? null, guardOk: a1RankingGuard.ok, table: 'a1', topTie: a1TopTie },
+    { cp: a2Ranked[0]?.cp ?? null, guardOk: a2RankingGuard.ok, table: 'a2', topTie: a2TopTie },
+    { cp: bRanked[0]?.cpRate ?? null, guardOk: bRankingGuard.ok, table: 'b', topTie: bTopTie },
   ].filter((c) => c.cp !== null);
   const bestCandidate = bestCandidates.length
     ? bestCandidates.reduce((best, c) => (c.cp > best.cp ? c : best))
     : null;
   const bestCp = bestCandidate?.cp ?? null;
   const bestCpGuardOk = bestCandidate?.guardOk ?? false;
+  const bestCpTable = bestCandidate?.table ?? null;
+  const bestCpTopTie = bestCandidate?.topTie ?? null;
   // LAB-28 (V4): `?? 0` here made "no C0/C0b control data present" read identically to "measured
   // 0% cradle rate" — both an upstream wiring error (empty controls) and a genuinely clean
   // corpus produced the same number with no way for a reader to tell them apart. `null` is the
@@ -255,7 +305,10 @@ async function main() {
       sliceC0Cp: sliceArms.c0 ? sliceArms.c0.cp / sliceArms.c0.trials : null,
       sliceC0bCp: sliceArms.c0b ? sliceArms.c0b.cp / sliceArms.c0b.trials : null,
     },
-    e1Decomposition: { c0Cp, c0bCp, bestPocketCp: bestCp, bestPocketCpGuardOk: bestCpGuardOk },
+    e1Decomposition: {
+      c0Cp, c0bCp, bestPocketCp: bestCp, bestPocketCpGuardOk: bestCpGuardOk,
+      bestPocketCpTable: bestCpTable, bestPocketCpTopTie: bestCpTopTie,
+    },
     totals: {
       a1: { trials: a1.meta.trialCount, secs: a1.meta.secs, flaggedExclStalled: a1.meta.flaggedFractionExclStalled, creep: a1.meta.creep },
       a2: { trials: a2.meta.trialCount, secs: a2.meta.secs, flaggedExclStalled: a2.meta.flaggedFractionExclStalled, creep: a2.meta.creep },
@@ -282,6 +335,11 @@ async function main() {
     declaredPremiseStage: 'A1',
     declaredPremiseGate: { fraction: a1.meta.flaggedFractionExclStalled, ok: requireFlagGateOk(a1.meta.flagGateOk, 'e4Report (--a1 meta.json)') },
     rankingGuard: { a1: a1RankingGuard, a2: a2RankingGuard, b: bRankingGuard, releaseDispersion: releaseRankingGuard },
+    // RETIRE-REST §7: the equivalence class at the top of each ranking guard's population — how
+    // many rows tie at the max value (out of how many), and which configuration fields are
+    // identical across every one of them. Computed over the full population each table is drawn
+    // from, not the top-N slice published below.
+    equivalenceClasses: { a1: a1TopTie, a2: a2TopTie, b: bTopTie },
   };
 
   const rankingGuardFailures = Object.entries(summary.rankingGuard).filter(([, r]) => !r.ok);
@@ -383,10 +441,24 @@ export function toMarkdown(summary, csvRelPath) {
   lines.push(`|---|---|`);
   lines.push(`| C0 (E1's bare arena, 2.0s window) | ${fmtPct(summary.e1Decomposition.c0Cp, 2)}% |`);
   lines.push(`| C0b (bare arena, E4's 4.0s window) | ${fmtPct(summary.e1Decomposition.c0bCp, 2)}% |`);
-  lines.push(`| best pocket assembly | ${fmtPct(summary.e1Decomposition.bestPocketCp, 1)}${summary.e1Decomposition.bestPocketCpGuardOk === false ? ' ⚠' : ''}% |`);
+  lines.push(`| best pocket assembly | ${fmtPct(summary.e1Decomposition.bestPocketCp, 1)}${(summary.e1Decomposition.bestPocketCpGuardOk === false || summary.e1Decomposition.bestPocketCpTopTie?.tieCount > 1) ? ' ⚠' : ''}% |`);
   lines.push('');
   lines.push(`C0 reproduces LAB-2's near-zero cradle rate. C0b, at E4's longer 4.0s settle window, is ALSO near zero — so E1's null result was a geometry problem, not (primarily) a time-budget problem (§1.2's confound is resolved: geometry dominates).`);
   lines.push('');
+  // RETIRE-REST §7: gated on the tie itself (tieCount > 1), not on `bestPocketCpGuardOk` — that
+  // flag answers "is the top-20 CUT sound", which a plateau sitting strictly above the cut
+  // boundary can dodge while rank 1 is still an N-way tie (measured: A2's July 2026-09 corpus
+  // has its top-20 guard pass with a 15-way tie sitting inside it, untouched by the boundary
+  // check because the boundary itself falls below the plateau).
+  if (summary.e1Decomposition.bestPocketCpTopTie?.tieCount > 1) {
+    const tie = summary.e1Decomposition.bestPocketCpTopTie;
+    lines.push(`> ⚠ **"BEST" IS AN EQUIVALENCE CLASS, NOT A WINNER (LAB-16 gate)**: the ${fmtPct(tie.value, 1)}% ` +
+      `figure above is a **${tie.tieCount}-way tie** among the ${tie.total} rows in Stage \`${summary.e1Decomposition.bestPocketCpTable}\`'s ` +
+      `full population — no test can order these ${tie.tieCount} rows against each other. Shared across all of them: ` +
+      `${sharedFieldsText(tie.shared)}.${tie.varies.length ? ` They differ on: ${tie.varies.join(', ')}.` : ''} ` +
+      'The number is real; the implied "this one is best" is not.');
+    lines.push('');
+  }
 
   lines.push('## §8 item 1 — the pocket map (gapX x activeAngle, Stage B)');
   lines.push('');
@@ -402,9 +474,13 @@ export function toMarkdown(summary, csvRelPath) {
   lines.push('## §8 item 2 — ranked assembly table (top rows, Stage A2)');
   lines.push('');
   if (!summary.rankingGuard.a2.ok) {
+    const tie = summary.equivalenceClasses.a2;
     lines.push(`> ⚠ **RANKING INVALID (LAB-16 gate)**: \`cp\` cannot rank the full ${summary.rankingGuard.a2.n}-assembly ` +
       `A2 population — ${summary.rankingGuard.a2.reason}. Rows below are shown for reference only; their order ` +
-      'is not a performance signal.');
+      'is not a performance signal.' +
+      (tie ? ` **${tie.tieCount} of ${tie.total} assemblies tie at cp = ${fmtPct(tie.value, 1)}%**, sharing ` +
+        `${sharedFieldsText(tie.shared)}${tie.varies.length ? ` and differing on ${tie.varies.join(', ')}` : ''} — ` +
+        'nothing orders those tied rows relative to each other, including the one shown first below.' : ''));
     lines.push('');
   }
   lines.push('| gapX | tilt° | endDy | guideE | radius | feed | post | outlaneW | cp% | cr% | ct% | cv% | median st | fastCradle% | median bn |');
@@ -420,8 +496,12 @@ export function toMarkdown(summary, csvRelPath) {
   lines.push('## Stage B — flipper geometry / delivery / policy ranking (top rows)');
   lines.push('');
   if (!summary.rankingGuard.b.ok) {
+    const tie = summary.equivalenceClasses.b;
     lines.push(`> ⚠ **RANKING INVALID (LAB-16 gate)**: \`cp\` cannot rank the full ${summary.rankingGuard.b.n}-cfg ` +
-      `Stage B population — ${summary.rankingGuard.b.reason}. Rows below are shown for reference only.`);
+      `Stage B population — ${summary.rankingGuard.b.reason}. Rows below are shown for reference only.` +
+      (tie ? ` **${tie.tieCount} of ${tie.total} cfgs tie at cp = ${fmtPct(tie.value, 1)}%**, sharing ` +
+        `${sharedFieldsText(tie.shared)}${tie.varies.length ? ` and differing on ${tie.varies.join(', ')}` : ''} — ` +
+        'nothing orders those tied rows relative to each other, including the one shown first below.' : ''));
     lines.push('');
   }
   lines.push('| rest° | active° | e_flip | inj | pol | cp% | trials |');
@@ -478,13 +558,20 @@ export function toMarkdown(summary, csvRelPath) {
 
   lines.push('## §8 item 7 — recommendation');
   lines.push('');
+  // RETIRE-REST §7: this paragraph used to name `rankedAssemblies[0]`/`stageBRanked[0]` as THE
+  // recommended geometry — one row picked by insertion order out of a tie the ranking guard
+  // above already marked unorderable. Rewritten to recommend the equivalence class instead: the
+  // fields every tied row shares are a real, supportable recommendation; the fields that vary
+  // within the tie are named as arbitrary picks, not preferred settings.
+  const a2Tie = summary.equivalenceClasses.a2;
+  const bTie = summary.equivalenceClasses.b;
   const top = summary.rankedAssemblies[0];
   const topB = summary.stageBRanked[0];
-  lines.push(`**Pocket geometry**: gapX **${top?.guide.gapX}m**, tilt **${top?.guide.tiltDeg}°**, endDy **${top?.guide.endDy}m**, guideE **${top?.guide.guideE}**, flipper radius **${top?.radius}m** — cp **${fmt(top?.cp * 100, 1)}%** (ranked-assembly table above). ` +
-    `**Flipper**: rest **${topB?.restAngleDeg}°**, active **${topB?.activeAngleDeg}°**, restitution **${topB?.restitution}** — cp **${fmt(topB?.cpRate * 100, 1)}%** (Stage B table above). ` +
-    `**W2 (feed rail)**: earns its place only marginally — every top-10 A2 assembly landed with feed OFF; inlane delivery mostly failed the §2.5 injection-clearance check against the very guide it needs to feed toward (see Delegation/handoff for the exclusion count), so the honest recommendation is a bare drop delivery, not an inlane rail, until W2's own geometry is re-tuned narrower. **W3 (tip post)**: appears in roughly half the top-10 assemblies without changing cp materially (H9's own prediction — a skitter/dsl effect, not a catch-rate one). **W4 (outlane divider)**: appears in EVERY top-10 assembly at outlaneW=0.030m — the clearest single addition beyond the guide itself. ` +
+  lines.push(`**Pocket geometry**: \`cp\` is a **${a2Tie ? `${a2Tie.tieCount}-way tie` : 'single value'} at ${fmtPct(a2Tie?.value ?? top?.cp, 1)}%** among Stage A2's ${a2Tie?.total ?? summary.rankedAssemblies.length} assemblies (§8 item 2) — no test orders them against each other. Shared across every tied assembly: ${a2Tie ? sharedFieldsText(a2Tie.shared) : '—'}${a2Tie?.varies.length ? `; they differ on ${a2Tie.varies.join(', ')} — any one row's value there is an arbitrary pick within the tie, not a preferred setting` : ''}. ` +
+    `**Flipper**: \`cp\` is a **${bTie ? `${bTie.tieCount}-way tie` : 'single value'} at ${fmtPct(bTie?.value ?? topB?.cpRate, 1)}%** among Stage B's ${bTie?.total ?? summary.stageBRanked.length} cfgs — shared across every tied cfg: ${bTie ? sharedFieldsText(bTie.shared) : '—'}${bTie?.varies.length ? `; they differ on ${bTie.varies.join(', ')}` : ''}. ` +
+    `**W2 (feed rail)**: earns its place only marginally — every A2 assembly tied at the top landed with feed OFF; inlane delivery mostly failed the §2.5 injection-clearance check against the very guide it needs to feed toward (see Delegation/handoff for the exclusion count), so the honest recommendation is a bare drop delivery, not an inlane rail, until W2's own geometry is re-tuned narrower. **W3 (tip post)**: appears in roughly half the tied-top assemblies without changing cp materially (H9's own prediction — a skitter/dsl effect, not a catch-rate one). **W4 (outlane divider)**: appears in EVERY tied-top assembly at outlaneW=0.030m — the clearest single addition beyond the guide itself. ` +
     `**V-trap caveat**: any machine #2 recommendation at a wide (more upright) rest angle should still pair with a centre post per §1.3/H7 above, even though a real W1 pocket sharply reduces how often the trap is actually reached. ` +
-    `**Catch-vs-playability caveat (§8 item 4)**: the assembly above is chosen for maximum \`cp\`, and Stage C shows the maximum-cp assemblies are near-dead traps (<0.12% shot rate) — if machine #2 wants a LIVE cradle rather than a permanent one, start from §8 item 2's ranking but prefer a lower-\`cp\`/higher-\`hsS\` row, not the top row as written here.`);
+    `**Catch-vs-playability caveat (§8 item 4)**: the shared configuration above reaches the maximum measured \`cp\`, and Stage C shows the maximum-cp assemblies are near-dead traps (<0.12% shot rate) — if machine #2 wants a LIVE cradle rather than a permanent one, start from §8 item 2's shared configuration but prefer a lower-\`cp\`/higher-\`hsS\` row, not any single row from the tied set as written here.`);
   lines.push('');
 
   return lines.join('\n');
