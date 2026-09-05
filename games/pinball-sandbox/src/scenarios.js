@@ -594,7 +594,12 @@ export function formatGrid(report) {
 //      `iterations` shuffled-label matrices, building a null distribution.
 //   4. Report where the observed statistic sits WITHIN that null as a percentile — never a
 //      pass/fail verdict, since the percentile is the number a person actually reasons about
-//      and a verdict line would throw it away.
+//      and a verdict line would throw it away. EXCEPT: if the null distribution itself has no
+//      spread (every shuffled-label draw returned the same value), there is nothing for a
+//      percentile to mean — it would necessarily read 100 regardless of whether there is any
+//      real structure at all, indistinguishable from the strongest possible real result. That
+//      case is reported as `discriminating: false` with `percentile: null` instead (NULL-FIX-1)
+//      — a saturated statistic is refused a percentile, not handed a misleading one.
 // The shuffle is seeded (mulberry32, a small deterministic PRNG — no crypto or platform RNG
 // needed for a reproducibility guarantee, not a security one) so the same scenario + seed
 // reports the same null twice.
@@ -637,10 +642,13 @@ function shuffleInPlace(arr, rng) {
  * "a hole must show as a hole" principle as runScenarioGrid, applied to data a null test is
  * about to treat as real.
  *
- * Returns `{ name, xPath, xValues, yPath, yValues, seed, iterations, observed, percentile,
- * nullMin, nullMax, nullMean }`. `percentile` is where `observed` sits within its own null
- * (0-100, fraction of null draws at or below it) — the number to reason about; this function
- * makes no pass/fail claim of its own.
+ * Returns `{ name, xPath, xValues, yPath, yValues, seed, iterations, observed, discriminating,
+ * percentile, nullMin, nullMax, nullMean }`. `discriminating` is false when the null
+ * distribution has (effectively) zero spread — the shuffle had nothing to act on — in which
+ * case `percentile` is `null`, never a number a reader could mistake for a real result (see
+ * NULL-FIX-1's doc comment just above this function). When `discriminating` is true,
+ * `percentile` is where `observed` sits within its own null (0-100, fraction of null draws at
+ * or below it) — the number to reason about; this function makes no pass/fail claim of its own.
  */
 export function runScenarioNullTest(name, { xPath, xValues, yPath, yValues, overrides = {}, extract, statistic, iterations = 1000, seed = 1 } = {}) {
   if (typeof extract !== 'function') throw new Error('runScenarioNullTest: extract(report) => number is required');
@@ -695,25 +703,62 @@ export function runScenarioNullTest(name, { xPath, xValues, yPath, yValues, over
     nullDistribution[k] = v;
   }
 
-  let countAtOrBelow = 0;
-  for (const v of nullDistribution) if (v <= observed) countAtOrBelow += 1;
-  const percentile = (countAtOrBelow / iterations) * 100;
+  const nullMin = Math.min(...nullDistribution);
+  const nullMax = Math.max(...nullDistribution);
+  const nullMean = nullDistribution.reduce((s, v) => s + v, 0) / iterations;
+
+  // NULL-FIX-1 (review: haiku-opencode2, 20260905-permutation-null-test-review.md): a
+  // statistic with nothing for the shuffle to act on — every null draw came back the same
+  // value — necessarily ties the observed value at the top, so `percentile` would read 100
+  // regardless of whether there is any real structure at all (this is exactly the sumAll
+  // case the review's own critical finding used: shuffle-invariant, percentile 100, means
+  // NOTHING). That is indistinguishable, in a plain percentile field, from the strongest
+  // possible real result — a reader has no way to tell a discriminating 100 (every relabeling
+  // fell short) from a degenerate one (every relabeling landed on the exact same number). This
+  // was caught the first time only because a person (this file's own prior applied findings)
+  // noticed and said so in prose; the machinery itself said nothing. Fixed at the source: a
+  // null distribution with (effectively) zero spread cannot discriminate ANY observed value
+  // from noise, by construction, independent of what the observed value happens to be — so
+  // `discriminating` is computed from the null alone, and `percentile` is withheld (null, not
+  // a misleading number) whenever it isn't. A tiny epsilon absorbs float noise, not real
+  // variation — the values here come from independent physics runs, not analytic formulas, so
+  // exact-zero spread over `iterations` draws is the actual degenerate case in practice, not a
+  // near-zero one worth agonising over a threshold for.
+  const NULL_SPREAD_EPS = 1e-9;
+  const discriminating = (nullMax - nullMin) > NULL_SPREAD_EPS;
+
+  let percentile = null;
+  if (discriminating) {
+    let countAtOrBelow = 0;
+    for (const v of nullDistribution) if (v <= observed) countAtOrBelow += 1;
+    percentile = (countAtOrBelow / iterations) * 100;
+  }
 
   return {
     name, xPath, xValues, yPath, yValues, seed, iterations,
     observed,
+    discriminating,
     percentile,
-    nullMin: Math.min(...nullDistribution),
-    nullMax: Math.max(...nullDistribution),
-    nullMean: nullDistribution.reduce((s, v) => s + v, 0) / iterations,
+    nullMin, nullMax, nullMean,
   };
 }
 
 /** Formats a runScenarioNullTest report as short, human-readable lines — the percentile front
- * and centre, never a pass/fail line (see the module doc comment on why). */
+ * and centre when the null can discriminate at all, never a pass/fail line either way (see the
+ * module doc comment on why). A non-discriminating report gets its own distinct line instead of
+ * a percentile that would misread as a strong result — see NULL-FIX-1's own doc comment above
+ * runScenarioNullTest for why a percentile is never printed in that case. */
 export function formatNullTest(report) {
+  const header = `null test: ${report.name} (${report.xPath} x ${report.yPath}, seed=${report.seed}, ${report.iterations} shuffles)`;
+  if (!report.discriminating) {
+    return [
+      header,
+      `  observed statistic: ${report.observed}`,
+      `  NOT DISCRIMINATING: every one of ${report.iterations} shuffled-label draws returned the same value (${report.nullMin}) as the real, labeled data — this statistic has no variance for the shuffle to act on here, so there is no percentile to report, in either direction.`,
+    ].join('\n');
+  }
   return [
-    `null test: ${report.name} (${report.xPath} x ${report.yPath}, seed=${report.seed}, ${report.iterations} shuffles)`,
+    header,
     `  observed statistic: ${report.observed}`,
     `  sits at percentile ${report.percentile.toFixed(1)} of its own null (range ${report.nullMin.toFixed(4)}..${report.nullMax.toFixed(4)}, mean ${report.nullMean.toFixed(4)})`,
   ].join('\n');

@@ -16,7 +16,7 @@ const SPREAD_ACROSS_ROW_MEANS = (matrix) => {
   return Math.max(...rowMeans) - Math.min(...rowMeans);
 };
 
-test('reports the real (labeled) statistic as `observed`, computed from actual scenario runs', () => {
+test('reports the real (labeled) statistic as `observed`, computed from actual scenario runs, and marks it discriminating', () => {
   const r = runScenarioNullTest('arc-containment', {
     xPath: 'ball.speed', xValues: [1, 3, 6],
     yPath: 'ball.offset', yValues: [-0.005, 0, 0.005],
@@ -27,6 +27,11 @@ test('reports the real (labeled) statistic as `observed`, computed from actual s
   });
   assert.equal(typeof r.observed, 'number');
   assert.ok(Number.isFinite(r.observed));
+  // SPREAD_ACROSS_ROW_MEANS is NOT shuffle-invariant (relabeling which cell a maxY value
+  // lands in changes which row it contributes to, so its own mean moves) — the null
+  // distribution built from it should actually vary, not sit at one repeated value.
+  assert.equal(r.discriminating, true, 'a row-mean-spread statistic over varying maxY values must have a null with real spread');
+  assert.equal(typeof r.percentile, 'number');
 });
 
 test('reproducible: the same scenario + seed gives the same null distribution twice', () => {
@@ -41,6 +46,7 @@ test('reproducible: the same scenario + seed gives the same null distribution tw
   const r1 = runScenarioNullTest('arc-containment', opts);
   const r2 = runScenarioNullTest('arc-containment', opts);
   assert.equal(r1.observed, r2.observed, 'the real statistic must be identical (same real data both times)');
+  assert.equal(r1.discriminating, true);
   assert.equal(r1.nullMin, r2.nullMin);
   assert.equal(r1.nullMax, r2.nullMax);
   assert.equal(r1.nullMean, r2.nullMean);
@@ -61,11 +67,17 @@ test('a different seed can produce a different null draw sequence (not hardcoded
   assert.notEqual(r1.nullMean, r2.nullMean, 'two different seeds should not coincidentally draw an identical null mean');
 });
 
-test('the shuffle destroys labels only: the pooled multiset of values is unchanged by any draw', () => {
-  // Verified indirectly but exactly: a statistic that is invariant to WHICH cell each value
-  // lands in (the sum of every value in the matrix) must be identical for the real matrix and
-  // every single null draw — if it were not, the shuffle would be altering data, not just
-  // labels, which is exactly the bug this test exists to catch.
+test('the shuffle destroys labels only: a shuffle-invariant statistic (sum of all values) proves the multiset survives every draw', () => {
+  // sumAll is invariant to WHICH cell each value lands in — the sum of every value in the
+  // matrix must be identical for the real matrix and every single null draw. If it were not,
+  // the shuffle would be altering data, not just labels, which is exactly the bug this proves
+  // absent. This is a genuinely SATURATED statistic by construction (chosen deliberately for
+  // that reason, not despite it) — NULL-FIX-1 (haiku-opencode2's review) found the machinery's
+  // OWN prior version of this test asserted `percentile >= 99` here, which is the exact failure
+  // this technique exists to catch: a percentile of ~100 from a statistic with zero
+  // discriminative power reads as the strongest possible signal while meaning nothing. Fixed:
+  // this test now asserts the machinery calls it what it is — `discriminating: false`,
+  // `percentile: null` — never a percentile a reader could mistake for a real result.
   const sumAll = (matrix) => matrix.reduce((s, row) => s + row.reduce((rs, v) => rs + v, 0), 0);
   const r = runScenarioNullTest('arc-containment', {
     xPath: 'ball.speed', xValues: [1, 2, 3, 4, 5],
@@ -83,7 +95,29 @@ test('the shuffle destroys labels only: the pooled multiset of values is unchang
   assert.ok(Math.abs(r.nullMin - r.observed) < EPS, 'sum-of-all-values is shuffle-invariant up to float reordering error');
   assert.ok(Math.abs(r.nullMax - r.observed) < EPS);
   assert.ok(Math.abs(r.nullMean - r.observed) < EPS);
-  assert.ok(r.percentile >= 99, `observed must sit at (or within float-reordering error of) the top of a null distribution that is entirely equal to it — got percentile ${r.percentile}`);
+  assert.equal(r.discriminating, false, 'a shuffle-invariant statistic must be reported as non-discriminating, not as a percentile');
+  assert.equal(r.percentile, null, 'no percentile should be reported when the null cannot discriminate');
+});
+
+test('a saturated grid (every cell reports the same value) is also reported as non-discriminating, regardless of statistic', () => {
+  // The review's own named risk: "a channel with perfect reachability (all cells
+  // contained=true) ... the shuffle changed nothing." Reproduced directly with a real
+  // saturated grid (arc-containment's own default speed, which is fully contained everywhere
+  // in this offset range — see scenarios.test.mjs's own measured containment grid) and an
+  // ordinary, otherwise-discriminating statistic (SPREAD_ACROSS_ROW_MEANS) — it is the DATA
+  // that's saturated here, not a specially-chosen invariant statistic, and the machinery must
+  // catch it either way.
+  const r = runScenarioNullTest('arc-containment', {
+    xPath: 'ball.speed', xValues: [6], // a single value: contained=true at every offset below
+    yPath: 'ball.offset', yValues: [-0.005, 0, 0.005],
+    extract: (rep) => (rep.contained ? 1 : 0),
+    statistic: SPREAD_ACROSS_ROW_MEANS,
+    iterations: 200,
+    seed: 5,
+  });
+  assert.equal(r.observed, 0, 'every cell contained=true means zero spread in the real data too');
+  assert.equal(r.discriminating, false);
+  assert.equal(r.percentile, null);
 });
 
 test('a cell that fails to run is refused, not silently pooled as a hole', () => {

@@ -46,6 +46,11 @@ test('orbit-reachability-right: contact is saturated (81/81) — the null test h
   assert.equal(r.observed, 0, 'contact is saturated: the real spread across flipper-state hit-rates is 0');
   assert.equal(r.nullMin, 0);
   assert.equal(r.nullMax, 0, 'a fully-saturated statistic has zero variance under ANY relabeling — degenerate, not a real null');
+  // NULL-FIX-1: the machinery itself must call this non-discriminating, not leave it to prose —
+  // a percentile of 100 here would be indistinguishable from orbit's own real mid-bat finding
+  // below if nothing flagged the difference.
+  assert.equal(r.discriminating, false);
+  assert.equal(r.percentile, null, 'a saturated statistic gets no percentile, not a misleadingly perfect one');
 });
 
 test("orbit-reachability-right: mid-bat (46/81) is the one with room to be noise, and it is NOT noise — flip-at-arrival's 27/27 vs. rest/active's ~1/3 sits above every one of 2000 relabelings", () => {
@@ -58,6 +63,7 @@ test("orbit-reachability-right: mid-bat (46/81) is the one with room to be noise
   // its own null (ties the null's own max of 0.667, exceeds every other draw).
   const r = nullTestFor('orbit-reachability-right', 'midBat');
   assert.ok(Math.abs(r.observed - (2 / 3)) < 1e-9, `expected spread 2/3, got ${r.observed}`);
+  assert.equal(r.discriminating, true, 'unlike contact, mid-bat has real spread for the null to vary against');
   assert.equal(r.percentile, 100, `expected the observed spread to sit at the top of its own null — got percentile ${r.percentile}`);
 });
 
@@ -65,22 +71,32 @@ test('slide-reachability-left: both contact (81/81) and mid-bat (81/81) are full
   const contactR = nullTestFor('slide-reachability-left', 'hit');
   assert.equal(contactR.observed, 0);
   assert.equal(contactR.nullMax, 0);
+  assert.equal(contactR.discriminating, false);
   const midBatR = nullTestFor('slide-reachability-left', 'midBat');
   assert.equal(midBatR.observed, 0);
   assert.equal(midBatR.nullMax, 0);
+  assert.equal(midBatR.discriminating, false);
 });
 
 test("monkeybars-reachability-upperLeft: both contact (81/81) and mid-bat (81/81) are fully saturated — same degenerate case", () => {
   const contactR = nullTestFor('monkeybars-reachability-upperLeft', 'hit');
   assert.equal(contactR.observed, 0);
   assert.equal(contactR.nullMax, 0);
+  assert.equal(contactR.discriminating, false);
   const midBatR = nullTestFor('monkeybars-reachability-upperLeft', 'midBat');
   assert.equal(midBatR.observed, 0);
   assert.equal(midBatR.nullMax, 0);
+  assert.equal(midBatR.discriminating, false);
 });
 
 test('formatNullTest reports the percentile for the mid-bat finding, not a verdict', () => {
   const text = formatNullTest(nullTestFor('orbit-reachability-right', 'midBat'));
   assert.ok(text.includes('percentile 100.0'));
   assert.ok(!/pass|fail/i.test(text));
+});
+
+test('formatNullTest reports NOT DISCRIMINATING for a saturated case, never a percentile line', () => {
+  const text = formatNullTest(nullTestFor('slide-reachability-left', 'hit'));
+  assert.ok(text.includes('NOT DISCRIMINATING'));
+  assert.ok(!text.includes('sits at percentile'), 'must not report a percentile figure for a non-discriminating null');
 });
