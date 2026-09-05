@@ -85,7 +85,18 @@ function tryEnterGate(world, zoneEvent) {
   const start = ramp.points[0];
   ball.pos = { x: start.x, y: start.y };
   ball.z = start.z ?? 0;
-  return { tag: zone.tag, gateEntered: true, ball };
+  // DIV-2 (2026-09-05): an optional, generic synchronous hook — no gate uses it except the
+  // diverter today. Called HERE, before this function returns and before the caller's
+  // `for (const ball of world.balls)` loop (this file's advance()) moves on to the next ball
+  // in the SAME substep. A gate whose routing can change (the diverter) uses this to apply
+  // that change immediately, so a second ball crossing the same gate mouth in the same
+  // substep — reachable in real multiball, since no two balls ever collide with each other,
+  // nothing keeps them more than a physics tick apart — reads the UPDATED value rather than
+  // the one this ball just read. Its return value rides along on the event as `hookResult`,
+  // so a caller that needs "which route did THIS entry take" doesn't have to re-derive it from
+  // state that a later-in-this-tick entry may have already changed again.
+  const hookResult = zone.gate.onEnter?.(ball);
+  return { tag: zone.tag, gateEntered: true, ball, hookResult };
 }
 
 /** Runs a ramp/orbit ball to its own 1D physics; returns the exit event, or null if it's

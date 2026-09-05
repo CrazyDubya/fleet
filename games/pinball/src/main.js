@@ -64,6 +64,21 @@ const {
   diverter, ejectionSites, mgrRelease, sandboxAddABallPlacement,
 } = table;
 
+// DIV-2 (2026-09-05): wired once, here, not per-frame — physics/world.js's tryEnterGate calls
+// this synchronously at the moment of a successful entry, before it moves on to the next ball
+// in the same substep (see that file's own comment). This is what makes a second ball crossing
+// the gate in the same tick take the OTHER route rather than reading the same stale toLayer:
+// the flip now happens as part of THIS ball's own entry, not deferred to a later pass over all
+// of the tick's events. Returns the route this ball actually took (or null on a corrupt
+// toLayer, already console.error'd inside currentDiverterRoute) so the event consumer below
+// doesn't have to re-derive it from state a later-in-this-tick entry may have already changed.
+diverter.gate.gate.onEnter = () => {
+  const route = game.currentDiverterRoute(diverter);
+  if (route === null) return null;
+  game.setDiverterRoute(diverter, route === 'A' ? 'B' : 'A');
+  return route;
+};
+
 // Wood-tone side rails + chrome lane/apron guides, sampled from the reference photo's
 // worn pine border and chrome slingshot/corner plates (was flat gold/blue placeholder).
 const wallColorByTag = {
@@ -235,23 +250,27 @@ function processMechanismEvents(events) {
       // entry alternates it, same "gateEntered, not just a slow graze" guard as the ramp
       // gates above, so a ball merely grazing the mouth below RAMP_ENTRY_MIN_SPEED can't
       // silently flip the route without ever actually taking a path.
-      if (event.gateEntered) {
-        // currentDiverterRoute returns null (having already console.error'd, rate-limited —
-        // see its own doc comment) on a corrupt toLayer rather than throwing — a second outside
-        // review caught that the first fix (throw) aborted this whole frame loop mid-iteration
-        // on corruption, silently dropping every OTHER event this frame (drains, scoring,
-        // everything). null here skips the route-flip AND the score/log for this one event —
-        // a THIRD review caught that scoring it anyway meant a corrupt entry that never
-        // resolved a route still awarded points, as if it had routed cleanly. The ball itself
-        // already physically transited (tryEnterGate, physics/world.js) regardless of anything
-        // here; only the bookkeeping/scoring for a corrupt read is withheld, and the loop, and
-        // every other event in it, remain unaffected either way.
-        const currentRoute = game.currentDiverterRoute(diverter);
-        if (currentRoute !== null) {
-          game.setDiverterRoute(diverter, currentRoute === 'A' ? 'B' : 'A');
-          fired.push(tag);
-          if (eventLog) eventLog.log(tag);
-        }
+      //
+      // DIV-2 (2026-09-05): the flip itself no longer happens here — it already ran inside
+      // physics/world.js's tryEnterGate, via the onEnter hook wired above, at the moment of
+      // THIS ball's own entry. Re-deriving it here (a second call to currentDiverterRoute)
+      // used to be flat-out wrong in multiball: with two balls crossing the same gate mouth in
+      // one physics substep (reachable, since no two balls ever collide — nothing keeps them
+      // more than a tick apart), both would read the SAME pre-flip toLayer during physics, and
+      // this later re-derivation, run once per event after every substep in the frame had
+      // already completed, could not tell them apart — the two flips cancelled to a net no-op,
+      // and both balls had already been physically routed identically besides. Reading
+      // event.hookResult instead — the route recorded AT the moment of entry, before anything
+      // later in the same tick could change it again — fixes both halves: each ball's own
+      // score/log reflects the route IT actually took, and (since the flip now runs inside
+      // physics, in ball-processing order) a second ball in the same tick is also physically
+      // routed to the other ramp. A corrupt toLayer still yields null (already console.error'd,
+      // rate-limited, inside currentDiverterRoute) and withholds only this one event's
+      // score/log — the ball itself already physically transited regardless, and every other
+      // event this frame is unaffected either way.
+      if (event.gateEntered && event.hookResult !== null) {
+        fired.push(tag);
+        if (eventLog) eventLog.log(tag);
       }
     } else if (tag === SW_SANDBOX_ENTRY) {
       game.armScoop(scoop, elapsedS, event.ball);

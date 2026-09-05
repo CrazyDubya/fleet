@@ -139,6 +139,18 @@ test('currentDiverterRoute returns null, rather than throwing or silently report
 test('production wiring: a real diverter entry alternates the route for the NEXT ball, reproducing main.js\'s own SW_DIVERTER_ENTER handling', () => {
   const { world, ball, slide, tunnel, diverter } = makeWorldWithDiverter();
 
+  // DIV-2 (2026-09-05): wires the same onEnter hook main.js now sets up once at table build
+  // time (physics/world.js's tryEnterGate calls it synchronously at entry, before the caller's
+  // ball loop moves on) — the flip itself happens inside physics now, not in this
+  // post-hoc scan. What's left to reproduce here is main.js's SW_DIVERTER_ENTER branch, which
+  // only scores/logs off event.hookResult (the route recorded at the moment of entry).
+  diverter.gate.gate.onEnter = () => {
+    const route = game.currentDiverterRoute(diverter);
+    if (route === null) return null;
+    game.setDiverterRoute(diverter, route === 'A' ? 'B' : 'A');
+    return route;
+  };
+
   function crossAndApplyProductionLogic() {
     const a = diverter.gate.a, b = diverter.gate.b;
     const mouth = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
@@ -146,18 +158,7 @@ test('production wiring: a real diverter entry alternates the route for the NEXT
     ball.layer = 'playfield';
     ball.pos = { x: mouth.x - dir.x * 0.03, y: mouth.y - dir.y * 0.03 };
     ball.vel = { x: dir.x * 3.0, y: dir.y * 3.0 };
-    let events = [];
-    for (let i = 0; i < 30 && ball.layer === 'playfield'; i++) events = events.concat(advance(world, STEP_DT));
-    // main.js's own branch: only a genuine transition (event.gateEntered) alternates the
-    // route AND scores the tag, and only if currentDiverterRoute didn't report corruption
-    // (null) — a corrupt entry gets neither.
-    for (const ev of events) {
-      const tag = ev.tag ?? ev.primitive?.shape?.tag;
-      if (tag === diverter.gate.tag && ev.gateEntered) {
-        const currentRoute = game.currentDiverterRoute(diverter);
-        if (currentRoute !== null) game.setDiverterRoute(diverter, currentRoute === 'A' ? 'B' : 'A');
-      }
-    }
+    for (let i = 0; i < 30 && ball.layer === 'playfield'; i++) advance(world, STEP_DT);
   }
 
   crossAndApplyProductionLogic();
@@ -167,6 +168,48 @@ test('production wiring: a real diverter entry alternates the route for the NEXT
   crossAndApplyProductionLogic();
   assert.equal(ball.layer, tunnel.ramp.id, 'second ball: route had already flipped to B by the time it crossed');
   assert.equal(game.currentDiverterRoute(diverter), 'A', 'flips back — an ordinary alternation, not a one-way latch');
+});
+
+// DIV-2 (2026-09-05): a cross review found that two balls crossing the diverter gate within
+// ONE physics substep would both read the same pre-flip toLayer — the flip used to be deferred
+// to main.js's event-processing pass, which runs strictly after an entire tick of physics
+// stepping is done, too late to affect any routing decision made earlier in that same tick.
+// Reachability, verified rather than assumed: physics/world.js has no ball-ball collision
+// anywhere (confirmed while scoping CAPT-1) — nothing ever keeps two balls more than a physics
+// tick (STEP_DT = 1/240s ≈ 4.2ms) apart, so two balls converging on the same gate mouth within
+// one substep is an ordinary consequence of multiball, not a constructed edge case: any two
+// balls shot up the same feed in quick succession, or released together by a mechanism that
+// puts multiple balls on the same path (this week's own SCOOP-1 eject-together fix does
+// exactly that elsewhere on the table), can be within a few millimetres of each other with
+// nothing to prevent it.
+test('DIV-2: two balls crossing the diverter gate in the SAME physics substep receive DIFFERENT routes', () => {
+  const { world, slide, tunnel, diverter } = makeWorldWithDiverter();
+  diverter.gate.gate.onEnter = () => {
+    const route = game.currentDiverterRoute(diverter);
+    if (route === null) return null;
+    game.setDiverterRoute(diverter, route === 'A' ? 'B' : 'A');
+    return route;
+  };
+
+  const a = diverter.gate.a, b = diverter.gate.b;
+  const mouth = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  const dir = diverter.gate.gate.allowDir;
+  const startPos = { x: mouth.x - dir.x * 0.005, y: mouth.y - dir.y * 0.005 }; // well within one tick's travel of the mouth
+  const vel = { x: dir.x * 3.0, y: dir.y * 3.0 };
+
+  // Two balls, identical position and velocity — the closest two balls can plausibly be in
+  // real multiball (e.g. a scoop or lock ejecting more than one at once) without colliding,
+  // since nothing in this engine stops them from occupying the same point.
+  const ball1 = addBall(world, { id: 'b1', pos: { x: startPos.x, y: startPos.y }, vel: { x: vel.x, y: vel.y }, radius: BALL_RADIUS });
+  const ball2 = addBall(world, { id: 'b2', pos: { x: startPos.x, y: startPos.y }, vel: { x: vel.x, y: vel.y }, radius: BALL_RADIUS });
+
+  advance(world, STEP_DT); // ONE substep — both balls must cross within it
+
+  assert.notEqual(ball1.layer, 'playfield', 'ball1 must have crossed the gate within this one substep');
+  assert.notEqual(ball2.layer, 'playfield', 'ball2 must have crossed the gate within this one substep — otherwise this test is not exercising the same-substep case at all');
+  assert.notEqual(ball1.layer, ball2.layer, 'the two balls must land on DIFFERENT ramps — the bug this closes let both read the same pre-flip toLayer');
+  assert.equal(ball1.layer, slide.ramp.id, 'ball1 (processed first) gets the route that was active at the start of the tick');
+  assert.equal(ball2.layer, tunnel.ramp.id, 'ball2 (processed second, in the SAME substep) gets the route ball1\'s own entry just flipped to — this is only possible because the flip now happens at entry, inside physics, not deferred past the whole tick');
 });
 
 // THE actual failure the corrupt-state fix exists to prevent (2026-09-05, second outside
