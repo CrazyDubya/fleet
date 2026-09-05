@@ -102,7 +102,26 @@ export function parseCfgSet(parsed, { source = '<cfg>' } = {}) {
  * map over the same `trials`. Omitting `flagCounts` alongside a premise throws: "not checked"
  * must never read as "passed" (the same rule LAB-21 applied to ranking support). */
 export function flagGateResult({ trials, flagged, gateFraction = FLAG_GATE_FRACTION, premise = null, flagCounts = null, excludedFlags = [] }) {
-  const fraction = trials > 0 ? flagged / trials : 0;
+  // Found by a cross-family review (2026-09-05): `gateFraction: 1.0` (or anything >= 1) makes
+  // `fraction <= gateFraction` true no matter what `fraction` is, silently disabling the gate
+  // entirely with no warning. A caller passing a gate-disabling value is almost certainly a
+  // mistake, not a decision — refuse it loudly. A caller who genuinely needs to relax the gate
+  // for a specific, understood reason has the declared-premise path (`parseCfgSet`) for exactly
+  // that, which already requires a stated, attributable reason and still cannot reach 1.0
+  // itself (`PREMISE_MAX_CEILING`, 0.5).
+  if (!(gateFraction > 0 && gateFraction < 1)) {
+    throw new Error(`flagGateResult: gateFraction must be a fraction strictly between 0 and 1, got ${JSON.stringify(gateFraction)} — 1.0 or above admits every flag rate and silently disables the gate`);
+  }
+  // Found by the same review: `trials > 0 ? flagged / trials : 0` reads zero trials as
+  // `fraction: 0`, which then clears any threshold — zero samples carry zero statistical power,
+  // not a clean result. A zero-trial corpus is not a passing corpus, it is an unmeasured one.
+  if (trials === 0) {
+    return {
+      fraction: 0, ok: false, premiseApplied: false, gateFraction, undeclaredOverGate: [], excludedFlags: [...excludedFlags],
+      reason: 'zero trials — an empty corpus carries no statistical power and cannot pass a flag-rate gate; this is almost certainly an upstream wiring error, not a corpus to bless',
+    };
+  }
+  const fraction = flagged / trials;
   for (const f of excludedFlags) {
     if (!PREMISE_FLAG_NAMES.includes(f)) throw new Error(`flagGateResult: excludedFlags names ${JSON.stringify(f)}, which is not a flag (known: ${PREMISE_FLAG_NAMES.join(', ')})`);
   }
@@ -274,11 +293,33 @@ export const RANKING_MIN_EVENT_SUPPORT = 5;
  * That distinction matters: "not checked" must never read as "passed".
  */
 export function rankingValidityResult(values, { topN = null, support = null, minDistinct = RANKING_MIN_DISTINCT, maxTieBlockFraction = RANKING_MAX_TIE_BLOCK_FRACTION, maxBoundaryAmbiguity = RANKING_MAX_BOUNDARY_AMBIGUITY, minEventSupport = RANKING_MIN_EVENT_SUPPORT } = {}) {
+  // Found by a cross-family review (2026-09-05): distinctCount is always >= 1 for any
+  // non-empty ranking, so `distinctCount < minDistinct` can never fire when minDistinct <= 1 —
+  // a minDistinct of 0 or 1 silently admits a single-value "ranking" that cannot order
+  // anything. A caller passing a gate-disabling value here is almost certainly a mistake, not
+  // a decision; refuse it loudly rather than honour it, the same treatment as gateFraction
+  // below. A caller who genuinely needs a weaker distinctness floor than the default still
+  // needs SOME floor >= 2 (the minimum that can distinguish two rows at all) — there is no
+  // legitimate reason to pass 0 or 1, so this throws rather than clamps. Checked before `n`,
+  // since this is validating the CALL, not the data.
+  if (!(minDistinct >= 2)) {
+    throw new Error(`rankingValidityResult: minDistinct must be >= 2 (a floor of ${minDistinct} can never fail — distinctCount is always >= 1 for a non-empty ranking, so this would silently admit a single-value ranking as valid)`);
+  }
   const n = values.length;
   if (support != null && support.length !== n) {
     throw new Error(`rankingValidityResult: support has ${support.length} entries for ${n} values — a wiring error, not a metric problem`);
   }
-  if (n === 0) return { ok: true, n: 0, distinctCount: 0, maxTieFraction: 0, boundaryAmbiguity: null, minSelectedSupport: null, reason: null };
+  // Found by the same review, and not a hypothetical: a planner thread joined a table wrong
+  // this morning, got an empty population, and this line handed it a PASS on the most
+  // important guarded axis in E1. An empty ranking cannot order anything and carries no
+  // information — it must not read as "verified fine", the same "not checked must never read
+  // as passed" standard this file states explicitly everywhere else in it.
+  if (n === 0) {
+    return {
+      ok: false, n: 0, distinctCount: 0, maxTieFraction: 0, boundaryAmbiguity: null, minSelectedSupport: null,
+      reason: 'empty ranking (0 rows) — there is no valid ruling on zero rows; this is almost certainly an upstream wiring error (an empty join, an empty filter), not a corpus to bless',
+    };
+  }
   const counts = new Map();
   for (const v of values) counts.set(v, (counts.get(v) ?? 0) + 1);
   const distinctCount = counts.size;
@@ -300,6 +341,13 @@ export function rankingValidityResult(values, { topN = null, support = null, min
   }
 
   if (topN != null && topN < n) {
+    // Found by the same review: `topN <= 0` reaches the `Math.min(...selected.map(...))` below
+    // with `selected` empty (`.slice(0, 0)`), and `Math.min()` with no arguments returns
+    // `Infinity` — a support floor that `Infinity` satisfies is not a floor, so a `topN` of 0
+    // (or negative) silently passed the event-support check regardless of the real data. A
+    // top-N selection of zero or fewer rows is not a meaningful call to begin with; reject it
+    // at the source rather than let it fall through to a vacuously-passing spread.
+    if (topN < 1) throw new Error(`rankingValidityResult: topN must be >= 1, got ${topN}`);
     const sorted = [...values].sort((a, b) => b - a);
     const cutValue = sorted[topN - 1];
     const higherCount = sorted.filter((v) => v > cutValue).length;

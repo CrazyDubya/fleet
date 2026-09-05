@@ -15,10 +15,15 @@ test('flagGateResult: over 1% fails', () => {
   assert.ok(Math.abs(r.fraction - 0.01001) < 1e-9);
 });
 
-test('flagGateResult: zero trials does not divide by zero', () => {
+// Fixed 2026-09-05, a cross-family review: zero trials used to read as `fraction: 0`, which
+// then cleared any threshold and returned `ok: true` — zero samples carry zero statistical
+// power, not a clean result. `n === 0`'s equivalent bug in rankingValidityResult (below) has
+// the same shape and the same fix.
+test('flagGateResult: zero trials does not divide by zero, and does not pass', () => {
   const r = flagGateResult({ trials: 0, flagged: 0 });
   assert.equal(r.fraction, 0);
-  assert.equal(r.ok, true);
+  assert.equal(r.ok, false, 'zero trials must not read as a passing corpus — no statistical power exists to have passed anything');
+  assert.match(r.reason, /zero trials/i);
 });
 
 test('flagGateResult: honours a custom gateFraction (E4-style exclusion is the caller\'s job)', () => {
@@ -155,4 +160,64 @@ test('rankingValidityResult: a ceiling-saturated top-N still fails on boundary a
   const r = rankingValidityResult(values, { topN: 20 });
   assert.equal(r.ok, false);
   assert.match(r.reason, /cut lands inside a 101-way tie/);
+});
+
+// --- 2026-09-05: a cross-family review found four ways these gates return ok:true when they
+// should refuse to rule — verified live by a planner thread this morning, which joined a table
+// wrong, got an empty population, and received a PASS on E1's most important guarded axis
+// (rankingValidityResult([]) is the exact call that morning made; test 1 below is that call).
+
+test('GATE-1: rankingValidityResult on an empty array refuses to rule, it does not pass', () => {
+  // Before the fix: this returned { ok: true, n: 0, ... reason: null } — an empty ranking
+  // blessed as valid. There is no valid ruling on zero rows.
+  const r = rankingValidityResult([]);
+  assert.equal(r.n, 0);
+  assert.equal(r.ok, false, 'an empty ranking must not pass — there is no valid ruling on zero rows');
+  assert.match(r.reason, /empty ranking/i);
+});
+
+test('GATE-1: flagGateResult on zero trials refuses to rule, it does not pass', () => {
+  // Before the fix: `trials > 0 ? flagged / trials : 0` read as fraction 0, which cleared any
+  // threshold — see the earlier "zero trials does not divide by zero" test, updated in place.
+  const r = flagGateResult({ trials: 0, flagged: 0 });
+  assert.equal(r.ok, false, 'zero trials carry zero statistical power, not a clean pass');
+});
+
+test('GATE-1: flagGateResult rejects a gateFraction of 1.0 (or above) instead of honouring it', () => {
+  // Before the fix: gateFraction: 1.0 made `fraction <= gateFraction` true unconditionally —
+  // fraction <= 1 for any fraction in [0,1] — silently disabling the gate with no warning.
+  assert.throws(() => flagGateResult({ trials: 100, flagged: 100, gateFraction: 1.0 }), /gateFraction/i);
+  assert.throws(() => flagGateResult({ trials: 100, flagged: 100, gateFraction: 1.5 }), /gateFraction/i);
+  assert.throws(() => flagGateResult({ trials: 100, flagged: 0, gateFraction: 0 }), /gateFraction/i, 'a gateFraction of exactly 0 is also rejected — not the bug reported, but the same malformed-ceiling shape (nothing but a perfect 0.00% could ever pass)');
+  // A real, legitimate gateFraction still works.
+  assert.equal(flagGateResult({ trials: 1000, flagged: 50, gateFraction: 0.1 }).ok, true);
+});
+
+test('GATE-1: rankingValidityResult rejects a minDistinct of 0 or 1 instead of honouring it', () => {
+  // Before the fix: minDistinct: 0 made `distinctCount < minDistinct` unconditionally false
+  // (distinctCount is always >= 1 for a non-empty ranking), silently admitting a single-value
+  // "ranking" (4 rows, all tied at 5 — cannot order anything) as valid.
+  assert.throws(() => rankingValidityResult([5, 5, 5, 5], { minDistinct: 0 }), /minDistinct/i);
+  assert.throws(() => rankingValidityResult([5, 5, 5, 5], { minDistinct: 1 }), /minDistinct/i, 'minDistinct: 1 has the same shape — distinctCount is always >= 1, so a floor of 1 also never fails');
+  // A real, legitimate minDistinct still works.
+  const r = rankingValidityResult([1, 2, 3, 4, 5], { minDistinct: 5 });
+  assert.equal(r.ok, true);
+});
+
+test('GATE-1: rankingValidityResult rejects a topN of 0 or less rather than letting Math.min(...[]) return Infinity', () => {
+  // Before the fix: topN: 0 (with support supplied) reached `Math.min(...selected.map(...))`
+  // with `selected` empty (`.slice(0, 0)`) — Math.min() with no arguments is Infinity, which
+  // satisfies any minEventSupport floor unconditionally.
+  assert.throws(() => rankingValidityResult([1, 2, 3, 4, 5, 6], { topN: 0, support: [10, 10, 10, 10, 10, 10] }), /topN/i);
+  assert.throws(() => rankingValidityResult([1, 2, 3, 4, 5, 6], { topN: -1, support: [10, 10, 10, 10, 10, 10] }), /topN/i);
+});
+
+// entropyBits (src/metrics.js): the same sweep flagged this as possibly the same shape (total=0
+// dividing into a rate). Read directly rather than taken on the sweep's word: it already checks
+// `if (total === 0) return 0;` before any division — genuinely safe, confirmed here so the next
+// reader doesn't have to re-derive it.
+test('GATE-1: entropyBits on an all-zero histogram is already safe (confirmed, not changed)', async () => {
+  const { entropyBits } = await import('../src/metrics.js');
+  assert.equal(entropyBits([0, 0, 0], { normalise: true }), 0);
+  assert.equal(entropyBits([]), 0);
 });
