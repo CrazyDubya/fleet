@@ -21,6 +21,7 @@ import {
 } from './table/switches.js';
 import * as game from './game/mechanisms.js';
 import { createGame, launchBall, processEvents as processRules, activePlayer, tiltBall, slamTilt } from './rules/game.js';
+import { MODE_SHOT_TAGS } from './rules/modes.js';
 import * as tilt from './rules/tilt.js';
 import { wireInput } from './ui/input.js';
 import { isDebugEnabled, mountDebugPanel, mountEventLog } from './ui/debug.js';
@@ -645,9 +646,12 @@ addGateWireMesh(tunnel.gate);
 // SANDBOX_RIM_LIP is rendering-only (how wide the decorative rim reads past the pit edge),
 // not a physics quantity, so it stays a local literal rather than a shared constant.
 const SANDBOX_RIM_LIP = 0.006;
+const SANDBOX_UNLIT_COLOR = 0xd9c07a;
+let sandboxPitMat;
 {
   const group = new THREE.Group();
-  const pit = coloredMesh(new THREE.CircleGeometry(sandbox.captureZone.radius, 20), 0xd9c07a);
+  const pit = coloredMesh(new THREE.CircleGeometry(sandbox.captureZone.radius, 20), SANDBOX_UNLIT_COLOR);
+  sandboxPitMat = pit.material;
   pit.rotation.x = -Math.PI / 2;
   pit.position.y = 0.001;
   group.add(pit);
@@ -1266,6 +1270,38 @@ function frame(now) {
   mgrGroup.userData.roofMat.color.set(activePlayer(rulesState).multiball.lockLit ? 0xffee55 : 0x4a7a3a);
 
   kickbackMesh.material = kickbackState.lit ? kickbackLitMat : kickbackUnlitMat;
+
+  // LIT-WIRE: the states a player must see to make a decision — the renderer already had
+  // every primitive this needs (color swaps proven on the MGR roof/fun lamps above, material
+  // swaps on kickback just above); this was wiring, not a missing feature (see
+  // haiku-fs2's render-state-inventory and player-feedback handoffs). Re-read from live rules
+  // state every frame — never toggled once and left stale — so a lamp clears the instant the
+  // rules clear it (e.g. jackpotReady resets the moment collectJackpot fires), the same
+  // "state surviving a boundary" class of bug LIT-1 found four instances of elsewhere today.
+  // Distinct colors per MEANING, not per mesh, so two different reasons a shot is lit never
+  // look the same: red = a jackpot is ready to cash in right now (the biggest single-shot
+  // payouts on the table); purple = the HOPSCOTCH bank's own jackpot, a different, smaller
+  // award that happens to land on the same SLIDE shot — same priority order scoreSwitchTag
+  // itself already uses (mbJackpot outranks hopscotch); cyan = "this is KICKBALL's next
+  // base," the one currently-running mode with a single well-defined next shot (HIDE_SEEK's
+  // hidden shot is deliberately NOT lit — showing it would remove the "seek" from the mode).
+  const ap = activePlayer(rulesState);
+  const kickballShotTag = ap.modesState.activeMode?.name === 'KICKBALL'
+    ? MODE_SHOT_TAGS[ap.modesState.activeMode.base] : null;
+  const LIT_JACKPOT = 0xff3300;
+  const LIT_HOPSCOTCH = 0x9955ff;
+  const LIT_MODE_SHOT = 0x33aaff;
+  slideFrameMat.color.set(
+    ap.multiball.jackpotReady ? LIT_JACKPOT
+      : ap.modesState.hopscotchJackpot.lit ? LIT_HOPSCOTCH
+      : kickballShotTag === MODE_SHOT_TAGS[0] ? LIT_MODE_SHOT
+      : 0xf0c927);
+  wireformMat.color.set(
+    ap.multiball.superJackpotLit ? LIT_JACKPOT
+      : kickballShotTag === MODE_SHOT_TAGS[1] ? LIT_MODE_SHOT
+      : 0xd8d8d8);
+  culvertMat.color.set(kickballShotTag === MODE_SHOT_TAGS[2] ? LIT_MODE_SHOT : 0x7d6b58);
+  sandboxPitMat.color.set(kickballShotTag === MODE_SHOT_TAGS[3] ? LIT_MODE_SHOT : SANDBOX_UNLIT_COLOR);
 
   for (const [tag, mesh] of hopscotchMeshes) mesh.visible = !hopscotchBankState.dropped.has(tag);
   for (const [tag, mesh] of sandMeshes) mesh.visible = !sandBankState.dropped.has(tag);
