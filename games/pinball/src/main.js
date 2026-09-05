@@ -1042,8 +1042,26 @@ function frame(now) {
   for (const entry of balls) entry.prevPos = { x: entry.phys.pos.x, y: entry.phys.pos.y, z: entry.phys.z || 0 };
 
   const events = advance(world, dt);
-  const scoreTags = [...pendingNextFrameTags, ...processMechanismEvents(events)];
+  const frameMechanismTags = [...pendingNextFrameTags, ...processMechanismEvents(events)];
   pendingNextFrameTags = [];
+  // SEAM-1 (2026-09-05): this frame's real physical collisions (frameMechanismTags — a MONKEY
+  // BARS exit switch, say) are processed and scored NOW, before the tilt check below, rather than
+  // batched with the rest of the frame's tags into one processRules call at the very end. A
+  // ball that genuinely landed a lit super jackpot this frame must bank it before a same-frame
+  // tilt (tickTiltBob's decay can cross threshold with no nudge at all — see its own comment
+  // below) gets a chance to force-end multiball and clear superJackpotLit first. Previously
+  // both were folded into a single end-of-frame scoreTags array, so a same-frame tilt's
+  // synchronous forceEnd (called immediately below) always won regardless of which physical
+  // event actually happened first within the frame — silently downgrading an earned 1,500,000
+  // point super jackpot to its 150,000 point ordinary value with no signal anywhere that this
+  // happened (test/tilt-jackpot-frame-order.test.mjs reproduces it). Tags discovered LATER in
+  // this same frame (sandbox eject, staggered multiball releases, drains, soft plunge — all
+  // below) still go through the ordinary end-of-frame call further down, so tilt still
+  // correctly beats any of THOSE same-frame events (e.g. a coincidental same-frame drain),
+  // exactly as before; only this one class of already-happened collision is reordered ahead of
+  // a tilt that hasn't been decided yet.
+  applyDisplayEvents(processRules(rulesState, frameMechanismTags, elapsedS));
+  const scoreTags = [];
   game.tickDropBank(hopscotchBankState, elapsedS);
   game.tickDropBank(sandBankState, elapsedS);
   game.tickSpinner(tetherballSpinner, dt);
