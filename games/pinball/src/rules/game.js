@@ -317,6 +317,32 @@ function scoreSwitchTag(state, p, tag, atS) {
         p.modesState.fieldDay.bonusXBeforeFieldDay = p.bonusX;
         p.bonusX = modes.FIELD_DAY_BONUS_X;
         display.push({ kind: 'bonusX', player: activePlayerIndex(state), value: p.bonusX });
+
+        // FIELDDAY-FIX (playtest, sonnet3 20260905T230811Z): FIELD DAY starts with only ONE
+        // ball physically on the table (`ballsInPlay = 1` — see multiball.js's own doc comment:
+        // the TREEHOUSE hit is a standup target, so the triggering ball is never captured, and
+        // the 3 new balls main.js spawns arrive staggered 400ms apart over the next ~1.2s, not
+        // instantly). Unlike RECESS MULTIBALL's own 3rd-lock start — where all 3 balls are
+        // already captured/mounted, so there is nothing left on the table that CAN drain during
+        // that same staggered release — FIELD DAY's lone ball is in ordinary open play the whole
+        // time. If it reaches the drain in that window, `endOfBall`'s `multiball.forceEnd` safety
+        // net correctly ends FIELD DAY... before the player has ever seen a second ball. Found by
+        // actually playing it: TREEHOUSE hit, "FIELD DAY!" flash, "FIELD DAY COMPLETE" ~2s later,
+        // `ballsInPlay` never having left 1.
+        //
+        // Fix: give the lone ball the same DO-OVER ball-save `startMultiball` already grants
+        // ordinary multiball for the identical class of risk (§4.4: "Ball save (DO-OVER) is on
+        // for 20s from multiball start") — reusing `multiball.MULTIBALL_SAVE_S` rather than
+        // inventing a second constant for the same concept. A drain inside the window now takes
+        // `handleDrain`'s `saveBall` path (re-serves a ball, `ballActive` stays true) instead of
+        // `endOfBall`'s (which force-ends multiball) — multiball.forceEnd is never called, so
+        // `ballsInPlay` is untouched and the 3 already-scheduled spawns still land on schedule,
+        // reaching the full 4-ball count as designed. `doOverUsed` is reset the same way
+        // `startMultiball` resets it, so an earlier single-ball DO-OVER this same ball already
+        // spent doesn't block FIELD DAY's own protection.
+        p.ballSaveUntilS = atS + multiball.MULTIBALL_SAVE_S;
+        p.doOverUsed = false;
+
         display.push(started);
         return display;
       }

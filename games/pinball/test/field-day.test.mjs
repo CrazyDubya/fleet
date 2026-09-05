@@ -215,11 +215,47 @@ test('FIELD DAY runs until one ball remains, then ends: bonus X restored to its 
   assert.equal(p.modesState.fieldDaysCompleted, 1);
 
   // The one remaining ball keeps playing normally under the restored bonusX; its own eventual
-  // drain computes the RECESS BELL bonus with THAT value, not 25. (Well past the 12s launch
-  // DO-OVER window, and FIELD DAY grants no ball-save extension of its own — see
-  // multiball.js's startFieldDay doc comment — so this drain ends the ball outright.)
-  const drainDisplay = processEvents(state, [SW_DRAIN], 1005);
+  // drain computes the RECESS BELL bonus with THAT value, not 25. Well past both the 12s
+  // launch DO-OVER window AND FIELD DAY's own 20s-from-start ball-save (FIELDDAY-FIX: FIELD
+  // DAY start now grants one, atS 1000-1020 — see the SW_TREEHOUSE branch in game.js — so this
+  // drain has to land after 1020, not just after the original 12s launch window, to actually
+  // end the ball rather than being saved).
+  const drainDisplay = processEvents(state, [SW_DRAIN], 1025);
   const bonusEvent = drainDisplay.find((d) => d.kind === 'bonus');
   assert.ok(bonusEvent, 'the drain must end the ball and compute the RECESS BELL bonus');
   assert.equal(bonusEvent.bonusX, 4, 'end-of-ball bonus must use the restored bonusX, not the 25x FIELD DAY lock');
+});
+
+// FIELDDAY-FIX (playtest, sonnet3 20260905T230811Z): FIELD DAY starts with only ONE ball
+// physically on the table — the TREEHOUSE hit is a standup target, so the triggering ball is
+// never captured, unlike RECESS MULTIBALL's 3rd-lock balls (already mounted/captured, so
+// nothing is left on the table that CAN drain during their own staggered release). The 3 new
+// balls main.js spawns arrive staggered ~400ms apart, not instantly. Before this fix, if that
+// lone ball reached the drain in the gap before the 3rd new ball landed, `endOfBall`'s
+// `multiball.forceEnd` safety net correctly-but-prematurely ended FIELD DAY — reproduced by
+// actually playing it: TREEHOUSE hit, "FIELD DAY!" flash, "FIELD DAY COMPLETE" ~2s later,
+// `ballsInPlay` never having left 1.
+test('FIELD DAY survives the lone starting ball draining before the other 3 land: ball-saved, not force-ended', () => {
+  const state = freshGame();
+  const p = activePlayer(state);
+  completeAllFourModes(state);
+  processEvents(state, [SW_TREEHOUSE], 1000); // FIELD DAY starts; ballsInPlay = 1 (the trigger ball)
+  assert.equal(p.multiball.active, true);
+  assert.equal(p.multiball.ballsInPlay, 1);
+
+  // The lone trigger ball drains before any of the 3 new balls have arrived — exactly the
+  // race the playtest found, well within the 20s window the fix grants at FIELD DAY start.
+  const drainDisplay = processEvents(state, [SW_DRAIN], 1001);
+  assert.ok(!drainDisplay.some((d) => d.kind === 'fieldDayForceEnd' || d.kind === 'fieldDayEnd'),
+    'a drain inside the ball-save window must not force-end FIELD DAY');
+  assert.equal(p.multiball.active, true, 'FIELD DAY is still running');
+  assert.equal(p.bonusX, FIELD_DAY_BONUS_X, 'the 25x lock is untouched — FIELD DAY never actually ended');
+  assert.ok(drainDisplay.some((d) => d.kind === 'ballSaved'), 'the drain must take the DO-OVER path');
+  assert.equal(p.ballActive, true);
+
+  // The 3 already-scheduled spawns still land on schedule (main.js's fieldDayReleaseQueue is
+  // independent of this drain) and reach the full 4-ball count as designed — ballsInPlay is
+  // untouched by the save (no onBallLost ran), so it climbs the same 1 -> 4 it always did.
+  processEvents(state, [SW_BALL_ADDED, SW_BALL_ADDED, SW_BALL_ADDED], 1002);
+  assert.equal(p.multiball.ballsInPlay, FIELD_DAY_BALL_COUNT, 'reaches the full 4-ball count');
 });
