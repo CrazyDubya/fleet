@@ -395,6 +395,18 @@ function toMarkdown(summary, best) {
   if (best) {
     lines.push('## Recommendation');
     lines.push('');
+    // VERDICT-1: the guard's own verdict, stated explicitly on the PASS path too — a reader
+    // seeing a named "best" geometry below could otherwise not tell whether it cleared LAB-16's
+    // ranking-validity gate or was simply array position 0 of an unordered tie, since only the
+    // FAILURE branch (below) used to narrate the guard at all. A verdict shown only on failure
+    // is indistinguishable from a guard that never ran.
+    lines.push(
+      `> **LAB-16 ranking gate: PASSED** — \`fanWidthXaDeg\` cleared the top-1 cut over the ` +
+      `${summary.rankedUnderCeiling.length} ceiling-filtered geometries (${summary.fanWidthRankingGuard.distinctCount} ` +
+      `distinct values, boundary ambiguity ${fmt(summary.fanWidthRankingGuard.boundaryAmbiguity, 2)}x). The ` +
+      'recommendation below is a validated top-1, not an arbitrary array position.'
+    );
+    lines.push('');
     lines.push(
       `**Machine #2 default flipper**: rest angle **${best.geometry.restAngleDeg}°**, active angle ` +
       `**${best.geometry.activeAngleDeg}°** (sweep arc ${best.geometry.activeAngleDeg - best.geometry.restAngleDeg}°), ` +
@@ -418,7 +430,7 @@ function toMarkdown(summary, best) {
     lines.push('## Recommendation');
     lines.push('');
     lines.push(
-      `> ⚠ **RANKING INVALID (LAB-16 gate)**: \`fanWidthXaDeg\` cannot rank the ${summary.fanWidthRankingGuard.n} ` +
+      `> ⚠ **LAB-16 ranking gate: FAILED** — \`fanWidthXaDeg\` cannot rank the ${summary.fanWidthRankingGuard.n} ` +
       `characterised geometries — ${summary.fanWidthRankingGuard.reason}. No "best" geometry is named; picking ` +
       'array position 0 of an unordered tie would be exactly LAB-16\'s E3-P1 mistake repeated here.'
     );
