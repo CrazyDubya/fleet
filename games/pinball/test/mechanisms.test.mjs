@@ -132,7 +132,13 @@ test('the TREEHOUSE standup registers a hit without dropping (fixed post)', () =
 test('every ejection site (merry-go-round release, SANDBOX add-a-ball) clears its own zone and every other mechanism skirt by at least SAFETY_M', () => {
   const sandbox = ramps.buildSandbox();
   const sites = mech.buildEjectionSites(sandbox);
-  assert.ok(sites.length >= 2, 'expected at least the merry-go-round and sandbox sites — a registry regression would silently drop coverage');
+  // Pinned to exactly 2 (2026-09-05, a file-thread sweep found `>= 2` here — a THIRD site added
+  // to the registry with no test coverage of its own would still pass this, same as a dropped
+  // one would have before). The test name says "every ejection site," naming both by name; this
+  // asserts the registry holds exactly those two, not merely "at least the two named."
+  assert.equal(sites.length, 2, 'expected exactly the merry-go-round and sandbox sites — a registry change (added or dropped) must be a deliberate edit to this test, not silently passed through');
+  assert.ok(sites.some((s) => s.name === 'merry_go_round_release'));
+  assert.ok(sites.some((s) => s.name === 'sandbox_add_a_ball'));
 
   for (const site of sites) {
     const { zone, obstacles, placement } = site;

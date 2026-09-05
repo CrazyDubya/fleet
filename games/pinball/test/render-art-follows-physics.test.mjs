@@ -212,9 +212,12 @@ test('slingshot mesh bars read length, position and angle from their own real co
   assert.ok(callSiteMatches.some((m) => m[1] === 'slingshots.left'), 'expected a call site passing slingshots.left');
   assert.ok(callSiteMatches.some((m) => m[1] === 'slingshots.right'), 'expected a call site passing slingshots.right');
 
-  // Physics unchanged, per instructions — sanity check only.
+  // Physics unchanged, per instructions — sanity check only. Pinned to 2 segments per side
+  // (2026-09-05, a file-thread sweep found `> 0` here — a side reduced to a single segment,
+  // half the real collision shape, would still pass), the real count each side actually has.
   const slingshots = buildSlingshots();
-  assert.ok(slingshots.left.length > 0 && slingshots.right.length > 0);
+  assert.equal(slingshots.left.length, 2);
+  assert.equal(slingshots.right.length, 2);
 });
 
 test('hopscotch and sand drop-target plates render position and angle from each target\'s own real shape, not a shared literal', () => {
@@ -273,10 +276,14 @@ test('THE SLIDE, MONKEY BARS, THE TUNNEL and THE ORBIT ramp meshes are all built
   }
 
   // Physics unchanged, per instructions — sanity check only.
-  assert.ok(buildSlideRamp().ramp.points.length > 1);
-  assert.ok(buildMonkeyBarsRamp().ramp.points.length > 1);
-  assert.ok(buildTunnelRamp().ramp.points.length > 1);
-  assert.ok(buildOrbitRamp().ramp.points.length > 1);
+  // Pinned to each ramp's actual measured point count (2026-09-05, a file-thread sweep found
+  // `> 1` here — a ramp collapsed to 2 points would still pass despite its real geometry being
+  // entirely gone). `segmentSteps` walks every point, so a truncated array silently drops most
+  // of the drawn track without any of these tests noticing under the old threshold.
+  assert.equal(buildSlideRamp().ramp.points.length, 4);
+  assert.equal(buildMonkeyBarsRamp().ramp.points.length, 4);
+  assert.equal(buildTunnelRamp().ramp.points.length, 5);
+  assert.equal(buildOrbitRamp().ramp.points.length, 6);
 });
 
 test('the SANDBOX pit mesh position reads the real physics capture zone centre, not a duplicated literal (extends the existing radius-only check)', () => {

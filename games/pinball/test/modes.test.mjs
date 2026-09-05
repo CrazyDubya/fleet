@@ -63,15 +63,24 @@ test('HIDE & SEEK: wrong shots score 100,000 (plus the shot\'s own value) and hi
   let atS = 2;
   for (const [tag, ownValue] of shots) {
     const before = p.score;
+    const hiderBefore = p.modesState.activeMode.hider;
     const display = processEvents(state, [tag], atS++);
     const delta = p.score - before;
     if (delta === ownValue + 1000000) {
       foundCount++;
       assert.ok(display.some((d) => d.kind === 'hideSeekFound'));
+      // The test's own name claims "the hidden one... moves" — pinned here (2026-09-05, a
+      // file-thread sweep: the old test only ever checked >= 1 found across 4 shots, which
+      // would pass identically whether or not the hider actually relocated afterward, since
+      // nothing compared its position before and after a find). rules/modes.js's own logic
+      // (`while (next === mode.hider) next = ...`) guarantees a genuinely different position;
+      // this asserts that guarantee actually held, not just that scoring behaved as if it did.
+      assert.notEqual(p.modesState.activeMode.hider, hiderBefore, 'the hider must relocate to a different shot after being found — a bug that left it in place would still pass a >= 1 found check');
     } else {
       assert.equal(delta, ownValue + 100000);
       wrongCount++;
       assert.ok(display.some((d) => d.kind === 'hideSeekHint'));
+      assert.equal(p.modesState.activeMode.hider, hiderBefore, 'a WRONG shot must not move the hider — only a find does');
     }
   }
   // The hider moves to a new spot every time it's found, so a 4-shot sweep can find it more
