@@ -67,7 +67,7 @@ async function main() {
     let row = byAssembly.get(key);
     if (!row) {
       row = {
-        key, hsSPredicted: cfg.hsSPredicted, guide: cfg.guide, activeAngleDeg: cfg.activeAngleDeg,
+        key, hsSPredicted: cfg.hsSPredicted, hsSRaw: cfg.hsSRaw ?? cfg.hsSPredicted, guide: cfg.guide, activeAngleDeg: cfg.activeAngleDeg,
         radius: cfg.radius, trials: 0, cr: 0, cp: 0, shot: 0, retrap: 0, drain: 0,
         measuredHsSVals: [],
       };
@@ -90,12 +90,15 @@ async function main() {
     retrapRate: row.trials ? row.retrap / row.trials : 0,
     drainRate: row.trials ? row.drain / row.trials : 0,
     measuredHsSMean: row.measuredHsSVals.length ? mean(row.measuredHsSVals) : null,
-  })).sort((a, b) => a.hsSPredicted - b.hsSPredicted);
+  })).sort((a, b) => a.hsSRaw - b.hsSRaw);
 
   // The verdict: does shotRate rise with hsSPredicted? Pearson correlation across assemblies
   // (n=15-16, one point per assembly, pooled trials) — simple and matches "does the curve rise
   // steeply" without over-claiming a functional form.
-  const xs = assemblies.map((a) => a.hsSPredicted);
+  // LAB-27: correlate against the UNCLAMPED projection. `hsSPredicted` clamps at 0 to match
+  // classifySettle's measured range, which collapses 62.4% of the feasible space onto one value
+  // and cannot carry an ordering. Both are reported; only the unclamped one is analysed.
+  const xs = assemblies.map((a) => a.hsSRaw);
   const ys = assemblies.map((a) => a.shotRate);
   const mx = mean(xs), my = mean(ys);
   let cov = 0, vx = 0, vy = 0;
@@ -147,7 +150,7 @@ async function main() {
   lines.push('');
   if (!axisGuard.ok) {
     lines.push(`> ⚠ **The verdict is INDETERMINATE because the axis cannot carry it.** ` +
-      `\`hsSPredicted\` has ${axisGuard.distinctCount} distinct values across ${axisGuard.n} assemblies ` +
+      `the hsS axis has ${axisGuard.distinctCount} distinct values across ${axisGuard.n} assemblies ` +
       `and ${(axisGuard.maxTieFraction * 100).toFixed(0)}% of them are tied at a single value — ` +
       `${axisGuard.reason}. A Pearson r computed over that is decided by the handful of rows that are ` +
       `not tied, so neither GEOMETRY nor MODEL can be read off it. The per-assembly table below is ` +
@@ -170,10 +173,10 @@ async function main() {
   lines.push('');
   lines.push('## Shot rate vs hsS (the deciding curve)');
   lines.push('');
-  lines.push('| hsS (predicted) | hsS (measured mean) | n | cr% | cp% | shot% | retrap% | drain% |');
-  lines.push('|---|---|---|---|---|---|---|---|');
+  lines.push('| hsS (axis, unclamped) | hsS (predicted, clamped) | hsS (measured mean) | n | cr% | cp% | shot% | retrap% | drain% |');
+  lines.push('|---|---|---|---|---|---|---|---|---|');
   for (const a of assemblies) {
-    lines.push(`| ${fmt(a.hsSPredicted, 4)} | ${fmt(a.measuredHsSMean, 4)} | ${a.trials} | ${fmt(a.crRate * 100, 2)} | ${fmt(a.cpRate * 100, 2)} | ${fmt(a.shotRate * 100, 3)} | ${fmt(a.retrapRate * 100, 2)} | ${fmt(a.drainRate * 100, 2)} |`);
+    lines.push(`| ${fmt(a.hsSRaw, 4)} | ${fmt(a.hsSPredicted, 4)} | ${fmt(a.measuredHsSMean, 4)} | ${a.trials} | ${fmt(a.crRate * 100, 2)} | ${fmt(a.cpRate * 100, 2)} | ${fmt(a.shotRate * 100, 3)} | ${fmt(a.retrapRate * 100, 2)} | ${fmt(a.drainRate * 100, 2)} |`);
   }
   lines.push('');
   lines.push(`Pearson r(hsS, shotRate) = ${fmt(pearsonR, 3)} across ${assemblies.length} assemblies. Max shot rate ${fmt(maxShotRate * 100, 3)}%, min ${fmt(minShotRate * 100, 3)}%.`);

@@ -461,12 +461,24 @@ export const E5A_N_BINS = 16;
  * (mirrors `withPocketSolve`'s own feasibility check). Canonical left (`side: 1`) only — hsS is
  * side-symmetric by construction (the whole assembly is built mirrored), so the right side
  * carries no independent information. */
-function predictHsS({ gapX, tiltDeg, endDy, guideE, activeAngleDeg, radius }) {
+/** LAB-27: the SAME projection, WITHOUT the clamp. `predictHsS` clamps to [0,1] to match the
+ * range `classifySettle` reports for the MEASURED hsS — correct for comparing predicted against
+ * measured, and wrong for use as an ordering axis, because 62.4% of the 1,080 feasible
+ * assemblies project to a negative t and collapse onto exactly 0. Unclamped the same quantity
+ * spans [-0.3811, +0.2546] with 450 distinct values. A negative value is meaningful: the
+ * two-contact solve puts the rest point BEHIND the pivot, i.e. that assembly cannot cradle on
+ * the bat at all, and how far behind is a real geometric ordering. */
+export function predictHsSRaw({ gapX, tiltDeg, endDy, activeAngleDeg, radius }) {
   const sol = pocketSolve({ gapX, tiltDeg, endDy, activeAngleDeg, flipperRadius: radius, side: 1 });
   if (!sol.feasible) return null;
   const dir = { x: Math.cos(activeAngleDeg * E5A_DEG), y: Math.sin(activeAngleDeg * E5A_DEG) };
   const t = (sol.point.x - LEFT_PIVOT.x) * dir.x + (sol.point.y - LEFT_PIVOT.y) * dir.y;
-  return Math.max(0, Math.min(1, t / E5A_FLIPPER_LENGTH));
+  return t / E5A_FLIPPER_LENGTH;
+}
+
+function predictHsS(args) {
+  const raw = predictHsSRaw(args);
+  return raw === null ? null : Math.max(0, Math.min(1, raw));
 }
 
 /** The W1 grid (gapX x tiltDeg x endDy x guideE, §2.1 — same 120-guide grid Stage A1
@@ -487,24 +499,47 @@ export function buildE5aAssemblies() {
     // [-0.38, +0.25] before the classifySettle-matching clamp to [0,1] below).
     for (const radius of E4_RADII) {
       for (const activeAngleDeg of E5A_ACTIVE_ANGLES) {
-        const hsSPredicted = predictHsS({ ...g, activeAngleDeg, radius });
-        if (hsSPredicted === null) continue;
-        candidates.push({ ...g, activeAngleDeg, radius, hsSPredicted, guide: withPocketSolve(g, { activeAngleDeg, radius }) });
+        const hsSRaw = predictHsSRaw({ ...g, activeAngleDeg, radius });
+        if (hsSRaw === null) continue;
+        const hsSPredicted = Math.max(0, Math.min(1, hsSRaw));
+        candidates.push({ ...g, activeAngleDeg, radius, hsSRaw, hsSPredicted, guide: withPocketSolve(g, { activeAngleDeg, radius }) });
       }
     }
   }
-  candidates.sort((a, b) => a.hsSPredicted - b.hsSPredicted);
+  // LAB-27: bin RANGE-uniformly on the unclamped axis, not by quantile on the clamped one.
+  //
+  // The old design quantile-binned `hsSPredicted`, which does two harmful things at once: the
+  // clamp had already collapsed 62.4% of candidates onto exactly 0, and quantile bins then
+  // spend the budget where candidates are DENSE — which is the flat, negative region. The
+  // result was 9 of 15 assemblies at hsS 0.0000 and only 2 above 0.10, so the whole verdict
+  // rested on two rows and the axis failed gate.js's own population test.
+  //
+  // Range-uniform is the design the question implies. E5a asks "does shot rate rise WITH hsS",
+  // a question about the axis, so the sample should be even along the axis. Quantile binning
+  // answers a different question — "what does a typical geometry do" — and starves exactly the
+  // band where the behaviour changes.
+  candidates.sort((a, b) => a.hsSRaw - b.hsSRaw);
   const n = candidates.length;
+  if (n === 0) return [];
+  const lo = candidates[0].hsSRaw, hi = candidates[n - 1].hsSRaw;
   const seen = new Set();
   const picked = [];
-  for (let i = 0; i < E5A_N_BINS && n > 0; i++) {
-    const idx = Math.min(n - 1, Math.floor((i + 0.5) * n / E5A_N_BINS));
-    const cand = candidates[idx];
-    const key = `${cand.gapX}|${cand.tiltDeg}|${cand.endDy}|${cand.guideE}|${cand.activeAngleDeg}|${cand.radius}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    picked.push(cand);
+  for (let i = 0; i < E5A_N_BINS; i++) {
+    const target = lo + ((i + 0.5) * (hi - lo)) / E5A_N_BINS;
+    // Nearest unused candidate to this bin's centre, so a sparse band still contributes its
+    // closest real assembly instead of silently dropping out of the sweep.
+    let best = null, bestD = Infinity;
+    for (const c of candidates) {
+      const key = `${c.gapX}|${c.tiltDeg}|${c.endDy}|${c.guideE}|${c.activeAngleDeg}|${c.radius}`;
+      if (seen.has(key)) continue;
+      const d = Math.abs(c.hsSRaw - target);
+      if (d < bestD) { bestD = d; best = { c, key }; }
+    }
+    if (!best) break;
+    seen.add(best.key);
+    picked.push(best.c);
   }
+  picked.sort((a, b) => a.hsSRaw - b.hsSRaw);
   return picked;
 }
 
@@ -518,7 +553,7 @@ export function buildE5aCfgs() {
           restAngleDeg: E4_LAB2_WINNER.restAngleDeg, activeAngleDeg: asm.activeAngleDeg, upMs,
           omegaProfile: E4_LAB2_WINNER.omegaProfile, radius: asm.radius, restitution: E4_LAB2_WINNER.restitution,
           inj: 'drop', guide: asm.guide, feed: null, post: null, outlaneW: null,
-          pol: 'holdThenRelease', releaseDelayMs, release: true, arm: 'E5a', hsSPredicted: asm.hsSPredicted,
+          pol: 'holdThenRelease', releaseDelayMs, release: true, arm: 'E5a', hsSPredicted: asm.hsSPredicted, hsSRaw: asm.hsSRaw,
         }));
       }
     }

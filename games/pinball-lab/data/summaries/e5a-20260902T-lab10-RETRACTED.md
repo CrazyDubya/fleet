@@ -1,8 +1,8 @@
-# E5a (LAB-10) — RETRACTED 2026-09-04 · **SUPERSEDED 2026-09-05 by `e5a-lab25`**
+# E5a (LAB-10) — RETRACTED 2026-09-04 · **SUPERSEDED 2026-09-05 by `e5a-lab27`**
 
 `e5a-20260902T-lab10.{json,md}` has been removed (`git rm`, recoverable in git history).
 **This is no longer a death certificate.** E5a has been re-run as a new experiment against the
-post-fix solver and published as [`e5a-lab25.md`](e5a-lab25.md) — see "What actually happened"
+post-fix solver and published as [`e5a-lab27.md`](e5a-lab27.md) — see "What actually happened"
 below, including a correction to the reason given for the original retraction.
 
 ## Why it was retracted (2026-09-04) — still correct
@@ -38,27 +38,37 @@ Re-run as a **new experiment**, not a restoration: `data/e4/e5a-lab25final`, 135
 trials, instrument commit recorded (the writer gap that let the original omit it is closed).
 Published as `data/summaries/e5a-lab25.{json,md}`.
 
-- **Validity: sound.** 1.8356% flagged excluding STALLED, all of it TIMEOUT;
-  `IMPACTS_EXHAUSTED`, `ESCAPED` and `NAN` are all **zero** over non-stalled trials after the
-  LAB-23 metric fix. It carries a declared §2.7 premise (3% ceiling, TIMEOUT only) whose reason
-  is written in `cfgs/e4-e5a.json`.
-- **Verdict: INDETERMINATE, not GEOMETRY.** The new summary does *not* revive the old
-  conclusion. Nine of the fifteen assemblies share `hsSPredicted` = 0.0000 exactly (7 distinct
-  values across 15 rows, 60% tied), and the Pearson r of 0.845 is carried by two rows whose
-  shot rates are 0.2064 and 0.4564 while the other thirteen sit between 0.0000 and 0.0477.
-  LAB-25 wires gate.js's existing population validity test onto that axis and it fails, so the
-  verdict is gated to INDETERMINATE. The per-assembly table is real measured data and stands;
-  the curve drawn through it does not.
-- **A second reason not to trust the curve**, recorded in the premise itself: the per-assembly
-  TIMEOUT rate runs 2.32%–83.05% and correlates **−0.5569** with `hsSPredicted`, so the tail
-  suppresses shot rate hardest at the low-hsS end — the direction that inflates a positive
-  correlation. Unlike A1/A2/B, E5a's tail is aligned with the axis of its own finding.
+- **Validity: sound.** `IMPACTS_EXHAUSTED`, `ESCAPED` and `NAN` are all **zero** over
+  non-stalled trials after the LAB-23 metric fix.
+- **First attempt (LAB-25, `e5a-lab25`): verdict INDETERMINATE.** Nine of fifteen assemblies
+  shared `hsSPredicted` = 0.0000 exactly, and the r of 0.845 rested on two rows. That summary is
+  superseded by `e5a-lab27` below and should not be cited.
+- **Resolved (LAB-27, `e5a-lab27`): verdict GEOMETRY, on a sound axis.** The degeneracy was two
+  code artifacts, not a property of the geometry — `predictHsS` clamps its projection to [0,1]
+  to match `classifySettle`'s measured range, collapsing 62.4% of the 1,080 feasible assemblies
+  onto exactly 0, and the sampler then quantile-binned on that clamped value. Unclamped, the
+  same quantity spans [-0.3811, +0.2546] with 450 distinct values. LAB-27 exposes the unclamped
+  projection and samples RANGE-uniformly along it. The axis now passes gate.js's population test
+  (16 distinct values in 16 assemblies) and the curve is a clean threshold: shot rate ≤ 2.2% for
+  every assembly at hsS ≤ +0.116, then 29.3% / 39.4% / 45.6% at +0.158 / +0.192 / +0.226.
+  Pearson r = 0.687, and — the check that killed the first attempt — **leave-one-out keeps r in
+  [0.606, 0.747], entirely above the 0.5 threshold**. No single assembly carries the verdict.
+- **No premise needed.** The re-sampled corpus flags **0.684%** excluding STALLED, under the
+  plain 1% gate, so the declaration written for the LAB-25 run has been removed rather than
+  carried forward.
 
-## What E5a would need to answer its question
+## What the finding says, and what it does not
 
-A denser feasible `hsS` sweep, not a re-run of this grid. The binning in `buildE5aAssemblies()`
-draws 16 bins from the analytic prediction, and the feasible set collapses most of them onto
-zero; the question "does shot rate rise with hsS" needs assemblies actually spread along that
-axis before a correlation over it means anything.
+E5a's question was *"does shot rate rise with hsS (geometry, solver exonerated) or stay ~0
+everywhere (model is the suspect)?"* — and the answer is **geometry**. Shot rate is a threshold
+in hsS, not a gradient: flat at ≤2.2% for the thirteen assemblies at hsS ≤ +0.116, then rising
+monotonically 29.3% → 39.4% → 45.6% across the three above +0.15. The retrap E4 attributed to
+hsS is real and geometric.
+
+What it does not license: the correlation still weakens below the 0.5 threshold if the top TWO
+assemblies are dropped (r = 0.480), so the finding rests on three rising-limb points, not on a
+densely sampled curve. And the feasible range ends at +0.2546, barely past the transition — the
+W1 grid cannot reach far enough to show where shot rate plateaus. Anyone wanting the shape of
+the rise, rather than its existence, needs a geometry family that reaches higher hsS.
 
 Ruling: `ledger/handoffs/opus2/20260905T020000Z-e5a-reborn-and-premise-hardening.md`.
