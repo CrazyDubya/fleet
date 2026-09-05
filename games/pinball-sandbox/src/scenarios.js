@@ -302,7 +302,48 @@ function runRampReachabilityScenario(def, overrides, name) {
   // object built from recess.js's own config — not re-derived from a mirrored-angle formula.
   const probe = buildRampReachabilityWorld();
   const target = probe.flippers[flipperName];
-  const flipperStates = [target.restAngle, target.activeAngle, 'flip-at-arrival'];
+  // Labeled so a single trial (below) can be selected by the SAME label the null test groups
+  // by, without re-deriving which angle a label means in two places.
+  const flipperStateByLabel = { rest: target.restAngle, active: target.activeAngle, 'flip-at-arrival': 'flip-at-arrival' };
+  const flipperStates = [flipperStateByLabel.rest, flipperStateByLabel.active, flipperStateByLabel['flip-at-arrival']];
+
+  // Single-trial mode: runs exactly ONE of the 81 trials below, identified by its flipper-state
+  // label and its (pos, angle, speed) combo index (0..80/3-1, decoded against the SAME
+  // posOffsets/angleOffsetsDeg/speedOffsets arrays and the SAME pos/dir/speed/side the full
+  // sweep uses below — never a re-derivation, so this can never silently diverge from the
+  // trial the aggregate sweep already ran). Exists so runScenarioNullTest (which drives a grid
+  // of independent runScenario() calls) can address individual trials from this scenario's own
+  // 81-sample sweep, grouped by flipper state, without inventing a new sweep or new geometry.
+  if (overrides.singleTrial) {
+    const { flipperStateLabel, comboIndex } = overrides.singleTrial;
+    const angleRad = flipperStateByLabel[flipperStateLabel];
+    if (angleRad === undefined) {
+      throw new Error(`runScenario: "${name}" singleTrial.flipperStateLabel must be one of rest/active/flip-at-arrival, got ${JSON.stringify(flipperStateLabel)}`);
+    }
+    const nAngle = angleOffsetsDeg.length;
+    const nSpeed = speedOffsets.length;
+    const total81 = posOffsets.length * nAngle * nSpeed;
+    if (!Number.isInteger(comboIndex) || comboIndex < 0 || comboIndex >= total81) {
+      throw new Error(`runScenario: "${name}" singleTrial.comboIndex must be an integer in [0, ${total81}), got ${JSON.stringify(comboIndex)}`);
+    }
+    const dpIdx = Math.floor(comboIndex / (nAngle * nSpeed));
+    const rem = comboIndex % (nAngle * nSpeed);
+    const daIdx = Math.floor(rem / nSpeed);
+    const dsIdx = rem % nSpeed;
+    const dp = posOffsets[dpIdx];
+    const da = angleOffsetsDeg[daIdx];
+    const ds = speedOffsets[dsIdx];
+    const p = { x: pos.x + side.x * dp, y: pos.y + side.y * dp };
+    const d = rotate(dir, da * DEG);
+    const v = scale(d, speed + ds);
+    const r = rampReachabilityTrial({ pos: p, vel: v, flipperName, angleRad, durationS });
+    const midBatHit = r.hit && r.alongBat >= 0 && r.alongBat <= 1;
+    return {
+      name, flipperName, rampBuilder, durationS,
+      singleTrial: { flipperStateLabel, comboIndex, posOffset: dp, angleOffsetDeg: da, speedOffset: ds },
+      hit: r.hit, alongBat: r.alongBat, midBat: midBatHit,
+    };
+  }
 
   let total = 0, contact = 0, midBat = 0;
   for (const dp of posOffsets) {
