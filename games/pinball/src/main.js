@@ -998,6 +998,12 @@ function applyDisplayEvents(display) {
       callouts.show('EXTRA BALL!', { durationMs: 2200 });
     } else if (d.kind === 'special') {
       callouts.show('SPECIAL!', { durationMs: 2200 });
+    } else if (d.kind === 'score' && d.tag === 'multiball_jackpot') {
+      // CALLOUT-2: the largest scoring event on the table (500,000-16,000,000, per
+      // multiball.js's JACKPOT_MAX_VALUE) had no announcement at all. Says the value —
+      // a flat "JACKPOT!" would say the same thing for a 500,000 collection and a
+      // relocked-up-to-32x 16,000,000 one, wasting the reason this callout exists.
+      callouts.show(`JACKPOT ${d.points.toLocaleString()}`, { durationMs: 2200 });
     }
 
     // T8: MERRY-GO-ROUND lock/eject/multiball. Each of these display kinds corresponds 1:1,
@@ -1009,6 +1015,11 @@ function applyDisplayEvents(display) {
       const entry = findBallEntry(mergeGoRoundQueue.shift());
       mgrMountedSlots.push(entry);
       mountAtMergeGoRound(entry, d.locks - 1);
+      // CALLOUT-2: a ball locking toward multiball had no announcement — the second of the
+      // two largest silent scoring/state events the coverage review found (see the jackpot
+      // callout above). Says which lock (1 or 2; the 3rd never reaches here — it's reported
+      // via 'multiballStart' instead, same as it always was).
+      callouts.show(`LOCK ${d.locks}`, { durationMs: 1800 });
     } else if (d.kind === 'lockedBallServed') {
       // "locking ball N serves a new ball" — auto-plunged, not waiting in the chute.
       spawnBall(recess.LAUNCH_POSITION, { x: 0, y: PLUNGER_MAX_SPEED * 0.7 });
