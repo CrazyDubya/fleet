@@ -236,17 +236,22 @@ function processMechanismEvents(events) {
       // gates above, so a ball merely grazing the mouth below RAMP_ENTRY_MIN_SPEED can't
       // silently flip the route without ever actually taking a path.
       if (event.gateEntered) {
-        // currentDiverterRoute returns null (having already console.error'd) on a corrupt
-        // toLayer rather than throwing — a second outside review caught that the first fix
-        // (throw) aborted this whole frame loop mid-iteration on corruption, silently dropping
-        // every OTHER event this frame (drains, scoring, everything). null here just skips the
-        // route-flip for this one event; the loop, and every other event in it, is unaffected.
+        // currentDiverterRoute returns null (having already console.error'd, rate-limited —
+        // see its own doc comment) on a corrupt toLayer rather than throwing — a second outside
+        // review caught that the first fix (throw) aborted this whole frame loop mid-iteration
+        // on corruption, silently dropping every OTHER event this frame (drains, scoring,
+        // everything). null here skips the route-flip AND the score/log for this one event —
+        // a THIRD review caught that scoring it anyway meant a corrupt entry that never
+        // resolved a route still awarded points, as if it had routed cleanly. The ball itself
+        // already physically transited (tryEnterGate, physics/world.js) regardless of anything
+        // here; only the bookkeeping/scoring for a corrupt read is withheld, and the loop, and
+        // every other event in it, remain unaffected either way.
         const currentRoute = game.currentDiverterRoute(diverter);
         if (currentRoute !== null) {
           game.setDiverterRoute(diverter, currentRoute === 'A' ? 'B' : 'A');
+          fired.push(tag);
+          if (eventLog) eventLog.log(tag);
         }
-        fired.push(tag);
-        if (eventLog) eventLog.log(tag);
       }
     } else if (tag === SW_SANDBOX_ENTRY) {
       game.armScoop(scoop, elapsedS, event.ball);
@@ -751,6 +756,20 @@ let chuteBall = null;
 // never touches the trough at all — deliberately: those balls are physically elsewhere, not
 // waiting in the under-playfield channel, so pulling them through the trough queue would be
 // modelling a path they never take.
+//
+// Lifecycle, checked (2026-09-05, an outside review asked whether this persists across
+// "games"): it does not need special-case resetting on game-over, because there is currently
+// no soft-restart path in this file for it to leak state ACROSS in the first place. `rulesState`
+// (below), `ballIdSeq`, `chuteBall`, `kickbackState` and this trough are all plain module-level
+// bindings created exactly once, at module load; `rulesState.gameOver` going true only changes
+// what the HUD displays (see the HUD text check near the bottom of this file) and disables the
+// turn-change auto-launch — nothing anywhere calls `createGame`/`createTrough` a second time,
+// and no "New Game" control exists yet that would need to. The ONLY way this session ever
+// starts over is a full page reload, which re-executes this whole module and recreates every
+// one of those bindings fresh, trough included. If a future dispatch adds a soft restart (a
+// "New Game" button that doesn't reload the page), THAT dispatch needs to reset this trough
+// alongside rulesState/kickbackState/ballIdSeq as one unit — there is no restart path today for
+// this comment to wire into.
 const troughState = game.createTrough();
 
 function serveToChute() {

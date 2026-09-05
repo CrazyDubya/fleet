@@ -258,16 +258,30 @@ export function setDiverterRoute(diverter, route) {
  *
  * Now: `console.error`s (loud — visible in the console, distinguishable from a real route in
  * the return value) and returns `null` rather than throwing. The caller (main.js) checks for
- * `null` and skips only the route-flip for that one event; every other event in the same frame
- * is unaffected. See test/diverter.test.mjs for the frame-survival proof this exists to satisfy. */
+ * `null` and skips only the route-flip AND the scoring for that one event (a third review
+ * caught that scoring a corrupt entry anyway awarded points for a route that never resolved);
+ * every other event in the same frame is unaffected. See test/diverter.test.mjs for the
+ * frame-survival proof this exists to satisfy.
+ *
+ * Logging is bounded to once per distinct corrupt value, not once per call (found in the same
+ * review round): a single corruption left in place across many contacts — plausible during
+ * multiball, where several balls can cross the same gate in quick succession — would otherwise
+ * write an identical line to the log on every single one. `diverter._lastLoggedCorruption`
+ * tracks the last value actually logged; it's cleared the moment `toLayer` reads back as a real
+ * route, so a LATER, genuinely new corruption (a different bad value, or the same one
+ * recurring after a real fix) still gets its own fresh log line — this bounds repeats of the
+ * SAME unresolved corruption, not corruption reporting in general. */
 export function currentDiverterRoute(diverter) {
   const toLayer = diverter.gate.gate.toLayer;
-  if (toLayer === diverter.routeARampId) return 'A';
-  if (toLayer === diverter.routeBRampId) return 'B';
-  console.error(
-    `currentDiverterRoute: diverter.gate.gate.toLayer is ${JSON.stringify(toLayer)}, which is ` +
-    `neither routeARampId (${JSON.stringify(diverter.routeARampId)}) nor routeBRampId ` +
-    `(${JSON.stringify(diverter.routeBRampId)}) — the diverter's routing state is corrupt.`
-  );
+  if (toLayer === diverter.routeARampId) { diverter._lastLoggedCorruption = undefined; return 'A'; }
+  if (toLayer === diverter.routeBRampId) { diverter._lastLoggedCorruption = undefined; return 'B'; }
+  if (diverter._lastLoggedCorruption !== toLayer) {
+    diverter._lastLoggedCorruption = toLayer;
+    console.error(
+      `currentDiverterRoute: diverter.gate.gate.toLayer is ${JSON.stringify(toLayer)}, which is ` +
+      `neither routeARampId (${JSON.stringify(diverter.routeARampId)}) nor routeBRampId ` +
+      `(${JSON.stringify(diverter.routeBRampId)}) — the diverter's routing state is corrupt.`
+    );
+  }
   return null;
 }

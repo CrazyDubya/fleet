@@ -149,7 +149,8 @@ test('production wiring: a real diverter entry alternates the route for the NEXT
     let events = [];
     for (let i = 0; i < 30 && ball.layer === 'playfield'; i++) events = events.concat(advance(world, STEP_DT));
     // main.js's own branch: only a genuine transition (event.gateEntered) alternates the
-    // route, and only if currentDiverterRoute didn't report corruption (null).
+    // route AND scores the tag, and only if currentDiverterRoute didn't report corruption
+    // (null) — a corrupt entry gets neither.
     for (const ev of events) {
       const tag = ev.tag ?? ev.primitive?.shape?.tag;
       if (tag === diverter.gate.tag && ev.gateEntered) {
@@ -199,8 +200,13 @@ test('a corrupt toLayer during a diverter entry does not drop later events in th
       if (tag === diverter.gate.tag) {
         if (event.gateEntered) {
           const currentRoute = game.currentDiverterRoute(diverter);
-          if (currentRoute !== null) game.setDiverterRoute(diverter, currentRoute === 'A' ? 'B' : 'A');
-          fired.push(tag);
+          // A corrupt read gets neither a route-flip nor a score — see main.js's own comment
+          // on this branch (a third review found scoring it anyway awarded points for a route
+          // that never resolved).
+          if (currentRoute !== null) {
+            game.setDiverterRoute(diverter, currentRoute === 'A' ? 'B' : 'A');
+            fired.push(tag);
+          }
         }
       } else {
         fired.push(tag);
@@ -210,7 +216,98 @@ test('a corrupt toLayer during a diverter entry does not drop later events in th
     console.error = originalError;
   }
 
-  assert.deepEqual(fired, [diverter.gate.tag, 'some_other_switch_tag', 'yet_another_tag_further_down_the_frame'],
-    'every event after the corrupt diverter entry must still be processed — a corrupt route must not abort the frame loop');
+  assert.deepEqual(fired, ['some_other_switch_tag', 'yet_another_tag_further_down_the_frame'],
+    'every event after the corrupt diverter entry must still be processed — a corrupt route must not abort the frame loop (the corrupt entry itself is correctly excluded — see the dedicated no-score test)');
   assert.equal(diverter.gate.gate.toLayer, 'some_unrelated_ramp_id', 'the corrupt value itself is left alone — this only skips the route-flip decision, it does not try to "fix" the corruption');
+});
+
+// Found by a THIRD outside review (2026-09-05), one round after the frame-survival fix: the
+// frame-survival instruction said "the loop, and every other event in it, is unaffected" —
+// which the previous fix satisfied by still doing `fired.push(tag)` for the corrupt entry
+// itself, unconditionally. That means SW_DIVERTER_ENTER still reached rules/game.js and scored
+// via the SWITCH_POINTS fallback (if one is ever added for it) or any future scoring hook —
+// a player would be awarded points for a diverter entry that never actually resolved a route.
+// A corrupt entry must not score, independent of whether it drops later events (it doesn't).
+test('a corrupt toLayer during a diverter entry does not get scored — only a real, resolved entry fires the tag', () => {
+  const { diverter } = makeWorldWithDiverter();
+  diverter.gate.gate.toLayer = 'some_unrelated_ramp_id';
+
+  const originalError = console.error;
+  console.error = () => {};
+  let fired;
+  try {
+    const events = [{ tag: diverter.gate.tag, gateEntered: true }];
+    fired = [];
+    for (const event of events) {
+      if (event.gateEntered) {
+        const currentRoute = game.currentDiverterRoute(diverter);
+        if (currentRoute !== null) {
+          game.setDiverterRoute(diverter, currentRoute === 'A' ? 'B' : 'A');
+          fired.push(event.tag);
+        }
+      }
+    }
+  } finally {
+    console.error = originalError;
+  }
+
+  assert.deepEqual(fired, [], 'a corrupt entry must not be pushed to fired — it must never reach rules/game.js for scoring');
+});
+
+test('once the route is healthy again, an ordinary entry DOES score — the fix withholds scoring only for corruption, not diverter entries in general', () => {
+  const { diverter } = makeWorldWithDiverter(); // starts healthy, route A
+  const events = [{ tag: diverter.gate.tag, gateEntered: true }];
+  const fired = [];
+  for (const event of events) {
+    if (event.gateEntered) {
+      const currentRoute = game.currentDiverterRoute(diverter);
+      if (currentRoute !== null) {
+        game.setDiverterRoute(diverter, currentRoute === 'A' ? 'B' : 'A');
+        fired.push(event.tag);
+      }
+    }
+  }
+  assert.deepEqual(fired, [diverter.gate.tag], 'a healthy entry must still score — this is not a blanket "never score the diverter" regression');
+});
+
+// Found in the same review round: currentDiverterRoute logged an identical console.error on
+// EVERY call while the corruption persists — plausible to flood the log during multiball, where
+// several balls can cross the same gate in quick succession while one bad toLayer sits unfixed.
+test('currentDiverterRoute logs a corrupt value only once per distinct corruption, not once per call', () => {
+  const { diverter } = makeWorldWithDiverter();
+  diverter.gate.gate.toLayer = 'some_unrelated_ramp_id';
+
+  const originalError = console.error;
+  const errors = [];
+  console.error = (...args) => errors.push(args.join(' '));
+  try {
+    for (let i = 0; i < 5; i++) assert.equal(game.currentDiverterRoute(diverter), null);
+  } finally {
+    console.error = originalError;
+  }
+  assert.equal(errors.length, 1, 'five calls with the SAME unresolved corruption must log exactly once, not five times');
+});
+
+test('currentDiverterRoute logs again once a NEW, different corruption occurs — the bound is per-episode, not permanent silence', () => {
+  const { diverter } = makeWorldWithDiverter();
+
+  const originalError = console.error;
+  const errors = [];
+  console.error = (...args) => errors.push(args.join(' '));
+  try {
+    diverter.gate.gate.toLayer = 'first_bad_value';
+    game.currentDiverterRoute(diverter);
+    game.currentDiverterRoute(diverter);
+    assert.equal(errors.length, 1, 'first corruption logs once');
+
+    diverter.gate.gate.toLayer = diverter.routeARampId; // resolves — a healthy read in between
+    game.currentDiverterRoute(diverter);
+
+    diverter.gate.gate.toLayer = 'second_bad_value'; // a genuinely new corruption
+    game.currentDiverterRoute(diverter);
+    game.currentDiverterRoute(diverter);
+    assert.equal(errors.length, 2, 'a new corruption after a healthy read in between logs again — the bound is per-episode, not a permanent mute');
+  } finally {
+    console.error = originalError;
+  }
 });
