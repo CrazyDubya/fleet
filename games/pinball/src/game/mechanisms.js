@@ -97,26 +97,44 @@ export function tickSpinner(spinner, dt) {
 const SCOOP_HOLD_S = 1.0;
 
 export function createScoop() {
-  return { ejectAt: null, ball: null };
+  return { ejectAt: null, balls: [] };
 }
 
-// `ball` (T8): which physical ball entered, so the eject can reposition the right one now
-// that more than one ball can be in play at once. If a second ball enters the sandbox
-// before the first is ejected (only possible during multiball), it overwrites `ball` — the
-// scoop holds one ball's worth of state, and a simultaneous second entry is a rare edge case
-// the design doc doesn't specifically cover; not worth a queue for T8.
+// `balls` (T8, fixed 2026-09-05 — found by an outside review, reproduced below in
+// scoop-orphan.test.mjs before this fix): a second ball entering the sandbox before the first
+// is ejected (only possible during multiball) used to overwrite a single `scoop.ball` field.
+// The overwritten ball's reference was gone — nothing in main.js's eject logic ever touched it
+// again — so its `phys.captured` flag stayed `true` forever: it never drained (main.js's drain
+// loop skips captured balls), never counted as live (`liveBallsRemaining` counts only
+// non-captured balls), and could never be reached again. A ball silently vanished mid-game and
+// the live count was wrong for the rest of it — not a rare, harmless edge case, an orphaned
+// ball with real downstream cost the original comment didn't mention.
+//
+// Fix: an array, every ball that entered while the scoop was holding. EJECTED TOGETHER when the
+// hold timer elapses, not queued and served one at a time — a design choice, decided here: a
+// FIFO/serve-in-order scoop would make an already-captured ball wait LONGER just because a
+// second ball also got captured, which is a worse and more confusing player experience than
+// "the sandbox released everything it was holding when it was ready" (a real sand pit plausibly
+// does hold more than one ball before it lets go). This is the scoop keeping its own balls
+// straight, not the trough (game/mechanisms.js's createTrough) — no arrival-order queueing or
+// serve-one-at-a-time semantics are introduced here; every ball armScoop has captured leaves
+// together, in one eject, the next time the hold elapses.
 export function armScoop(scoop, elapsedS, ball) {
   scoop.ejectAt = elapsedS + SCOOP_HOLD_S;
-  scoop.ball = ball;
+  scoop.balls.push(ball);
 }
 
-/** Returns true exactly once, on the tick the hold period elapses. */
+/** Returns the array of balls to eject (and clears it) exactly once, on the tick the hold
+ * period elapses; `null` otherwise. Every ball armScoop captured since the last eject leaves
+ * together — see armScoop's own doc comment for why together, not queued. */
 export function tickScoop(scoop, elapsedS) {
   if (scoop.ejectAt !== null && elapsedS >= scoop.ejectAt) {
     scoop.ejectAt = null;
-    return true;
+    const balls = scoop.balls;
+    scoop.balls = [];
+    return balls;
   }
-  return false;
+  return null;
 }
 
 // TROUGH AND SERVE (2026-09-05). fs2's own structural mapping (haiku-fs2/

@@ -884,28 +884,39 @@ function frame(now) {
   game.tickSpinner(tetherballSpinner, dt);
   game.tickSpinner(pinwheelSpinner, dt);
 
-  if (game.tickScoop(scoop, elapsedS)) {
-    // Nudge the ball just clear of the capture radius along the eject direction before
+  const ejectedBalls = game.tickScoop(scoop, elapsedS);
+  if (ejectedBalls) {
+    // Nudge each ball just clear of the capture radius along the eject direction before
     // releasing it — otherwise, at 240 Hz, a single physics step doesn't carry it outside
     // the zone yet and checkCaptures (physics/world.js) immediately re-captures it.
     const evel = sandbox.eject.vel;
     const evLen = Math.hypot(evel.x, evel.y) || 1;
     const clear = sandbox.captureZone.radius * 1.3;
-    if (scoop.ball) {
-      scoop.ball.pos = {
+    // Every ball armScoop captured since the last eject leaves together (game/mechanisms.js's
+    // own doc comment on armScoop records why together, not queued) — 2026-09-05, fixed after
+    // an outside review found a second ball entering the sandbox during multiball orphaned the
+    // first: armScoop used to overwrite a single `scoop.ball` field, and the overwritten ball's
+    // `captured` flag was never cleared by anything, ever again.
+    for (const ball of ejectedBalls) {
+      ball.pos = {
         x: sandbox.captureZone.centre.x + (evel.x / evLen) * clear,
         y: sandbox.captureZone.centre.y + (evel.y / evLen) * clear,
       };
-      scoop.ball.vel = { x: evel.x, y: evel.y };
-      scoop.ball.captured = false;
-      // Presentation tween, eject: `from` is the capture zone's own real centre (where the
-      // ball has sat, motionless, for the whole hold — the same `sandbox.captureZone.centre`
-      // physics/world.js's checkCaptures snapped it to on capture); `to` is `scoop.ball.pos`
-      // above, the exact point physics just computed for the eject — read back, not
-      // recomputed, so this can never drift from what physics used.
-      const ejectedEntry = findBallEntry(scoop.ball);
-      if (ejectedEntry) ejectedEntry.presentationTween = startTween(sandbox.captureZone.centre, scoop.ball.pos, elapsedS);
+      ball.vel = { x: evel.x, y: evel.y };
+      ball.captured = false;
+      // Presentation tween, eject: `from` is the capture zone's own real centre (where every
+      // captured ball has sat, motionless, for its own hold — the same
+      // `sandbox.captureZone.centre` physics/world.js's checkCaptures snapped it to on capture);
+      // `to` is `ball.pos` above, the exact point physics just computed for the eject — read
+      // back, not recomputed, so this can never drift from what physics used.
+      const ejectedEntry = findBallEntry(ball);
+      if (ejectedEntry) ejectedEntry.presentationTween = startTween(sandbox.captureZone.centre, ball.pos, elapsedS);
     }
+    // Scored once per EJECT EVENT, not once per ball in it — unchanged from before this fix
+    // (which only ever had one ball to eject, so the distinction never came up). Scoring
+    // multiple balls in one eject differently is a real design question (each entry already
+    // scores its own SW_SANDBOX_ENTRY on capture, per-ball) but is not the orphan bug this
+    // dispatch fixes; left as-is rather than invented here.
     scoreTags.push(sandbox.eject.tag);
     if (eventLog) eventLog.log(sandbox.eject.tag);
   }

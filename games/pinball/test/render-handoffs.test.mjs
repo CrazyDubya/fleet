@@ -66,6 +66,12 @@ test('scoop capture presentation tween: to reads the real post-capture ball posi
 });
 
 test('scoop eject presentation tween: from reads the real capture-zone centre, to reads the exact position physics just computed for the eject', () => {
+  // 2026-09-05: the scoop now holds `scoop.balls` (an array — an outside review found a second
+  // ball entering the sandbox during multiball orphaned the first, which had overwritten a
+  // single `scoop.ball` field) and ejects every held ball together in a `for (const ball of
+  // ejectedBalls)` loop — see game/mechanisms.js's armScoop doc comment. `ball` here is that
+  // loop's own per-iteration variable, not a duplicated literal; the assertions below are
+  // updated to the new source shape, same underlying claim.
   const m = MAIN_JS_SRC.match(/ejectedEntry\.presentationTween = startTween\(([^,]+),\s*([^,]+),\s*([^)]+)\);/);
   assert.ok(m, 'expected the scoop-eject startTween(...) call in main.js');
   const [, fromExpr, toExpr, nowExpr] = m;
@@ -74,16 +80,16 @@ test('scoop eject presentation tween: from reads the real capture-zone centre, t
     `eject tween "from" must read sandbox.captureZone.centre — the same object physics/world.js's checkCaptures used to freeze the ball there — got "${fromExpr.trim()}"`
   );
   assert.equal(
-    toExpr.trim(), 'scoop.ball.pos',
-    `eject tween "to" must read scoop.ball.pos AFTER it has been set to the eject clear point — the same assignment physics uses, read back rather than recomputed — got "${toExpr.trim()}"`
+    toExpr.trim(), 'ball.pos',
+    `eject tween "to" must read ball.pos AFTER it has been set to the eject clear point — the same assignment physics uses, read back rather than recomputed — got "${toExpr.trim()}"`
   );
   assert.equal(nowExpr.trim(), 'elapsedS');
 
-  // The tween call must appear strictly after scoop.ball.pos is assigned the eject point (not
+  // The tween call must appear strictly after ball.pos is assigned the eject point (not
   // before, which would read the pre-eject position as "to" and defeat the whole point).
-  const assignIdx = MAIN_JS_SRC.indexOf('scoop.ball.vel = { x: evel.x, y: evel.y };');
+  const assignIdx = MAIN_JS_SRC.indexOf('ball.vel = { x: evel.x, y: evel.y };');
   const tweenIdx = MAIN_JS_SRC.indexOf('ejectedEntry.presentationTween');
-  assert.ok(assignIdx >= 0 && tweenIdx > assignIdx, 'the eject tween must be started AFTER scoop.ball.pos is set to the eject point, so "to" is the real post-eject position');
+  assert.ok(assignIdx >= 0 && tweenIdx > assignIdx, 'the eject tween must be started AFTER ball.pos is set to the eject point, so "to" is the real post-eject position');
 });
 
 test('merry-go-round release presentation tween: from reads the mesh\'s real world position via THREE\'s own transform, to reads the real release point', () => {
