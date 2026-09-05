@@ -528,3 +528,152 @@ export function formatGrid(report) {
   }
   return lines.join('\n');
 }
+
+// --- LABEL-PERMUTATION NULL TESTS ----------------------------------------------------------
+// A capability, not an audit: this is not being run against any scenario's own validity here.
+// It exists because of what a permutation test found elsewhere today (opus2, LAB SENS-1,
+// ledger/handoffs/opus2/20260905T180216Z-sensitivity-axis-measured.md): a published sensitivity
+// estimator's 24 values were indistinguishable from a null built by pooling each geometry's
+// trials, dealing them back into the same 21 delay-bins at the same cell sizes AT RANDOM, and
+// recomputing the estimator 400 times — 0 of 24 geometries cleared the 95th percentile of their
+// own null. That technique answers a question sample size alone cannot: is this statistic
+// responding to the thing it claims to measure, or would it look the same on scrambled input.
+//
+// runScenarioNullTest ports the TECHNIQUE, not a conclusion:
+//   1. Run the real grid once (runScenarioGrid) — same trials, same cell sizes as any other
+//      grid call, nothing invented.
+//   2. Pool every real cell's own extracted value into one flat list, then deal it back into
+//      the SAME nx x ny shape, at random. This is the entire operation: it destroys which
+//      (xValue, yValue) label a result belongs to, without touching a single value the real
+//      physics produced. Regenerating trials with new random parameters would test a
+//      different question (whether the effect replicates), not this one (whether the labels
+//      matter at all) — so this never re-runs a scenario, it only re-deals already-measured
+//      numbers.
+//   3. Recompute the caller's own `statistic(matrix)` on both the real matrix and on
+//      `iterations` shuffled-label matrices, building a null distribution.
+//   4. Report where the observed statistic sits WITHIN that null as a percentile — never a
+//      pass/fail verdict, since the percentile is the number a person actually reasons about
+//      and a verdict line would throw it away.
+// The shuffle is seeded (mulberry32, a small deterministic PRNG — no crypto or platform RNG
+// needed for a reproducibility guarantee, not a security one) so the same scenario + seed
+// reports the same null twice.
+
+/** Deterministic PRNG (mulberry32) — same seed, same sequence, forever, on any JS engine. */
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return function rng() {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** Fisher-Yates, in place, driven by `rng` (a `() => [0,1)` generator) — the only shuffle used
+ * anywhere in this module, so every null draw goes through one, tested, code path. */
+function shuffleInPlace(arr, rng) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    const tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+  }
+}
+
+/**
+ * Runs `name`'s real xValues x yValues grid once, then reports where `statistic(matrix)`
+ * (applied to the real, labeled matrix) sits inside the null distribution built by shuffling
+ * WHICH CELL each real value landed in — never regenerating a single trial.
+ *
+ * `extract(report) => number` is required (unlike runScenarioGrid, which tolerates booleans
+ * and full reports) — a null test needs a numeric matrix to pool and reshuffle.
+ * `statistic(matrix) => number` receives an nx-by-ny array of arrays (real on the first call,
+ * a label-shuffled deal of the SAME values on every null draw) and must reduce it to one
+ * number — e.g. the spread across row means, an OLS slope, a group-mean difference; the
+ * caller's choice, exactly as ramps.js's own estimator choice was the caller's choice in the
+ * LAB finding this ports.
+ *
+ * A cell that failed to run, or an extract()/statistic() that didn't return a finite number,
+ * throws rather than silently dropping a cell or coercing a bad value into the pool — the same
+ * "a hole must show as a hole" principle as runScenarioGrid, applied to data a null test is
+ * about to treat as real.
+ *
+ * Returns `{ name, xPath, xValues, yPath, yValues, seed, iterations, observed, percentile,
+ * nullMin, nullMax, nullMean }`. `percentile` is where `observed` sits within its own null
+ * (0-100, fraction of null draws at or below it) — the number to reason about; this function
+ * makes no pass/fail claim of its own.
+ */
+export function runScenarioNullTest(name, { xPath, xValues, yPath, yValues, overrides = {}, extract, statistic, iterations = 1000, seed = 1 } = {}) {
+  if (typeof extract !== 'function') throw new Error('runScenarioNullTest: extract(report) => number is required');
+  if (typeof statistic !== 'function') throw new Error('runScenarioNullTest: statistic(matrix) => number is required');
+  if (!Number.isInteger(iterations) || iterations <= 0) throw new Error('runScenarioNullTest: iterations must be a positive integer');
+
+  const real = runScenarioGrid(name, { xPath, xValues, yPath, yValues, overrides, extract });
+  const nx = xValues.length;
+  const ny = yValues.length;
+  const matrix = [];
+  const pooled = [];
+  for (let i = 0; i < nx; i++) {
+    const row = [];
+    for (let j = 0; j < ny; j++) {
+      const cell = real.cells[i][j];
+      if (!cell.ok) {
+        throw new Error(`runScenarioNullTest: cell [${i}][${j}] (${xPath}=${xValues[i]}, ${yPath}=${yValues[j]}) failed to run (${cell.error}) — a null test needs every real cell to have run, no holes.`);
+      }
+      if (typeof cell.value !== 'number' || !Number.isFinite(cell.value)) {
+        throw new Error(`runScenarioNullTest: extract() must return a finite number per cell — got ${JSON.stringify(cell.value)} at [${i}][${j}]`);
+      }
+      row.push(cell.value);
+      pooled.push(cell.value);
+    }
+    matrix.push(row);
+  }
+
+  const observed = statistic(matrix);
+  if (typeof observed !== 'number' || !Number.isFinite(observed)) {
+    throw new Error(`runScenarioNullTest: statistic() must return a finite number — got ${JSON.stringify(observed)} on the real matrix`);
+  }
+
+  const rng = mulberry32(seed);
+  const nullDistribution = new Array(iterations);
+  for (let k = 0; k < iterations; k++) {
+    // Pool -> shuffle -> deal back at the SAME nx x ny cell sizes. This line is the entire
+    // technique: every value in `shuffled` is a real, already-measured number; only which
+    // (i, j) cell it lands in this draw is randomised.
+    const shuffled = pooled.slice();
+    shuffleInPlace(shuffled, rng);
+    const shuffledMatrix = [];
+    let idx = 0;
+    for (let i = 0; i < nx; i++) {
+      const row = [];
+      for (let j = 0; j < ny; j++) row.push(shuffled[idx++]);
+      shuffledMatrix.push(row);
+    }
+    const v = statistic(shuffledMatrix);
+    if (typeof v !== 'number' || !Number.isFinite(v)) {
+      throw new Error(`runScenarioNullTest: statistic() must return a finite number on every null draw — got ${JSON.stringify(v)} on draw ${k}`);
+    }
+    nullDistribution[k] = v;
+  }
+
+  let countAtOrBelow = 0;
+  for (const v of nullDistribution) if (v <= observed) countAtOrBelow += 1;
+  const percentile = (countAtOrBelow / iterations) * 100;
+
+  return {
+    name, xPath, xValues, yPath, yValues, seed, iterations,
+    observed,
+    percentile,
+    nullMin: Math.min(...nullDistribution),
+    nullMax: Math.max(...nullDistribution),
+    nullMean: nullDistribution.reduce((s, v) => s + v, 0) / iterations,
+  };
+}
+
+/** Formats a runScenarioNullTest report as short, human-readable lines — the percentile front
+ * and centre, never a pass/fail line (see the module doc comment on why). */
+export function formatNullTest(report) {
+  return [
+    `null test: ${report.name} (${report.xPath} x ${report.yPath}, seed=${report.seed}, ${report.iterations} shuffles)`,
+    `  observed statistic: ${report.observed}`,
+    `  sits at percentile ${report.percentile.toFixed(1)} of its own null (range ${report.nullMin.toFixed(4)}..${report.nullMax.toFixed(4)}, mean ${report.nullMean.toFixed(4)})`,
+  ].join('\n');
+}

@@ -1,0 +1,143 @@
+// Tests for runScenarioNullTest — the label-permutation capability (see scenarios.js's own
+// doc comment for why: opus2's LAB SENS-1 finding, ledger/handoffs/opus2/
+// 20260905T180216Z-sensitivity-axis-measured.md). This file tests the MACHINERY ONLY: that the
+// shuffle destroys labels and not data, that it's reproducible under a seed, and that the
+// report shape holds. It draws no conclusion about arc-containment or any other real scenario's
+// own validity — per SBX-NULL-1, this capability is not applied to anything yet.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { runScenarioNullTest, formatNullTest } from '../src/scenarios.js';
+
+// A statistic with real, obvious structure: the spread across row (x) means. Using
+// arc-containment's maxY (a real physics output, not synthetic) purely as a source of numbers
+// to shuffle — this is a test of the null-test engine, not a claim about the channel.
+const SPREAD_ACROSS_ROW_MEANS = (matrix) => {
+  const rowMeans = matrix.map((row) => row.reduce((s, v) => s + v, 0) / row.length);
+  return Math.max(...rowMeans) - Math.min(...rowMeans);
+};
+
+test('reports the real (labeled) statistic as `observed`, computed from actual scenario runs', () => {
+  const r = runScenarioNullTest('arc-containment', {
+    xPath: 'ball.speed', xValues: [1, 3, 6],
+    yPath: 'ball.offset', yValues: [-0.005, 0, 0.005],
+    extract: (rep) => rep.maxY,
+    statistic: SPREAD_ACROSS_ROW_MEANS,
+    iterations: 200,
+    seed: 7,
+  });
+  assert.equal(typeof r.observed, 'number');
+  assert.ok(Number.isFinite(r.observed));
+});
+
+test('reproducible: the same scenario + seed gives the same null distribution twice', () => {
+  const opts = {
+    xPath: 'ball.speed', xValues: [1, 2, 3, 4],
+    yPath: 'ball.offset', yValues: [-0.005, 0, 0.005],
+    extract: (rep) => rep.maxY,
+    statistic: SPREAD_ACROSS_ROW_MEANS,
+    iterations: 300,
+    seed: 42,
+  };
+  const r1 = runScenarioNullTest('arc-containment', opts);
+  const r2 = runScenarioNullTest('arc-containment', opts);
+  assert.equal(r1.observed, r2.observed, 'the real statistic must be identical (same real data both times)');
+  assert.equal(r1.nullMin, r2.nullMin);
+  assert.equal(r1.nullMax, r2.nullMax);
+  assert.equal(r1.nullMean, r2.nullMean);
+  assert.equal(r1.percentile, r2.percentile, 'same seed must produce the same null draws, and so the same percentile');
+});
+
+test('a different seed can produce a different null draw sequence (not hardcoded to one shuffle)', () => {
+  const base = {
+    xPath: 'ball.speed', xValues: [1, 2, 3, 4],
+    yPath: 'ball.offset', yValues: [-0.005, 0, 0.005],
+    extract: (rep) => rep.maxY,
+    statistic: SPREAD_ACROSS_ROW_MEANS,
+    iterations: 300,
+  };
+  const r1 = runScenarioNullTest('arc-containment', { ...base, seed: 1 });
+  const r2 = runScenarioNullTest('arc-containment', { ...base, seed: 2 });
+  assert.equal(r1.observed, r2.observed, 'the real data does not depend on the seed');
+  assert.notEqual(r1.nullMean, r2.nullMean, 'two different seeds should not coincidentally draw an identical null mean');
+});
+
+test('the shuffle destroys labels only: the pooled multiset of values is unchanged by any draw', () => {
+  // Verified indirectly but exactly: a statistic that is invariant to WHICH cell each value
+  // lands in (the sum of every value in the matrix) must be identical for the real matrix and
+  // every single null draw — if it were not, the shuffle would be altering data, not just
+  // labels, which is exactly the bug this test exists to catch.
+  const sumAll = (matrix) => matrix.reduce((s, row) => s + row.reduce((rs, v) => rs + v, 0), 0);
+  const r = runScenarioNullTest('arc-containment', {
+    xPath: 'ball.speed', xValues: [1, 2, 3, 4, 5],
+    yPath: 'ball.offset', yValues: [-0.005, 0, 0.005],
+    extract: (rep) => rep.maxY,
+    statistic: sumAll,
+    iterations: 500,
+    seed: 99,
+  });
+  // Floating-point addition is not perfectly associative, so a different summation ORDER (the
+  // whole point of the shuffle) can differ from the real sum in the last bit or two — checked
+  // with a tolerance tight enough to catch a real data-corrupting bug, loose enough to absorb
+  // reordering error, never with strict equality.
+  const EPS = 1e-9;
+  assert.ok(Math.abs(r.nullMin - r.observed) < EPS, 'sum-of-all-values is shuffle-invariant up to float reordering error');
+  assert.ok(Math.abs(r.nullMax - r.observed) < EPS);
+  assert.ok(Math.abs(r.nullMean - r.observed) < EPS);
+  assert.ok(r.percentile >= 99, `observed must sit at (or within float-reordering error of) the top of a null distribution that is entirely equal to it — got percentile ${r.percentile}`);
+});
+
+test('a cell that fails to run is refused, not silently pooled as a hole', () => {
+  assert.throws(
+    () => runScenarioNullTest('arc-containment', {
+      xPath: 'durationS', xValues: [0, 1.0], // durationS=0 -> 0 physics steps -> a failed cell
+      yPath: 'ball.speed', yValues: [3, 6],
+      extract: (rep) => rep.maxY,
+      statistic: SPREAD_ACROSS_ROW_MEANS,
+      iterations: 10,
+      seed: 1,
+    }),
+    /failed to run/
+  );
+});
+
+test('a non-numeric extract() is refused before any shuffling happens', () => {
+  assert.throws(
+    () => runScenarioNullTest('arc-containment', {
+      xPath: 'ball.speed', xValues: [1, 3],
+      yPath: 'ball.offset', yValues: [0],
+      extract: (rep) => rep.contained, // boolean, not a number
+      statistic: SPREAD_ACROSS_ROW_MEANS,
+      iterations: 10,
+      seed: 1,
+    }),
+    /finite number/
+  );
+});
+
+test('a non-finite statistic() is refused rather than reported as a real percentile', () => {
+  assert.throws(
+    () => runScenarioNullTest('arc-containment', {
+      xPath: 'ball.speed', xValues: [1, 3],
+      yPath: 'ball.offset', yValues: [0],
+      extract: (rep) => rep.maxY,
+      statistic: () => NaN,
+      iterations: 10,
+      seed: 1,
+    }),
+    /finite number/
+  );
+});
+
+test('formatNullTest reports the percentile and the null range, never a pass/fail verdict', () => {
+  const r = runScenarioNullTest('arc-containment', {
+    xPath: 'ball.speed', xValues: [1, 3, 6],
+    yPath: 'ball.offset', yValues: [-0.005, 0, 0.005],
+    extract: (rep) => rep.maxY,
+    statistic: SPREAD_ACROSS_ROW_MEANS,
+    iterations: 200,
+    seed: 3,
+  });
+  const text = formatNullTest(r);
+  assert.ok(text.includes('percentile'));
+  assert.ok(!/pass|fail|PASS|FAIL/.test(text), 'must report where the observed value sits, not a verdict');
+});
