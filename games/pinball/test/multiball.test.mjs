@@ -114,6 +114,34 @@ test('add-a-ball at the SANDBOX fires once per multiball', () => {
   assert.ok(!display.some((d) => d.kind === 'addABall'), 'only once per multiball');
 });
 
+// fs2's coverage audit: SW_BALL_ADDED's own effect (multiball.onBallAdded incrementing
+// ballsInPlay) was previously only exercised as SETUP inside the drain test below — three
+// calls to reach ballsInPlay=3, with the drain behaviour that follows being what's actually
+// asserted, not the increments themselves. This tests onBallAdded/SW_BALL_ADDED in isolation:
+// that it increments once per tag while multiball is active, and that it's a genuine no-op
+// (not a crash, not a silent miscount) outside one — a normal single-ball serve never fires
+// this tag, per its own doc comment in table/switches.js, so nothing should happen if it did.
+test('SW_BALL_ADDED increments ballsInPlay while multiball is active, and does nothing outside one', () => {
+  const state = freshGame();
+  const p = activePlayer(state);
+
+  assert.equal(p.multiball.active, false, 'sanity: no multiball yet');
+  assert.equal(p.multiball.ballsInPlay, 0, 'sanity: ballsInPlay is only meaningful while active, per its own doc comment');
+  processEvents(state, [SW_BALL_ADDED], 1);
+  assert.equal(p.multiball.ballsInPlay, 0, 'outside an active multiball, SW_BALL_ADDED must be a genuine no-op, not a silent miscount');
+
+  lockThreeBalls(state);
+  assert.equal(p.multiball.active, true);
+  const before = p.multiball.ballsInPlay;
+
+  processEvents(state, [SW_BALL_ADDED], 10);
+  assert.equal(p.multiball.ballsInPlay, before + 1, 'one SW_BALL_ADDED, one increment');
+
+  processEvents(state, [SW_BALL_ADDED], 10.4);
+  processEvents(state, [SW_BALL_ADDED], 10.8);
+  assert.equal(p.multiball.ballsInPlay, before + 3, 'three calls, three increments — each tag counts exactly once');
+});
+
 test('ball-count-aware drain: SW_BALL_LOST decrements, multiball ends back at 1 ball, SW_DRAIN still ends the last ball normally', () => {
   const state = freshGame();
   const p = activePlayer(state);

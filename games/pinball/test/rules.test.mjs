@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGame, launchBall, processEvents, activePlayer, activePlayerIndex, ballNumber } from '../src/rules/game.js';
 import { computeBonus } from '../src/rules/bonus.js';
-import { SW_DRAIN, SW_SLING_LEFT, SW_TREEHOUSE, SW_POP_DUCK, SW_SLIDE_EXIT, SW_TUNNEL_EXIT, SW_FUN_COMPLETE } from '../src/table/switches.js';
+import { SW_DRAIN, SW_SLING_LEFT, SW_TREEHOUSE, SW_POP_DUCK, SW_SLIDE_EXIT, SW_TUNNEL_EXIT, SW_FUN_COMPLETE, SW_PINWHEEL_SPIN, SW_SANDBOX_EJECT } from '../src/table/switches.js';
+import { SWITCH_POINTS } from '../src/rules/scoring.js';
 
 test('a scripted switch sequence produces an exact expected score', () => {
   const state = createGame({ numPlayers: 1, ballsPerPlayer: 3 });
@@ -19,6 +20,38 @@ test('a scripted switch sequence produces an exact expected score', () => {
   assert.equal(p.score, 1000 + 10000 + 5000 + 5250 + 100000);
   assert.equal(p.shotsThisBall, 1);
   assert.equal(p.popHitsThisBall, 2);
+});
+
+// fs2's coverage audit (haiku-fs2/20260904-missing-mechanism-analogues.md's companion pass):
+// SW_PINWHEEL_SPIN and SW_SANDBOX_EJECT are both reachable, scored switches (rules/scoring.js's
+// SWITCH_POINTS map) with no test ever exercising them directly — the scripted-sequence test
+// above only covers five of the switches that fall through to that flat lookup, and these two
+// aren't among them. Neither has any special-casing in rules/game.js's scoreSwitchTag (both
+// fall straight through to the generic `points = SWITCH_POINTS.get(tag)` branch at its end),
+// so this is a small test, but it's the difference between "this rule works" and "nobody has
+// checked this rule works" — exactly the standard this queue was framed around.
+test('SW_PINWHEEL_SPIN scores its listed flat value', () => {
+  const state = createGame({ numPlayers: 1 });
+  launchBall(state, 0);
+  const p = activePlayer(state);
+  const before = p.score;
+  const display = processEvents(state, [SW_PINWHEEL_SPIN], 1);
+  const expected = SWITCH_POINTS.get(SW_PINWHEEL_SPIN);
+  assert.ok(expected > 0, 'sanity: SW_PINWHEEL_SPIN must actually be in SWITCH_POINTS');
+  assert.equal(p.score - before, expected);
+  assert.ok(display.some((d) => d.kind === 'score' && d.tag === SW_PINWHEEL_SPIN && d.points === expected));
+});
+
+test('SW_SANDBOX_EJECT scores its listed flat value', () => {
+  const state = createGame({ numPlayers: 1 });
+  launchBall(state, 0);
+  const p = activePlayer(state);
+  const before = p.score;
+  const display = processEvents(state, [SW_SANDBOX_EJECT], 1);
+  const expected = SWITCH_POINTS.get(SW_SANDBOX_EJECT);
+  assert.ok(expected > 0, 'sanity: SW_SANDBOX_EJECT must actually be in SWITCH_POINTS');
+  assert.equal(p.score - before, expected);
+  assert.ok(display.some((d) => d.kind === 'score' && d.tag === SW_SANDBOX_EJECT && d.points === expected));
 });
 
 test('1-4 players alternate turns through balls, round-robin not player-then-player', () => {
