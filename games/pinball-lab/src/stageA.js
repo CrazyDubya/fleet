@@ -216,7 +216,7 @@ const FAMILY_LABEL = {
   P1: 'P1 launch lane', P2: 'P2 orbit', P3: 'P3 return lanes', P4: 'P4 ramp mouth', P5: 'P5 habitrail drop',
 };
 
-function e3ToMarkdown(meta, perCfgRanked, runId, rankingGuard, rankingGuardFallback = {}) {
+function e3ToMarkdown(meta, perCfgRanked, runId, rankingGuard, rankingGuardFallback = {}, columnRankingGuard = {}) {
   const lines = [];
   lines.push(`# E3 (paths) summary — run \`${runId}\``);
   lines.push('');
@@ -259,6 +259,20 @@ function e3ToMarkdown(meta, perCfgRanked, runId, rankingGuard, rankingGuardFallb
   for (const family of Object.keys(meta.familyMetrics)) {
     lines.push(`### ${FAMILY_LABEL[family] ?? family}`);
     lines.push('');
+    // RETIRE-REST §8: `returnRate`/`stallRate` are constants for some families (P4: 4
+    // non-returns and 1 stall in 200,000 trials; P5: 0 and 0) — real values, but they do not
+    // vary enough across this family's cfgs to order anything. Marked unorderable rather than
+    // dropped: the columns below still carry their measured values, and this note is what
+    // stops a reader from reading row-to-row differences in them as a signal.
+    const cg = columnRankingGuard[family];
+    const unorderableCols = cg ? ['returnRate', 'stallRate'].filter((k) => !cg[k].ok) : [];
+    if (unorderableCols.length > 0) {
+      lines.push(`> ⚠ **UNORDERABLE COLUMN(S) (LAB-16 gate)**: ` +
+        unorderableCols.map((k) => `\`${k}\` (${cg[k].reason})`).join('; ') +
+        ` — real measured values, shown below, but this family's cfgs cannot be ranked on ` +
+        `${unorderableCols.length > 1 ? 'these columns' : 'this column'}.`);
+      lines.push('');
+    }
     const g = rankingGuard[family];
     if (!g.ok) {
       const fallback = rankingGuardFallback[family];
@@ -522,6 +536,22 @@ async function runE3Stage(args) {
     .filter(([f, r]) => !r.ok && !(rankingGuardFallback[f]?.ok))
     .map(([f, r]) => ({ family: f, ...r }));
 
+  // RETIRE-REST §8: `returnRate` and `stallRate` are displayed per-cfg in every family's top-10
+  // table, but they are only ever RANKED on for families where `inBandFraction`/`bandCenterCloseness`
+  // fails and there is no ranking on them at all. Two families (P4, P5) have almost no non-return
+  // or stall events across their whole per-cfg population — decisions-doc §8: "constants, not
+  // measurements (0-4 events in 200,000)". Checked the same way as any other ranking axis (full
+  // population, no topN — the question here is "does this column vary at all", not "is a top-10
+  // cut sound"), over the FULL per-cfg population, not the top-10 slice.
+  const columnRankingGuard = {};
+  for (const family of Object.keys(familyMetrics)) {
+    const rows = perCfgRanked.filter((r) => r.family === family);
+    columnRankingGuard[family] = {
+      returnRate: rankingValidityResult(rows.map((r) => r.returnRate), { support: rows.map((r) => r.trials) }),
+      stallRate: rankingValidityResult(rows.map((r) => r.stallRate), { support: rows.map((r) => r.trials) }),
+    };
+  }
+
   const secs = (performance.now() - start) / 1000;
   const totalTrials = Object.values(familyMetrics).reduce((a, m) => a + m.trials, 0);
   const totalFlagged = [...perCfgByIndex.values()].reduce((a, r) => a + r.flagged, 0);
@@ -531,7 +561,7 @@ async function runE3Stage(args) {
     generatedAt: new Date().toISOString(),
     cfgCount: items.length, trialCount: totalTrials,
     flaggedFraction: totalTrials ? totalFlagged / totalTrials : 0,
-    perFamilyTrials, familyMetrics, secs, rankingGuardFailures, rankingGuardFallback,
+    perFamilyTrials, familyMetrics, secs, rankingGuardFailures, rankingGuardFallback, columnRankingGuard,
     shards: results.map((r, i) => ({ path: path.relative(out, r.outPath ?? `shard-${i}.jsonl.gz`) })),
     cfgs: items.map(({ cfg, trials }) => ({ cfgId: cfg.cfgId, cfg, trials })),
   };
@@ -559,7 +589,7 @@ async function runE3Stage(args) {
   const summariesDir = path.join(import.meta.dirname, '..', 'data', 'summaries');
   writeFileSync(path.join(summariesDir, `e3-${runId}.json`), JSON.stringify(meta, null, 2));
   writeFileSync(path.join(summariesDir, `e3-${runId}-heatmap.csv`), csvLines.join('\n') + '\n');
-  writeFileSync(path.join(summariesDir, `e3-${runId}.md`), e3ToMarkdown(meta, perCfgRanked, runId, rankingGuard, rankingGuardFallback));
+  writeFileSync(path.join(summariesDir, `e3-${runId}.md`), e3ToMarkdown(meta, perCfgRanked, runId, rankingGuard, rankingGuardFallback, columnRankingGuard));
 
   if (rankingGuardFailures.length > 0) {
     console.error(JSON.stringify({
