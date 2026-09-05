@@ -7,6 +7,25 @@
 
 Shot rate rises with `hsS` (Pearson r = 0.687, max shot rate 45.57% vs Stage C's banked ceiling of 0.12%) — **E4's catch/playability tradeoff is real geometry, the kinematic-flipper solver is exonerated on this question.**
 
+<!-- ANNOTATE-3-E5A-ANNOTATION:BEGIN -->
+
+> ⚠ **This file predates a retirement now in `e5aReport.js` (commit `fba0803`).** "Pearson r =
+> 0.687", headlined in the VERDICT paragraph above and restated in the detail note below the
+> table, is retired as the verdict's supporting statistic: the marginal distributions here
+> permit a maximum achievable r of 0.6949, so the published 0.687 is 98.9% of everything this
+> data could show — a near-perfect relationship reads as a merely strong one. The relationship
+> is also a STEP (13 assemblies at <=2.15% shot rate, 3 at >=29.26%, a 13.6x gap), not a trend
+> the Pearson coefficient's linear framing implies.
+>
+> **What still stands: the verdict `GEOMETRY` is correct, and stronger than the correlation
+> implied.** The separation is near-perfect, not merely correlated, and holds under every
+> shuffle/leave-one-out check performed. The table's own measured shot/catch/retrap/drain rates
+> are untouched by this retirement — only the single coefficient used to headline them is.
+>
+> No summary regenerated. See `ledger/handoffs/opus2/20260905T201139Z-decisions.md` §6 and
+> `ledger/handoffs/opus2/20260905T234733Z-lab-state.md` §7.
+<!-- ANNOTATE-3-E5A-ANNOTATION:END -->
+
 - **arena-on-target**: C0 cp = 0.00% (gate: <1%) — PASS
 - **trials**: 180000 across 144 cfgs (16 assemblies x upMs x releaseDelayMs) in 96.4s
 

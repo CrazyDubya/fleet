@@ -4,6 +4,33 @@
 - **Stage B trials**: 540000  ·  **flagged**: 11.14%  (IMPACTS_EXHAUSTED 0.01%, ESCAPED 0.000%, TIMEOUT 11.13%, STALLED 0.00%, NAN 0.000%)
 - **flipper contact rate**: 50.4%  ·  **geometries characterised**: 24
 
+<!-- ANNOTATE-3-LAB2-ANNOTATION:BEGIN -->
+
+> ⚠ **This file predates three retirements now in `lab2Report.js` (commit `380dc8c`).**
+> Three things it still displays as live findings are retired:
+>
+> - **`sens(°/ms)` column** ("Fan width / timing sensitivity / cradle" table) — shuffling
+>   the release-delay labels leaves this statistic statistically unchanged; it measures noise
+>   rectified into a stable positive number, not timing sensitivity.
+> - **"Ranked under the sensitivity ceiling" table** — built from a 1.5°/ms ceiling that never
+>   excluded anything (nothing among the 24 geometries is near it), gating a statistic that
+>   measures noise regardless.
+> - **`pareto` column** — the published one-member front is unconfirmed under resampling
+>   (0 of 24 geometries hold as a front member across resamples); one of its two axes is the
+>   same retired sensitivity statistic.
+>
+> The "Justification" paragraph below also states a 10ms/1.4° sensitivity claim built on the
+> same retired statistic.
+>
+> **What still stands:** `fan(xa)°` is a real, decisive measurement (its spread clears its own
+> null many times over) and is what the recommendation actually rests on. `cradle%` is a real,
+> thin discrimination. The recommended geometry itself is unchanged — retiring the sensitivity
+> axis makes "the recommendation rests on fan width alone; timing is not the binding
+> constraint" a FIRMER statement than the retired 10ms/1.4° figure ever was, not a weaker one.
+>
+> No summary regenerated. See `ledger/handoffs/opus2/20260905T201139Z-decisions.md` §1-4 and
+> `ledger/handoffs/opus2/20260905T234733Z-lab-state.md` §7.
+<!-- ANNOTATE-3-LAB2-ANNOTATION:END -->
 ## Declared premise (§2.7 exemption) — measured 11.14%, declared ceiling 14.00%
 
 > This corpus declares an expected flagged fraction above §2.7's 1% gate. The declaration covers **TIMEOUT** only — every other flag is still held to 1%. This is a recorded claim, not a waiver: challenge it here.

@@ -3,6 +3,31 @@
 - **instrument commit**: `aa11a3646e1e0964deb3c63c638b0555d02f71ab`  ·  **generated**: 2026-09-05T03:13:22.820Z
 - **grand total trials (A+B+C)**: 1000000
 
+<!-- ANNOTATE-3-E4-ANNOTATION:BEGIN -->
+
+> ⚠ **This file predates a retirement now in `e4Report.js` (commit `6669712`).** Three things
+> below present a tie as an ordering:
+>
+> - **"best pocket assembly | 100.0%"** (§8 item 3, the E1 decomposition table) — this is a
+>   **15-way tie** among the 217 assemblies in Stage A2's full population, not a computed
+>   winner. No test orders those 15 rows against each other.
+> - **§8 item 2's ranked assembly table (Stage A2)** — every row shown is part of that same
+>   15-way tie at cp=100%. Its own top-20 boundary guard reports "ok" above (the boundary
+>   falls below the tied plateau, not inside it) — a gap the retirement commit found and fixed
+>   going forward: passing that guard does not mean rank 1 is unique.
+> - **The Stage B ranked table** — already marked ⚠ RANKING INVALID above (a genuine 105-way
+>   tie spanning the cut boundary); the retirement additionally names what those 105 tied cfgs
+>   share (`inj=drop`) and what they do not.
+>
+> **What still stands:** the population is real. The pocket map, the H6 verdict, C0/C0b's
+> near-zero rows, the release-dispersion table, and the theory-vs-measurement/V-trap sections
+> are untouched by this retirement. Within the tied set, every configuration genuinely shares
+> `feed=off` (A2) and reaches the measured ceiling — the cut ("this one is best") is what does
+> not stand, not the measurement.
+>
+> No summary regenerated. See `ledger/handoffs/opus2/20260905T201139Z-decisions.md` §7 and
+> `ledger/handoffs/opus2/20260905T234733Z-lab-state.md` §7.
+<!-- ANNOTATE-3-E4-ANNOTATION:END -->
 ## Ranking guard status (LAB-16/LAB-20)
 
 > ⚠ **RANKING INVALID (LAB-16 gate)** — 2 of 4 ranking guards failed. Any ordering they govern is insertion order, not a ranking; the rows themselves remain individually valid.
