@@ -1,0 +1,1158 @@
+{
+  "exp": "e4",
+  "runId": "lab24",
+  "generatedAt": "2026-09-05T03:13:22.820Z",
+  "instrumentCommitSha": "aa11a3646e1e0964deb3c63c638b0555d02f71ab",
+  "h6": {
+    "survived": true,
+    "sliceW1Cp": 0.601123595505618,
+    "sliceC0Cp": 0,
+    "sliceC0bCp": 0
+  },
+  "e1Decomposition": {
+    "c0Cp": 0,
+    "c0bCp": 0,
+    "bestPocketCp": 1
+  },
+  "totals": {
+    "a1": {
+      "trials": 156600,
+      "secs": 40.307117625,
+      "flaggedExclStalled": 0.07784163473818646,
+      "creep": 0.00002554278416347382
+    },
+    "a2": {
+      "trials": 243400,
+      "secs": 117.074011333,
+      "flaggedExclStalled": 0.14895234182415776,
+      "creep": 0.0000903861955628595
+    },
+    "b": {
+      "trials": 400000,
+      "secs": 196.363001458,
+      "flaggedExclStalled": 0.022295,
+      "creep": 0.000005
+    },
+    "c": {
+      "trials": 200000,
+      "secs": 265.641679625,
+      "flaggedExclStalled": 0.000925,
+      "creep": 0.00001
+    },
+    "grandTotalTrials": 1000000
+  },
+  "pocketMap": [
+    {
+      "gapX": 0.038,
+      "activeAngleDeg": 26,
+      "trials": 78295,
+      "cp": 68767,
+      "cpRate": 0.8783064052621495
+    },
+    {
+      "gapX": 0.038,
+      "activeAngleDeg": 32,
+      "trials": 78874,
+      "cp": 68244,
+      "cpRate": 0.865228085300606
+    },
+    {
+      "gapX": 0.038,
+      "activeAngleDeg": 38,
+      "trials": 79353,
+      "cp": 64011,
+      "cpRate": 0.8066613738611017
+    },
+    {
+      "gapX": 0.026,
+      "activeAngleDeg": 26,
+      "trials": 24199,
+      "cp": 22171,
+      "cpRate": 0.9161948840861193
+    },
+    {
+      "gapX": 0.026,
+      "activeAngleDeg": 32,
+      "trials": 25301,
+      "cp": 23133,
+      "cpRate": 0.9143116872850875
+    },
+    {
+      "gapX": 0.026,
+      "activeAngleDeg": 38,
+      "trials": 25937,
+      "cp": 22898,
+      "cpRate": 0.882831476269422
+    },
+    {
+      "gapX": 0.031,
+      "activeAngleDeg": 26,
+      "trials": 26247,
+      "cp": 25506,
+      "cpRate": 0.9717682020802377
+    },
+    {
+      "gapX": 0.031,
+      "activeAngleDeg": 32,
+      "trials": 26502,
+      "cp": 26442,
+      "cpRate": 0.9977360199230246
+    },
+    {
+      "gapX": 0.031,
+      "activeAngleDeg": 38,
+      "trials": 26374,
+      "cp": 25508,
+      "cpRate": 0.9671646318343824
+    }
+  ],
+  "rankedAssemblies": [
+    {
+      "cfgId": "1c62e50d",
+      "guide": {
+        "gapX": 0.031,
+        "tiltDeg": 24,
+        "endDy": 0.02,
+        "guideE": 0.45,
+        "pocketFeasible": true,
+        "pocketPredicted": {
+          "left": {
+            "x": -0.09439036564606544,
+            "y": 0.12537723401802084
+          },
+          "right": {
+            "x": 0.09439036564606544,
+            "y": 0.12537723401802084
+          }
+        }
+      },
+      "feed": null,
+      "post": null,
+      "outlaneW": 0.045,
+      "radius": 0.012,
+      "trials": 1114,
+      "ct": 1,
+      "cr": 1,
+      "cp": 1,
+      "cv": 0,
+      "medianSt": 2.870833333333371,
+      "fastCradleRate": 0,
+      "medianBn": 19
+    },
+    {
+      "cfgId": "76f243d4",
+      "guide": {
+        "gapX": 0.031,
+        "tiltDeg": 24,
+        "endDy": 0.02,
+        "guideE": 0.45,
+        "pocketFeasible": true,
+        "pocketPredicted": {
+          "left": {
+            "x": -0.09439036564606544,
+            "y": 0.12537723401802084
+          },
+          "right": {
+            "x": 0.09439036564606544,
+            "y": 0.12537723401802084
+          }
+        }
+      },
+      "feed": null,
+      "post": {
+        "dx": 0,
+        "dy": 0.03,
+        "postR": 0.006,
+        "postE": 0.45
+      },
+      "outlaneW": 0.03,
+      "radius": 0.012,
+      "trials": 1108,
+      "ct": 1,
+      "cr": 1,
+      "cp": 1,
+      "cv": 0,
+      "medianSt": 2.7875000000000334,
+      "fastCradleRate": 0,
+      "medianBn": 19
+    },
+    {
+      "cfgId": "05eccb95",
+      "guide": {
+        "gapX": 0.038,
+        "tiltDeg": 16,
+        "endDy": 0,
+        "guideE": 0.2,
+        "pocketFeasible": true,
+        "pocketPredicted": {
+          "left": {
+            "x": -0.10699352073510149,
+            "y": 0.12256807038377385
+          },
+          "right": {
+            "x": 0.10699352073510149,
+            "y": 0.12256807038377385
+          }
+        }
+      },
+      "feed": null,
+      "post": null,
+      "outlaneW": 0.03,
+      "radius": 0.015,
+      "trials": 1122,
+      "ct": 1,
+      "cr": 1,
+      "cp": 1,
+      "cv": 0,
+      "medianSt": 2.1250000000000004,
+      "fastCradleRate": 0.024955436720142603,
+      "medianBn": 24
+    },
+    {
+      "cfgId": "cb3196ca",
+      "guide": {
+        "gapX": 0.038,
+        "tiltDeg": 16,
+        "endDy": 0,
+        "guideE": 0.2,
+        "pocketFeasible": true,
+        "pocketPredicted": {
+          "left": {
+            "x": -0.10699352073510149,
+            "y": 0.12256807038377385
+          },
+          "right": {
+            "x": 0.10699352073510149,
+            "y": 0.12256807038377385
+          }
+        }
+      },
+      "feed": null,
+      "post": {
+        "dx": 0,
+        "dy": 0.03,
+        "postR": 0.006,
+        "postE": 0.45
+      },
+      "outlaneW": 0.03,
+      "radius": 0.015,
+      "trials": 1121,
+      "ct": 1,
+      "cr": 1,
+      "cp": 1,
+      "cv": 0,
+      "medianSt": 2.066666666666664,
+      "fastCradleRate": 0.025869759143621766,
+      "medianBn": 24
+    },
+    {
+      "cfgId": "8444ecc0",
+      "guide": {
+        "gapX": 0.031,
+        "tiltDeg": 24,
+        "endDy": 0,
+        "guideE": 0.45,
+        "pocketFeasible": true,
+        "pocketPredicted": {
+          "left": {
+            "x": -0.1004853180613341,
+            "y": 0.11906672127791054
+          },
+          "right": {
+            "x": 0.1004853180613341,
+            "y": 0.11906672127791054
+          }
+        }
+      },
+      "feed": null,
+      "post": {
+        "dx": 0,
+        "dy": 0.03,
+        "postR": 0.006,
+        "postE": 0.45
+      },
+      "outlaneW": 0.045,
+      "radius": 0.009,
+      "trials": 1113,
+      "ct": 1,
+      "cr": 1,
+      "cp": 1,
+      "cv": 0,
+      "medianSt": 2.741666666666698,
+      "fastCradleRate": 0,
+      "medianBn": 17
+    },
+    {
+      "cfgId": "954c5e28",
+      "guide": {
+        "gapX": 0.031,
+        "tiltDeg": 24,
+        "endDy": 0,
+        "guideE": 0.45,
+        "pocketFeasible": true,
+        "pocketPredicted": {
+          "left": {
+            "x": -0.1004853180613341,
+            "y": 0.11906672127791054
+          },
+          "right": {
+            "x": 0.1004853180613341,
+            "y": 0.11906672127791054
+          }
+        }
+      },
+      "feed": null,
+      "post": {
+        "dx": 0,
+        "dy": 0.03,
+        "postR": 0.014,
+        "postE": 0.45
+      },
+      "outlaneW": 0.03,
+      "radius": 0.009,
+      "trials": 1114,
+      "ct": 1,
+      "cr": 1,
+      "cp": 1,
+      "cv": 0,
+      "medianSt": 2.741666666666698,
+      "fastCradleRate": 0,
+      "medianBn": 17
+    },
+    {
+      "cfgId": "9667b885",
+      "guide": {
+        "gapX": 0.031,
+        "tiltDeg": 24,
+        "endDy": 0,
+        "guideE": 0.45,
+        "pocketFeasible": true,
+        "pocketPredicted": {
+          "left": {
+            "x": -0.1004853180613341,
+            "y": 0.11906672127791054
+          },
+          "right": {
+            "x": 0.1004853180613341,
+            "y": 0.11906672127791054
+          }
+        }
+      },
+      "feed": null,
+      "post": {
+        "dx": 0,
+        "dy": 0.03,
+        "postR": 0.014,
+        "postE": 0.45
+      },
+      "outlaneW": 0.045,
+      "radius": 0.009,
+      "trials": 1109,
+      "ct": 1,
+      "cr": 1,
+      "cp": 1,
+      "cv": 0,
+      "medianSt": 2.7791666666666996,
+      "fastCradleRate": 0,
+      "medianBn": 17
+    },
+    {
+      "cfgId": "6059989b",
+      "guide": {
+        "gapX": 0.031,
+        "tiltDeg": 16,
+        "endDy": 0,
+        "guideE": 0.2,
+        "pocketFeasible": true,
+        "pocketPredicted": {
+          "left": {
+            "x": -0.09917305208418083,
+            "y": 0.11970675615983442
+          },
+          "right": {
+            "x": 0.09917305208418083,
+            "y": 0.11970675615983442
+          }
+        }
+      },
+      "feed": null,
+      "post": null,
+      "outlaneW": 0.03,
+      "radius": 0.009,
+      "trials": 1119,
+      "ct": 1,
+      "cr": 1,
+      "cp": 1,
+      "cv": 0,
+      "medianSt": 2.1125,
+      "fastCradleRate": 0,
+      "medianBn": 20
+    },
+    {
+      "cfgId": "26b76c0d",
+      "guide": {
+        "gapX": 0.031,
+        "tiltDeg": 16,
+        "endDy": 0,
+        "guideE": 0.2,
+        "pocketFeasible": true,
+        "pocketPredicted": {
+          "left": {
+            "x": -0.09917305208418083,
+            "y": 0.11970675615983442
+          },
+          "right": {
+            "x": 0.09917305208418083,
+            "y": 0.11970675615983442
+          }
+        }
+      },
+      "feed": null,
+      "post": {
+        "dx": 0,
+        "dy": 0.03,
+        "postR": 0.006,
+        "postE": 0.45
+      },
+      "outlaneW": 0.03,
+      "radius": 0.009,
+      "trials": 1120,
+      "ct": 1,
+      "cr": 1,
+      "cp": 1,
+      "cv": 0,
+      "medianSt": 2.0833333333333317,
+      "fastCradleRate": 0,
+      "medianBn": 19
+    },
+    {
+      "cfgId": "b53c27e5",
+      "guide": {
+        "gapX": 0.031,
+        "tiltDeg": 16,
+        "endDy": 0,
+        "guideE": 0.2,
+        "pocketFeasible": true,
+        "pocketPredicted": {
+          "left": {
+            "x": -0.09917305208418083,
+            "y": 0.11970675615983442
+          },
+          "right": {
+            "x": 0.09917305208418083,
+            "y": 0.11970675615983442
+          }
+        }
+      },
+      "feed": null,
+      "post": {
+        "dx": 0,
+        "dy": 0.03,
+        "postR": 0.014,
+        "postE": 0.45
+      },
+      "outlaneW": 0.03,
+      "radius": 0.009,
+      "trials": 1120,
+      "ct": 1,
+      "cr": 1,
+      "cp": 1,
+      "cv": 0,
+      "medianSt": 2.099999999999999,
+      "fastCradleRate": 0.0008928571428571428,
+      "medianBn": 19
+    },
+    {
+      "cfgId": "dde28589",
+      "guide": {
+        "gapX": 0.026,
+        "tiltDeg": 16,
+        "endDy": 0,
+        "guideE": 0.2,
+        "pocketFeasible": true,
+        "pocketPredicted": {
+          "left": {
+            "x": -0.09478652950349349,
+            "y": 0.12184620617291565
+          },
+          "right": {
+            "x": 0.09478652950349349,
+            "y": 0.12184620617291567
+          }
+        }
+      },
+      "feed": null,
+      "post": null,
+      "outlaneW": 0.03,
+      "radius": 0.009,
+      "trials": 1121,
+      "ct": 1,
+      "cr": 1,
+      "cp": 1,
+      "cv": 0,
+      "medianSt": 2.200000000000004,
+      "fastCradleRate": 0,
+      "medianBn": 15
+    },
+    {
+      "cfgId": "33bc3676",
+      "guide": {
+        "gapX": 0.026,
+        "tiltDeg": 16,
+        "endDy": 0,
+        "guideE": 0.2,
+        "pocketFeasible": true,
+        "pocketPredicted": {
+          "left": {
+            "x": -0.09478652950349349,
+            "y": 0.12184620617291565
+          },
+          "right": {
+            "x": 0.09478652950349349,
+            "y": 0.12184620617291567
+          }
+        }
+      },
+      "feed": null,
+      "post": {
+        "dx": 0,
+        "dy": 0.03,
+        "postR": 0.014,
+        "postE": 0.45
+      },
+      "outlaneW": 0.03,
+      "radius": 0.009,
+      "trials": 1118,
+      "ct": 1,
+      "cr": 1,
+      "cp": 1,
+      "cv": 0,
+      "medianSt": 2.1437500000000016,
+      "fastCradleRate": 0,
+      "medianBn": 14
+    },
+    {
+      "cfgId": "a05b4140",
+      "guide": {
+        "gapX": 0.026,
+        "tiltDeg": 16,
+        "endDy": 0,
+        "guideE": 0.2,
+        "pocketFeasible": true,
+        "pocketPredicted": {
+          "left": {
+            "x": -0.09562619802247269,
+            "y": 0.12477447829404224
+          },
+          "right": {
+            "x": 0.09562619802247269,
+            "y": 0.12477447829404224
+          }
+        }
+      },
+      "feed": null,
+      "post": null,
+      "outlaneW": 0.03,
+      "radius": 0.012,
+      "trials": 1119,
+      "ct": 1,
+      "cr": 1,
+      "cp": 1,
+      "cv": 0,
+      "medianSt": 2.200000000000004,
+      "fastCradleRate": 0,
+      "medianBn": 14
+    },
+    {
+      "cfgId": "41027b66",
+      "guide": {
+        "gapX": 0.038,
+        "tiltDeg": 16,
+        "endDy": 0,
+        "guideE": 0.2,
+        "pocketFeasible": true,
+        "pocketPredicted": {
+          "left": {
+            "x": -0.10615385221612228,
+            "y": 0.11963979826264727
+          },
+          "right": {
+            "x": 0.1061538522161223,
+            "y": 0.11963979826264727
+          }
+        }
+      },
+      "feed": null,
+      "post": {
+        "dx": 0,
+        "dy": 0.03,
+        "postR": 0.006,
+        "postE": 0.45
+      },
+      "outlaneW": 0.03,
+      "radius": 0.012,
+      "trials": 1120,
+      "ct": 1,
+      "cr": 1,
+      "cp": 1,
+      "cv": 0,
+      "medianSt": 2.0583333333333305,
+      "fastCradleRate": 0.04107142857142857,
+      "medianBn": 34
+    },
+    {
+      "cfgId": "9a3bbe27",
+      "guide": {
+        "gapX": 0.038,
+        "tiltDeg": 16,
+        "endDy": 0,
+        "guideE": 0.2,
+        "pocketFeasible": true,
+        "pocketPredicted": {
+          "left": {
+            "x": -0.10615385221612228,
+            "y": 0.11963979826264727
+          },
+          "right": {
+            "x": 0.1061538522161223,
+            "y": 0.11963979826264727
+          }
+        }
+      },
+      "feed": null,
+      "post": {
+        "dx": 0,
+        "dy": 0.03,
+        "postR": 0.014,
+        "postE": 0.45
+      },
+      "outlaneW": 0.03,
+      "radius": 0.012,
+      "trials": 1118,
+      "ct": 1,
+      "cr": 1,
+      "cp": 1,
+      "cv": 0,
+      "medianSt": 2.079166666666665,
+      "fastCradleRate": 0.03667262969588551,
+      "medianBn": 34
+    },
+    {
+      "cfgId": "66d77443",
+      "guide": {
+        "gapX": 0.026,
+        "tiltDeg": 16,
+        "endDy": 0,
+        "guideE": 0.2,
+        "pocketFeasible": true,
+        "pocketPredicted": {
+          "left": {
+            "x": -0.09562619802247269,
+            "y": 0.12477447829404224
+          },
+          "right": {
+            "x": 0.09562619802247269,
+            "y": 0.12477447829404224
+          }
+        }
+      },
+      "feed": null,
+      "post": {
+        "dx": 0,
+        "dy": 0.03,
+        "postR": 0.014,
+        "postE": 0.45
+      },
+      "outlaneW": 0.03,
+      "radius": 0.012,
+      "trials": 1121,
+      "ct": 1,
+      "cr": 0.9991079393398751,
+      "cp": 0.9991079393398751,
+      "cv": 0,
+      "medianSt": 2.137500000000001,
+      "fastCradleRate": 0,
+      "medianBn": 13
+    },
+    {
+      "cfgId": "7f5ed0d0",
+      "guide": {
+        "gapX": 0.026,
+        "tiltDeg": 16,
+        "endDy": 0,
+        "guideE": 0.2,
+        "pocketFeasible": true,
+        "pocketPredicted": {
+          "left": {
+            "x": -0.09562619802247269,
+            "y": 0.12477447829404224
+          },
+          "right": {
+            "x": 0.09562619802247269,
+            "y": 0.12477447829404224
+          }
+        }
+      },
+      "feed": null,
+      "post": {
+        "dx": 0,
+        "dy": 0.03,
+        "postR": 0.006,
+        "postE": 0.45
+      },
+      "outlaneW": 0.03,
+      "radius": 0.012,
+      "trials": 1120,
+      "ct": 1,
+      "cr": 0.9991071428571429,
+      "cp": 0.9991071428571429,
+      "cv": 0,
+      "medianSt": 2.1291666666666673,
+      "fastCradleRate": 0,
+      "medianBn": 14
+    },
+    {
+      "cfgId": "3d0e301c",
+      "guide": {
+        "gapX": 0.038,
+        "tiltDeg": 16,
+        "endDy": 0,
+        "guideE": 0.2,
+        "pocketFeasible": true,
+        "pocketPredicted": {
+          "left": {
+            "x": -0.10615385221612228,
+            "y": 0.11963979826264727
+          },
+          "right": {
+            "x": 0.1061538522161223,
+            "y": 0.11963979826264727
+          }
+        }
+      },
+      "feed": null,
+      "post": null,
+      "outlaneW": 0.03,
+      "radius": 0.012,
+      "trials": 1120,
+      "ct": 1,
+      "cr": 1,
+      "cp": 0.9991071428571429,
+      "cv": 0.0008928571428571428,
+      "medianSt": 2.1104166666666666,
+      "fastCradleRate": 0.038392857142857145,
+      "medianBn": 34
+    },
+    {
+      "cfgId": "f8188601",
+      "guide": {
+        "gapX": 0.031,
+        "tiltDeg": 16,
+        "endDy": 0,
+        "guideE": 0.2,
+        "pocketFeasible": true,
+        "pocketPredicted": {
+          "left": {
+            "x": -0.09917305208418083,
+            "y": 0.11970675615983442
+          },
+          "right": {
+            "x": 0.09917305208418083,
+            "y": 0.11970675615983442
+          }
+        }
+      },
+      "feed": null,
+      "post": {
+        "dx": 0,
+        "dy": 0.03,
+        "postR": 0.014,
+        "postE": 0.45
+      },
+      "outlaneW": 0.045,
+      "radius": 0.009,
+      "trials": 1119,
+      "ct": 1,
+      "cr": 0.9991063449508489,
+      "cp": 0.9991063449508489,
+      "cv": 0,
+      "medianSt": 2.108333333333333,
+      "fastCradleRate": 0,
+      "medianBn": 19
+    },
+    {
+      "cfgId": "0f6ce0d3",
+      "guide": {
+        "gapX": 0.026,
+        "tiltDeg": 16,
+        "endDy": 0,
+        "guideE": 0.2,
+        "pocketFeasible": true,
+        "pocketPredicted": {
+          "left": {
+            "x": -0.09478652950349349,
+            "y": 0.12184620617291565
+          },
+          "right": {
+            "x": 0.09478652950349349,
+            "y": 0.12184620617291567
+          }
+        }
+      },
+      "feed": null,
+      "post": {
+        "dx": 0,
+        "dy": 0.03,
+        "postR": 0.006,
+        "postE": 0.45
+      },
+      "outlaneW": 0.03,
+      "radius": 0.009,
+      "trials": 1119,
+      "ct": 1,
+      "cr": 0.9991063449508489,
+      "cp": 0.9991063449508489,
+      "cv": 0,
+      "medianSt": 2.1208333333333336,
+      "fastCradleRate": 0,
+      "medianBn": 14
+    }
+  ],
+  "stageBRanked": [
+    {
+      "cfgId": "8c6004a0",
+      "restAngleDeg": -50,
+      "activeAngleDeg": 26,
+      "restitution": 0.45,
+      "inj": "drop",
+      "pol": "heldActive",
+      "cpRate": 1,
+      "trials": 741
+    },
+    {
+      "cfgId": "ad7d9864",
+      "restAngleDeg": -38,
+      "activeAngleDeg": 26,
+      "restitution": 0.45,
+      "inj": "drop",
+      "pol": "heldActive",
+      "cpRate": 1,
+      "trials": 739
+    },
+    {
+      "cfgId": "06a670e6",
+      "restAngleDeg": -38,
+      "activeAngleDeg": 32,
+      "restitution": 0.45,
+      "inj": "drop",
+      "pol": "heldActive",
+      "cpRate": 1,
+      "trials": 733
+    },
+    {
+      "cfgId": "bb419983",
+      "restAngleDeg": -38,
+      "activeAngleDeg": 38,
+      "restitution": 0.45,
+      "inj": "drop",
+      "pol": "heldActive",
+      "cpRate": 1,
+      "trials": 730
+    },
+    {
+      "cfgId": "c99520ab",
+      "restAngleDeg": -32,
+      "activeAngleDeg": 26,
+      "restitution": 0.45,
+      "inj": "drop",
+      "pol": "heldActive",
+      "cpRate": 1,
+      "trials": 740
+    },
+    {
+      "cfgId": "f049819f",
+      "restAngleDeg": -32,
+      "activeAngleDeg": 32,
+      "restitution": 0.45,
+      "inj": "drop",
+      "pol": "heldActive",
+      "cpRate": 1,
+      "trials": 733
+    },
+    {
+      "cfgId": "c2361d05",
+      "restAngleDeg": -32,
+      "activeAngleDeg": 38,
+      "restitution": 0.45,
+      "inj": "drop",
+      "pol": "heldActive",
+      "cpRate": 1,
+      "trials": 735
+    },
+    {
+      "cfgId": "14c99146",
+      "restAngleDeg": -50,
+      "activeAngleDeg": 26,
+      "restitution": 0.2,
+      "inj": "drop",
+      "pol": "heldActive",
+      "cpRate": 1,
+      "trials": 740
+    },
+    {
+      "cfgId": "c317e695",
+      "restAngleDeg": -50,
+      "activeAngleDeg": 26,
+      "restitution": 0.2,
+      "inj": "drop",
+      "pol": "fireAndHold",
+      "cpRate": 1,
+      "trials": 740
+    },
+    {
+      "cfgId": "a76e9d64",
+      "restAngleDeg": -50,
+      "activeAngleDeg": 26,
+      "restitution": 0.45,
+      "inj": "drop",
+      "pol": "heldActive",
+      "cpRate": 1,
+      "trials": 741
+    },
+    {
+      "cfgId": "b17cafbc",
+      "restAngleDeg": -50,
+      "activeAngleDeg": 26,
+      "restitution": 0.45,
+      "inj": "drop",
+      "pol": "fireAndHold",
+      "cpRate": 1,
+      "trials": 741
+    },
+    {
+      "cfgId": "705b2f00",
+      "restAngleDeg": -50,
+      "activeAngleDeg": 32,
+      "restitution": 0.45,
+      "inj": "drop",
+      "pol": "fireAndHold",
+      "cpRate": 1,
+      "trials": 737
+    },
+    {
+      "cfgId": "65743c3b",
+      "restAngleDeg": -38,
+      "activeAngleDeg": 26,
+      "restitution": 0.2,
+      "inj": "drop",
+      "pol": "heldActive",
+      "cpRate": 1,
+      "trials": 741
+    },
+    {
+      "cfgId": "f8c2be76",
+      "restAngleDeg": -38,
+      "activeAngleDeg": 26,
+      "restitution": 0.45,
+      "inj": "drop",
+      "pol": "heldActive",
+      "cpRate": 1,
+      "trials": 739
+    },
+    {
+      "cfgId": "cda8ab75",
+      "restAngleDeg": -38,
+      "activeAngleDeg": 26,
+      "restitution": 0.45,
+      "inj": "drop",
+      "pol": "fireAndHold",
+      "cpRate": 1,
+      "trials": 741
+    },
+    {
+      "cfgId": "134f5c94",
+      "restAngleDeg": -38,
+      "activeAngleDeg": 32,
+      "restitution": 0.2,
+      "inj": "drop",
+      "pol": "heldActive",
+      "cpRate": 1,
+      "trials": 739
+    },
+    {
+      "cfgId": "5683a41e",
+      "restAngleDeg": -32,
+      "activeAngleDeg": 26,
+      "restitution": 0.2,
+      "inj": "drop",
+      "pol": "heldActive",
+      "cpRate": 1,
+      "trials": 740
+    },
+    {
+      "cfgId": "01de06a8",
+      "restAngleDeg": -32,
+      "activeAngleDeg": 26,
+      "restitution": 0.2,
+      "inj": "drop",
+      "pol": "fireAndHold",
+      "cpRate": 1,
+      "trials": 740
+    },
+    {
+      "cfgId": "0eae068b",
+      "restAngleDeg": -32,
+      "activeAngleDeg": 26,
+      "restitution": 0.45,
+      "inj": "drop",
+      "pol": "heldActive",
+      "cpRate": 1,
+      "trials": 741
+    },
+    {
+      "cfgId": "dc744642",
+      "restAngleDeg": -32,
+      "activeAngleDeg": 26,
+      "restitution": 0.45,
+      "inj": "drop",
+      "pol": "fireAndHold",
+      "cpRate": 1,
+      "trials": 740
+    }
+  ],
+  "releaseDispersion": [
+    {
+      "baseAssemblyId": "ad7d9864",
+      "trials": 33298,
+      "shotRate": 0.002883056039401766,
+      "dispersionDeg": 33.21395885909055,
+      "relCounts": {
+        "retrap": 33200,
+        "shot": 96
+      }
+    },
+    {
+      "baseAssemblyId": "c006cb08",
+      "trials": 33307,
+      "shotRate": 0.001771399405530369,
+      "dispersionDeg": 28.390823370567688,
+      "relCounts": {
+        "retrap": 33248,
+        "shot": 59
+      }
+    },
+    {
+      "baseAssemblyId": "a76e9d64",
+      "trials": 33318,
+      "shotRate": 0,
+      "dispersionDeg": null,
+      "relCounts": {
+        "retrap": 33300,
+        "stuck": 15
+      }
+    },
+    {
+      "baseAssemblyId": "e1252c22",
+      "trials": 33314,
+      "shotRate": 0,
+      "dispersionDeg": null,
+      "relCounts": {
+        "retrap": 33297,
+        "stuck": 16
+      }
+    },
+    {
+      "baseAssemblyId": "2efa6c86",
+      "trials": 33307,
+      "shotRate": 0,
+      "dispersionDeg": null,
+      "relCounts": {
+        "retrap": 33289,
+        "stuck": 18
+      }
+    },
+    {
+      "baseAssemblyId": "533b2e4a",
+      "trials": 33271,
+      "shotRate": 0,
+      "dispersionDeg": null,
+      "relCounts": {
+        "retrap": 33245,
+        "stuck": 24
+      }
+    }
+  ],
+  "theoryVsMeasurement": {
+    "medianPkM": 0.001402370723998429,
+    "p95PkM": 0.00889293363619396,
+    "n": 87812
+  },
+  "vTrapByRestAngle": [
+    {
+      "restAngleDeg": -50,
+      "trials": 130407,
+      "cvRate": 0.00133428420253514
+    },
+    {
+      "restAngleDeg": -38,
+      "trials": 130373,
+      "cvRate": 0.0014957084672439845
+    },
+    {
+      "restAngleDeg": -32,
+      "trials": 130302,
+      "cvRate": 0.0015809427330355636
+    }
+  ],
+  "declaredPremise": {
+    "expectedFlagFraction": 0.09,
+    "expectedFlags": [
+      "TIMEOUT"
+    ],
+    "reason": "Stage A1 is the coarse first stage of a filtering funnel: its 350 cfgs exist only to produce topPockets, which buildE4StageA2Cfgs consumes. TIMEOUT here is an outcome, not a solver failure - E4's cap is 4.0s and a ball still moving at 4s in a pocket experiment has simply not been caught. Three measurements support the exemption rather than one assertion. (1) A timeout is an observed result, not a censored one: re-running the whole stage at a 12.0s cap moves cp from 0.55924 to 0.56602, +0.68pp, so tripling the window does not convert timeouts into catches. (2) The tail sits in the geometries the stage REJECTS, not the ones it carries forward: across 350 cfgs the timeout rate runs 0.00%-85.49%, but in the selected top-8 it is mean 0.20% and max 0.89% - every row that survives the cut would pass the 1% gate on its own. (3) The solver-validity axis is clean: IMPACTS_EXHAUSTED is 0.0013% over non-stalled trials. Measured 7.7842% flagged excluding STALLED, of which TIMEOUT is 7.7829pp. Ceiling set at 9% as a bound with headroom, not as a measurement. CORRECTION (2026-09-05): the first version of this reason said a non-settling trial 'contributes nothing to that ranking'. That was wrong on the mechanism and a hostile reader would have caught it - cp is cpCount/trials, so a timeout contributes 0 to the numerator and 1 to the denominator, which is a real vote against that geometry. The exemption stands on the three measurements above, not on the false claim it originally rested on.",
+    "declaredBy": "ledger/handoffs/opus2/20260904T150000Z-three-gate-rulings.md §(c), reason corrected in ledger/handoffs/opus2/20260905T010000Z-timeout-tail-standing.md"
+  },
+  "declaredPremiseStage": "A1",
+  "declaredPremiseGate": {
+    "fraction": 0.07784163473818646,
+    "ok": true
+  },
+  "rankingGuard": {
+    "a1": {
+      "ok": true,
+      "n": 350,
+      "distinctCount": 301,
+      "maxTieFraction": 0.12857142857142856,
+      "boundaryAmbiguity": 1,
+      "minSelectedSupport": 393,
+      "reason": null
+    },
+    "a2": {
+      "ok": true,
+      "n": 217,
+      "distinctCount": 135,
+      "maxTieFraction": 0.2903225806451613,
+      "boundaryAmbiguity": 1,
+      "minSelectedSupport": 1108,
+      "reason": null
+    },
+    "b": {
+      "ok": false,
+      "n": 540,
+      "distinctCount": 346,
+      "maxTieFraction": 0.19444444444444445,
+      "boundaryAmbiguity": 5.25,
+      "minSelectedSupport": 730,
+      "reason": "top-20 cut lands inside a 105-way tie for 20 remaining slot(s) (5.25x, ceiling 2x) — most of the selection would be insertion order, not a ranking"
+    },
+    "releaseDispersion": {
+      "ok": false,
+      "n": 6,
+      "distinctCount": 3,
+      "maxTieFraction": 0.6666666666666666,
+      "boundaryAmbiguity": null,
+      "minSelectedSupport": null,
+      "reason": "only 3 distinct value(s) across 6 rows (floor 5) — cannot support an ordering; 66.7% of rows tied at one value (ceiling 50%) — presenting this as an order would be misleading"
+    }
+  }
+}
