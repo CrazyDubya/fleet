@@ -535,9 +535,32 @@ function buildTunnelMesh(points) {
   return group;
 }
 
+// THE ORBIT: a wireform loop, same technique as MONKEY BARS above (two parallel rails) rather
+// than a second culvert — it's an open-air loop over the top of the table, not an enclosed
+// tube. Added 2026-09-05: the orbit shipped with real physics (table/ramps.js's buildOrbitRamp)
+// and its own reachability sweep, but no mesh — a real, playable ramp with nothing drawn for
+// it, found while extending this file's own render-audit to cover every mesh builder rather
+// than let that gap stand unexamined.
+const orbitWireformMat = new THREE.MeshStandardMaterial({ color: 0xb8c8d8, metalness: 0.8, roughness: 0.3 });
+function buildOrbitMesh(points) {
+  const group = new THREE.Group();
+  segmentSteps(points, (mid, dir, len) => {
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+    const perp = new THREE.Vector3(-dir.z, 0, dir.x).normalize().multiplyScalar(0.011);
+    for (const side of [-1, 1]) {
+      const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.0032, 0.0032, len, 8), orbitWireformMat);
+      rail.position.set(mid.x + perp.x * side, mid.y, mid.z + perp.z * side);
+      rail.quaternion.copy(q);
+      group.add(rail);
+    }
+  });
+  return group;
+}
+
 tiltGroup.add(buildSlideMesh(slide.ramp.points));
 tiltGroup.add(buildMonkeyBarsMesh(monkeyBars.ramp.points));
 tiltGroup.add(buildTunnelMesh(tunnel.ramp.points));
+tiltGroup.add(buildOrbitMesh(orbit.ramp.points));
 
 // THE RAMP GATES: thin chrome wires marking each ramp's entry span, drawn along the gate's
 // own real segment endpoints — previously a 44mm zone with no mesh at all, invisible to the

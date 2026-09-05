@@ -17,8 +17,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildMerryGoRound, buildFunLanes, buildPopBumpers, buildTreehouseStandup, buildKickback } from '../src/table/mechanisms.js';
-import { buildSandbox } from '../src/table/ramps.js';
+import {
+  buildMerryGoRound, buildFunLanes, buildPopBumpers, buildTreehouseStandup, buildKickback,
+  buildSlingshots, buildSwingSetPosts, buildHopscotchBank, buildSandBank, SWING_SET_APEXES,
+} from '../src/table/mechanisms.js';
+import { buildSandbox, buildSlideRamp, buildMonkeyBarsRamp, buildTunnelRamp, buildOrbitRamp } from '../src/table/ramps.js';
+import * as recess from '../src/table/recess.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(here, '..');
@@ -164,3 +168,154 @@ test('kickback mesh reads the real physics collision geometry, not a duplicated 
   const kickback = buildKickback();
   assert.ok(Math.abs(kickback.shape.radius - 0.012) < 1e-4, `expected kickback physics radius 12mm, got ${kickback.shape.radius * 1000}mm`);
 });
+
+// 2026-09-05 — extended from a handful of special cases to every mesh builder on the table
+// (fs2's coverage audit, haiku-fs2/20260905-catchable-vs-needs-harness.md: "the single largest
+// win... one pass through every mesh builder"). Same method as every test above: source-text
+// extraction of the exact expression a builder or call site uses, checked against the real
+// physics data — never a runtime render. Closes 12 of fs2's 59 blanks; see the two comment
+// blocks at the end of this file for the ones a source audit legitimately cannot reach and why.
+
+test('every wall (including the outlane/inlane dividers) renders its length, position and angle from its own real segment endpoints', () => {
+  const src = fs.readFileSync(MAIN_JS, 'utf8');
+  // One generic loop draws every tag in wallSegments — apron, lane guides, and the
+  // outlane-divider-left/-right walls added 2026-09-04 all go through this SAME code path, so
+  // one check here covers both "walls" and "outlane dividers" from fs2's list; there is no
+  // separate divider-specific rendering code to audit.
+  const loopMatch = src.match(/for \(const seg of wallSegments\) \{([\s\S]*?)\n\}/);
+  assert.ok(loopMatch, 'expected "for (const seg of wallSegments) { ... }" in main.js');
+  const body = loopMatch[1];
+  assert.match(body, /const dx = seg\.b\.x - seg\.a\.x;/, 'wall length must be derived from the segment\'s own endpoints, not a literal');
+  assert.match(body, /const dy = seg\.b\.y - seg\.a\.y;/);
+  assert.match(body, /const len = Math\.hypot\(dx, dy\);/);
+  assert.match(body, /new THREE\.BoxGeometry\(len,/, 'the box mesh\'s length must be the computed real length, not a duplicated literal');
+  assert.match(body, /mesh\.rotation\.y = Math\.atan2\(dy, dx\);/, 'wall angle must read the segment\'s own real direction, not a hardcoded rotation');
+
+  // Physics unchanged, per instructions — sanity check only, and confirms the dividers really
+  // are in this same list (not a separate, unaudited array).
+  const walls = recess.buildWalls();
+  assert.ok(walls.some((w) => w.tag === 'outlane-divider-left'), 'expected outlane-divider-left among recess.buildWalls()\'s own segments — the wall loop above renders exactly this list');
+  assert.ok(walls.some((w) => w.tag === 'outlane-divider-right'));
+});
+
+test('slingshot mesh bars read length, position and angle from their own real collision segments', () => {
+  const src = fs.readFileSync(MAIN_JS, 'utf8');
+  const fnMatch = src.match(/function buildSlingshotMesh\(segments\) \{([\s\S]*?)\n\}/);
+  assert.ok(fnMatch, 'expected "function buildSlingshotMesh(segments) { ... }" in main.js');
+  const body = fnMatch[1];
+  assert.match(body, /const dx = seg\.b\.x - seg\.a\.x, dy = seg\.b\.y - seg\.a\.y;/);
+  assert.match(body, /const len = Math\.hypot\(dx, dy\);/);
+  assert.match(body, /new THREE\.BoxGeometry\(len,/, 'slingshot bar length must be the real computed length, not a literal');
+  assert.match(body, /bar\.rotation\.y = Math\.atan2\(dy, dx\);/);
+
+  const callSiteMatches = [...src.matchAll(/buildSlingshotMesh\((slingshots\.\w+)\)/g)];
+  assert.ok(callSiteMatches.some((m) => m[1] === 'slingshots.left'), 'expected a call site passing slingshots.left');
+  assert.ok(callSiteMatches.some((m) => m[1] === 'slingshots.right'), 'expected a call site passing slingshots.right');
+
+  // Physics unchanged, per instructions — sanity check only.
+  const slingshots = buildSlingshots();
+  assert.ok(slingshots.left.length > 0 && slingshots.right.length > 0);
+});
+
+test('hopscotch and sand drop-target plates render position and angle from each target\'s own real shape, not a shared literal', () => {
+  const src = fs.readFileSync(MAIN_JS, 'utf8');
+  const fnMatch = src.match(/function buildDropBankMeshes\(bank, color\) \{([\s\S]*?)\n\}/);
+  assert.ok(fnMatch, 'expected "function buildDropBankMeshes(bank, color) { ... }" in main.js');
+  const body = fnMatch[1];
+  assert.match(body, /toSceneVec\(t\.centre\.x, t\.centre\.y,/, 'plate position must read the target\'s own real centre, not a duplicated literal');
+  assert.match(body, /const dx = t\.shape\.b\.x - t\.shape\.a\.x;/);
+  assert.match(body, /const dy = t\.shape\.b\.y - t\.shape\.a\.y;/);
+  assert.match(body, /plate\.rotation\.y = Math\.atan2\(dy, dx\);/, 'plate angle must read the target\'s own real collision segment, not a hardcoded rotation');
+
+  assert.match(src, /buildDropBankMeshes\(hopscotch,/, 'expected a call site building the hopscotch bank\'s meshes from the real hopscotch object');
+  assert.match(src, /buildDropBankMeshes\(sandBank,/, 'expected a call site building the sand bank\'s meshes from the real sandBank object');
+
+  // Physics unchanged, per instructions — sanity check only.
+  const hopscotch = buildHopscotchBank();
+  const sandBank = buildSandBank();
+  assert.ok(hopscotch.targets.length > 0 && sandBank.targets.length > 0);
+});
+
+test('swing-set side posts and top crossbars render position from the real physics apex data, not a duplicated literal', () => {
+  const src = fs.readFileSync(MAIN_JS, 'utf8');
+  const postLoop = src.match(/for \(const p of swingSetPosts\) \{([\s\S]*?)\n\}/);
+  assert.ok(postLoop, 'expected "for (const p of swingSetPosts) { ... }" in main.js');
+  assert.match(postLoop[1], /toSceneVec\(p\.centre\.x, p\.centre\.y,/, 'side-post mesh position must read the post\'s own real centre — swingSetPosts is the exact array physics collides against');
+
+  const barLoop = src.match(/for \(const apex of mech\.SWING_SET_APEXES\) \{([\s\S]*?)\n\}/);
+  assert.ok(barLoop, 'expected "for (const apex of mech.SWING_SET_APEXES) { ... }" in main.js');
+  assert.match(barLoop[1], /toSceneVec\(apex\.x, apex\.y \+ 0\.02,/, 'crossbar position must read the shared SWING_SET_APEXES data, not a second, independently-authored position list');
+
+  // Physics unchanged, per instructions — sanity check only.
+  const posts = buildSwingSetPosts();
+  assert.equal(posts.length, 4);
+  assert.equal(SWING_SET_APEXES.length, 2);
+});
+
+test('THE SLIDE, MONKEY BARS, THE TUNNEL and THE ORBIT ramp meshes are all built from their own real ramp.points, via the one shared segmentSteps walker', () => {
+  const src = fs.readFileSync(MAIN_JS, 'utf8');
+  // All four ramp meshes route through this one helper, which derives mid/dir/len purely from
+  // the `points` array it's handed — no per-ramp mesh function has its own hardcoded geometry
+  // to duplicate a literal in. The real audit is therefore at the CALL SITE: is each builder
+  // actually handed that ramp's own real .ramp.points, not a copy or a stand-in array?
+  assert.match(src, /function segmentSteps\(points, fn\) \{/, 'expected the shared segmentSteps(points, fn) walker in main.js');
+
+  const calls = {
+    buildSlideMesh: 'slide.ramp.points',
+    buildMonkeyBarsMesh: 'monkeyBars.ramp.points',
+    buildTunnelMesh: 'tunnel.ramp.points',
+    buildOrbitMesh: 'orbit.ramp.points',
+  };
+  for (const [fn, expectedArg] of Object.entries(calls)) {
+    const callSite = src.match(new RegExp(`tiltGroup\\.add\\(${fn}\\(([^)]+)\\)\\)`));
+    assert.ok(callSite, `expected "tiltGroup.add(${fn}(...))" in main.js`);
+    assert.equal(callSite[1].trim(), expectedArg, `${fn} must be called with ${expectedArg}, the real ramp's own tracked points — got "${callSite[1].trim()}"`);
+  }
+
+  // Physics unchanged, per instructions — sanity check only.
+  assert.ok(buildSlideRamp().ramp.points.length > 1);
+  assert.ok(buildMonkeyBarsRamp().ramp.points.length > 1);
+  assert.ok(buildTunnelRamp().ramp.points.length > 1);
+  assert.ok(buildOrbitRamp().ramp.points.length > 1);
+});
+
+test('the SANDBOX pit mesh position reads the real physics capture zone centre, not a duplicated literal (extends the existing radius-only check)', () => {
+  const src = fs.readFileSync(MAIN_JS, 'utf8');
+  const m = src.match(/const p = toSceneVec\(sandbox\.captureZone\.centre\.x, sandbox\.captureZone\.centre\.y,\s*0\)/);
+  assert.ok(m, 'expected the SANDBOX group\'s own position to read sandbox.captureZone.centre.x/y directly, not a hardcoded position');
+
+  // Physics unchanged, per instructions — sanity check only.
+  const sandbox = buildSandbox();
+  assert.ok(sandbox.captureZone.centre && typeof sandbox.captureZone.radius === 'number');
+});
+
+// PINWHEEL SPINNER — fs2 listed this as one of the 12 catchable blanks ("blade mesh exists at
+// zone position"), but it's already covered, just not in THIS file: test/spinner-span.test.mjs
+// asserts the rendered blade mesh reads its length from mech.SPINNER_BLADE_LENGTH (not a
+// duplicated literal) and that both spinner zones span exactly that length. Not duplicated
+// here — fs2's list predates that file's own coverage, this is a correction, not a gap.
+
+// The following three mesh builders were flagged by fs2 (haiku-fs2/
+// 20260905-catchable-vs-needs-harness.md, "Mesh-Collider Runtime Alignment") as needing a
+// RUNTIME geometry comparison, not a source audit, and that holds — named here, not skipped
+// silently, per the operator's explicit instruction:
+//
+// - Pop bumpers (tested above, "pop bumper skirt mesh radius..."): the source audit already
+//   confirms buildPopBumperMesh's skirt radius parameter and its call site both read
+//   p.shape.radius, not a literal. What a source audit CANNOT catch: a bug inside THREE.js
+//   geometry construction itself, or a future edit to buildPopBumperMesh that computes a
+//   *derived* value (a scale factor, an offset) from the radius rather than using it directly —
+//   the source pattern would still match "reads p.shape.radius" while the built mesh's actual
+//   radius at runtime silently diverged. Needs: load the built mesh, read its geometry's real
+//   bounding radius, compare numerically against p.shape.radius.
+// - Treehouse (tested above, "treehouse trunk mesh..."): same class of gap — the trunk radius
+//   parameter is read correctly per the source audit, but nothing here confirms the resulting
+//   CylinderGeometry's actual runtime radius equals it once built.
+// - Kickback (tested above, "kickback mesh..."): same again — centre/radius are read correctly
+//   at the source level; a runtime check would additionally catch e.g. a stray `.scale` applied
+//   to the mesh after construction, which no source-text regex here would ever see.
+//
+// All three need the SAME missing capability: a runtime harness that instantiates the mesh (or
+// a headless-DOM/three.js stand-in) and reads its actual geometry back, not a second source
+// audit — building that harness is out of scope for this pass, which is a source-code audit
+// extended to more call sites, not a new kind of test.
