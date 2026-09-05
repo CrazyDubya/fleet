@@ -29,7 +29,16 @@ import * as mech from '../src/table/mechanisms.js';
 // DRAIN_BUDGET_S is that measured max * 1.25, rounded up to the nearest 0.5s: 3.8417 * 1.25 =
 // 4.802s -> 5.0s. A future collider that pushes some point's drain time past 5.0s fails this
 // test loudly, with the same point/time evidence this comment records for the current one.
-const DRAIN_BUDGET_S = 5.0;
+//
+// RE-MEASURED 2026-09-04 (outlane/inlane dispatch): the primitive set below now also includes
+// the left outlane kickback (mechanisms.buildKickback) — it did not appear here before, even
+// though it already existed as a physics collider, because nothing had put it in the lower-
+// third sweep's own primitive list. Adding recess.js's new outlane/inlane divider walls made
+// this sweep exercise the kickback's neighbourhood for the first time, and the SAME seed's
+// slowest point moved from 3.8417s to 5.3375s — (x=0.03081646836921573,
+// y=0.3393128207689927), nowhere near the kickback either, a graze elsewhere in the now-more-
+// complex lower third. Re-derived the same way: 5.3375 * 1.25 = 6.671875s -> 7.0s.
+const DRAIN_BUDGET_S = 7.0;
 
 function mulberry32(seed) {
   return function () {
@@ -44,9 +53,11 @@ test('a resting ball dropped anywhere in the lower third always reaches the drai
   const rand = mulberry32(12345);
   const walls = recess.buildWalls();
   const swingSetPosts = mech.buildSwingSetPosts();
+  const kickback = mech.buildKickback();
   const primitives = [
     ...walls.map((shape) => ({ shape })),
     ...swingSetPosts.map((p) => ({ shape: p.shape })),
+    { shape: kickback.shape },
   ];
   const margin = BALL_RADIUS + 0.005;
 
@@ -62,6 +73,7 @@ test('a resting ball dropped anywhere in the lower third always reaches the drai
     for (const p of swingSetPosts) {
       if (Math.hypot(x - p.centre.x, y - p.centre.y) < mech.SWING_SET_POST_RADIUS + margin) return true;
     }
+    if (Math.hypot(x - kickback.centre.x, y - kickback.centre.y) < kickback.radius + margin) return true;
     return false;
   }
 

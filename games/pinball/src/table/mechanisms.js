@@ -35,30 +35,36 @@ export function buildPopBumpers() {
 const KICKBACK_RADIUS = 0.012;
 
 /**
- * Left outlane kickback. recess.js's own note: "Outlanes/inlanes... are not modelled yet" — the
- * table has no separate outlane channel, only the converging apron wall (recess.js's
- * `apron-left`) standing in for "the eventual outlane/inlane split." Placed along that wall's
- * lower run (between APRON_MID and APRON_NECK, roughly (-0.205,0.12) to (-0.15,0.02)), near the
- * drain end where a real kickback sits, offset clear of the wall into the field — a judgement
- * call recorded here rather than hidden, the same way this project records every other
- * deviation from a not-yet-built piece of geometry.
+ * Left outlane kickback. Sits in the real left outlane — the channel between recess.js's
+ * unchanged `apron-left` wall (outer) and its new `outlane-divider-left` wall (inner), added
+ * 2026-09-04 to model the outlane/inlane split this file's own comment used to say wasn't built
+ * yet. Placed along the lower run (between APRON_MID and APRON_NECK), near the drain end where a
+ * real kickback sits, same as before this split existed — but re-derived, not just re-labelled.
  *
- * Physics-level contact is PASSIVE — no `.kick`, unlike the pop bumpers/slingshots above, which
- * fire unconditionally on every hit. A kickback's whole point is that it doesn't always fire:
- * whether a given contact launches the ball is a lit/once-per-ball decision
- * (game/mechanisms.js's tryKickback), so the physics layer only reports the contact (the tag);
- * main.js applies `kick.vel` to the ball's velocity ONLY when that decision says yes. `kick` is
- * bundled the same shape as ramps.js's `sandbox.eject` ({vel, tag}) for the same reason: one
- * ready-to-apply vector, not direction and speed left for a caller to recombine.
+ * The outlane there is only ~46mm wide (recess.OUTLANE_WIDTH plus the apron/divider's own local
+ * geometry) against the kickback's 24mm diameter — too narrow to give a ball a full-diameter
+ * passage past the kickback on EITHER side (that needs 2*BALL_RADIUS + KICKBACK_RADIUS of
+ * *centreline* clearance from a wall — the same padding-inclusive measurement
+ * constants.js's own FLIPPER.lower.restAngle comment uses for its capsule-vs-ball gap, not the
+ * bare geometric distance between authored coordinates). Placing the kickback with any real gap
+ * next to the apron (tried: 8mm, then various offsets up to ~15mm) left a slot too narrow for a
+ * ball to pass but wide enough for it to wedge into and never fully escape — caught by the
+ * drain-sweep re-measurement below, which found permanent (120s+) dead pockets at several
+ * candidate placements before this one.
+ *
+ * The fix: mount it FLUSH — the kickback's own centre sits exactly ON the apron wall's line, so
+ * half the disc protrudes into the outlane and half is "inside" the wall, the same way a real
+ * kickback coil's plunger face sits flush with its rail rather than floating clear of it. This
+ * leaves no slot on the apron side at all for a ball to wedge into; the only approach is from the
+ * open field side, where the kickback behaves like an ordinary rounded post. Verified by a 20-
+ * point seeded drain-sweep (below) plus a 300-point stress sweep on a different seed, both
+ * showing zero stuck points — not assumed from the flush-mounting reasoning alone.
  */
 export function buildKickback() {
-  // Offset from the apron-left wall's own lower-run midpoint, along that wall's outward
-  // normal, by radius + an 8mm clearance margin — checked by hand (~20mm centre-to-wall
-  // distance, comfortably clear of KICKBACK_RADIUS) so the collider doesn't embed in the wall,
-  // the same class of problem test/drain-sweep-mechanisms.test.mjs caught for the swing-set
-  // crossbar. drain-sweep-mechanisms.test.mjs's own sweep (below) is what actually verifies
-  // this rather than the hand computation alone.
-  const centre = { x: -0.162, y: 0.084 };
+  // Centre chosen ON the apron-left wall's own lower run (y=0.05, chosen away from the
+  // APRON_MID corner so only one apron segment is nearby) — computed and verified numerically
+  // against recess.buildWalls() in a scratch script, not by hand.
+  const centre = { x: -0.1665, y: 0.05 };
   const dir = normalize({ x: 0.35, y: 1 }); // back up into the field, away from the drain
   return {
     centre, radius: KICKBACK_RADIUS,
@@ -108,7 +114,7 @@ export function buildSlingshots() {
 export const SWING_SET_APEXES = [{ x: -0.135, y: 0.175 }, { x: 0.135, y: 0.175 }];
 export const SWING_SET_POST_RADIUS = 0.004;
 // dx from the apex: the two side posts (the crossbar itself, dx=0, is drawn but not a collider).
-const SWING_SET_POST_DX = [-0.03, 0.03];
+export const SWING_SET_POST_DX = [-0.03, 0.03];
 
 export function buildSwingSetPosts() {
   const posts = [];
