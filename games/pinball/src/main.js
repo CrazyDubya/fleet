@@ -182,6 +182,27 @@ const kickbackState = game.createKickback();
 const tiltBob = tilt.createTiltBob();
 let flippersDisabled = false;
 const callouts = createCalloutLayer();
+// CALLOUT-1: TEACHER'S WATCHING describes CURRENT, ongoing risk ("you have a warning against
+// you right now") — it stops being true the instant the ball it warned about ends, so it's
+// tied to this ball's own generation number and ended the moment a new one is served (see the
+// 'ballServed' branch below). SENT TO THE PRINCIPAL / SLAM TILT / SUPER JACKPOT! all describe
+// something that ALREADY HAPPENED (an award, a game-over) — true forever, so those stay
+// unscoped, same as before this fix. See ui/callouts.js's own doc comment for the general rule.
+let ballGeneration = 0;
+
+/** Everything that resets on a genuinely new ball (design §4.4's "resets each ball" for tilt,
+ * plus the kickback's once-per-ball rearm and CALLOUT-1's own ball-generation scope) —
+ * factored out since it's needed at both 'ballServed' sites below (a direct serve, and the one
+ * inside a turnChange's own launchBall call). `callouts.endScope` runs BEFORE the generation
+ * bumps, ending whatever the ball that just finished was showing (see ui/callouts.js's own doc
+ * comment on why only the warning callout is scoped this way). */
+function onNewBall() {
+  game.resetKickbackForNewBall(kickbackState);
+  tilt.resetTiltBob(tiltBob);
+  flippersDisabled = false;
+  callouts.endScope(ballGeneration);
+  ballGeneration += 1;
+}
 // T8: which physical ball each SW_MERRY_GO_ROUND capture event this frame belongs to,
 // consumed in tag order against the matching lock/eject/multiballStart display events
 // rules/game.js returns for those same tags — see the frame loop's display-handling pass.
@@ -889,7 +910,7 @@ wireInput(canvas, {
     // single very large nudge, the slam-tilt threshold outright.
     const nudgeResult = tilt.nudgeTiltBob(tiltBob, { x, y });
     if (nudgeResult === 'warning') {
-      callouts.show("TEACHER'S WATCHING");
+      callouts.show("TEACHER'S WATCHING", { scope: ballGeneration });
     } else if (nudgeResult === 'tilt') {
       applyDisplayEvents(tiltBall(rulesState, elapsedS));
     } else if (nudgeResult === 'slam') {
@@ -935,9 +956,7 @@ function applyDisplayEvents(display) {
     // the kickback's once-per-ball use, and — TILT (design §4.4: "resets each ball") — the
     // bob and the "flippers died" flag.
     if (d.kind === 'ballServed') {
-      game.resetKickbackForNewBall(kickbackState);
-      tilt.resetTiltBob(tiltBob);
-      flippersDisabled = false;
+      onNewBall();
     }
     // Auto-launch the next ball on a turn change — there's no "plunge to start" menu flow
     // yet (ui/menus.js is T12), so without this the game would silently stop taking balls
@@ -947,9 +966,7 @@ function applyDisplayEvents(display) {
       for (const d2 of launchBall(rulesState, elapsedS)) {
         if (d2.kind === 'ballServed') {
           serveToChute();
-          game.resetKickbackForNewBall(kickbackState);
-          tilt.resetTiltBob(tiltBob);
-          flippersDisabled = false;
+          onNewBall();
         }
       }
     }
