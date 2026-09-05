@@ -32,8 +32,15 @@ test('§2.5 assertion 1: a reasonable W1 guide (design doc §1.1 band) does NOT 
 
 test('§2.5 assertion 1: every buildable Stage A1 cfg genuinely clears the sweep (spot check a sample)', () => {
   const { cfgs, excluded, total } = buildE4StageA1Cfgs();
-  assert.ok(cfgs.length > 0, 'no A1 cfgs survived the foul check');
-  assert.ok(excluded > 0, 'expected at least one grid combination to foul the sweep (design doc §2.1: "one too tight")');
+  // Pinned to the actual measured grid (2026-09-05, a file-thread sweep: `> 0`/`> 0` here would
+  // pass identically whether 350 of 360 survived or just 1 of 360 — a regression that fouled
+  // 99% of the grid would still satisfy both thresholds). 350/10 is the real, current split;
+  // this only re-checks the ratio stays this shape, not an exact count that would need updating
+  // on every deliberate grid change — a >= 300 survivor floor and a <= 30 foul ceiling both fail
+  // loudly on a widespread regression in either direction, without demanding an exact number
+  // that legitimate grid edits would otherwise have to keep re-typing.
+  assert.ok(cfgs.length >= 300, `expected most of the 360-cfg grid to survive the foul check, got only ${cfgs.length}`);
+  assert.ok(excluded >= 1 && excluded <= 30, `expected a small minority fouled (design doc §2.1: "one too tight"), got ${excluded}/360`);
   assert.equal(cfgs.length + excluded, total);
   for (const cfg of cfgs.slice(0, 25)) assert.doesNotThrow(() => buildE4World(cfg));
 });
