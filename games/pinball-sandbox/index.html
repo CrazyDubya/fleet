@@ -41,6 +41,20 @@
     padding: 8px 12px; border-radius: 6px; white-space: pre; pointer-events: none;
     min-width: 220px;
   }
+  #scenarioPanel {
+    position: fixed; bottom: 10px; right: 10px; z-index: 3; width: 260px;
+    font: 11px/1.4 ui-monospace, Menlo, Consolas, monospace;
+    color: #d8e8ff; background: rgba(10, 14, 24, 0.85); border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 8px; padding: 10px;
+  }
+  #scenarioPanel h1 { font-size: 12px; margin: 0 0 8px; color: #8fd3ff; font-weight: 600; }
+  #scenarioPanel button {
+    width: 100%; margin-bottom: 6px; padding: 6px; border-radius: 6px; border: none;
+    background: #2a3a4a; color: #d8e8ff; font: 11px ui-monospace, Menlo, Consolas, monospace;
+    cursor: pointer; text-align: left;
+  }
+  #scenarioPanel button:hover { background: #38506a; }
+  #scenarioReadout { white-space: pre-wrap; margin: 0; color: #ffd27a; }
 </style>
 <script type="importmap">
 {
@@ -55,6 +69,7 @@
 <pre id="readout">no ball placed yet — click the playfield</pre>
 <div id="panel"></div>
 <pre id="flipReadout">no flip yet</pre>
+<div id="scenarioPanel"></div>
 <script type="module" src="./src/main.js"></script>
 </body>
 </html>

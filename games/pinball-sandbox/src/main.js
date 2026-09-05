@@ -18,6 +18,7 @@ import * as mech from '../../pinball/src/table/mechanisms.js';
 import { buildTable, wireTable } from '../../pinball/src/table/assemble.js';
 import * as game from '../../pinball/src/game/mechanisms.js';
 import { wireInput } from '../../pinball/src/ui/input.js';
+import { SCENARIOS, runScenario, formatReport } from './scenarios.js';
 
 const canvas = document.getElementById('view');
 const readoutEl = document.getElementById('readout');
@@ -271,10 +272,17 @@ function despawnBall(entry) {
   balls = balls.filter((b) => b !== entry);
   if (mostRecentBall === entry) mostRecentBall = balls[balls.length - 1] ?? null;
   if (mgrMounted && mgrMounted.entry === entry) mgrMounted = null;
-  if (scoop.ball === entry.phys) {
-    scoop.ball = null;
-    scoop.ejectAt = null;
-    scoopHeldSinceS = null;
+  // game/mechanisms.js's scoop now holds an array (armScoop pushes, tickScoop ejects every
+  // captured ball together — fixed 2026-09-05 after the single-`scoop.ball` field orphaned a
+  // second ball captured during the same hold; see scenarios.js's 'scoop-two-balls' doc
+  // comment). A despawned ball just needs pruning out of that array if it's in it.
+  const idx = scoop.balls.indexOf(entry.phys);
+  if (idx !== -1) {
+    scoop.balls.splice(idx, 1);
+    if (scoop.balls.length === 0) {
+      scoop.ejectAt = null;
+      scoopHeldSinceS = null;
+    }
   }
 }
 
@@ -537,6 +545,33 @@ function buildPanel() {
 }
 buildPanel();
 
+// --- Scenario harness panel --------------------------------------------------------------
+// Runs a named scenario from scenarios.js: a fresh, headless physics/table world (never the
+// live scene's world — see scenarios.js's own doc comment on why determinism, not real-time
+// playback, is the point), stepped to completion instantly, with the result printed here.
+// This is the same runScenario() a `node --test` run calls — clicking a button here and
+// asserting on it in test/scenarios.test.mjs read the identical report shape.
+const scenarioPanelEl = document.getElementById('scenarioPanel');
+function buildScenarioPanel() {
+  scenarioPanelEl.innerHTML = '';
+  const h = document.createElement('h1');
+  h.textContent = 'scenarios';
+  scenarioPanelEl.appendChild(h);
+  const readout = document.createElement('pre');
+  readout.id = 'scenarioReadout';
+  readout.textContent = 'pick a scenario to run';
+  for (const name of Object.keys(SCENARIOS)) {
+    const btn = document.createElement('button');
+    btn.textContent = `Run: ${SCENARIOS[name].label}`;
+    btn.addEventListener('click', () => {
+      readout.textContent = formatReport(runScenario(name));
+    });
+    scenarioPanelEl.appendChild(btn);
+  }
+  scenarioPanelEl.appendChild(readout);
+}
+buildScenarioPanel();
+
 // Picking: an analytic plane at tiltGroup-local y = 0 (the playfield plane — see
 // render/scene.js's toSceneVec doc comment: "local y = 0 (playfield plane)"), transformed into
 // world space by tiltGroup's current matrix, so this stays correct regardless of the cabinet
@@ -666,17 +701,20 @@ function frame(now) {
     }
   }
 
-  if (game.tickScoop(scoop, elapsedS)) {
+  const ejectedBalls = game.tickScoop(scoop, elapsedS);
+  if (ejectedBalls) {
+    // Every ball armScoop captured since the last eject leaves together (game/mechanisms.js's
+    // own doc comment on armScoop) — matches games/pinball/src/main.js's own eject snippet.
     const evel = sandbox.eject.vel;
     const evLen = Math.hypot(evel.x, evel.y) || 1;
     const clear = sandbox.captureZone.radius * 1.3;
-    if (scoop.ball) {
-      scoop.ball.pos = {
+    for (const ejected of ejectedBalls) {
+      ejected.pos = {
         x: sandbox.captureZone.centre.x + (evel.x / evLen) * clear,
         y: sandbox.captureZone.centre.y + (evel.y / evLen) * clear,
       };
-      scoop.ball.vel = { x: evel.x, y: evel.y };
-      scoop.ball.captured = false;
+      ejected.vel = { x: evel.x, y: evel.y };
+      ejected.captured = false;
     }
     scoopHeldSinceS = null;
   }
