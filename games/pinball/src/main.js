@@ -735,7 +735,24 @@ function findBallEntry(physBall) {
 // a multiball release or an add-a-ball spawn (none of those wait for the player's plunger).
 let chuteBall = null;
 
+// TROUGH AND SERVE (2026-09-05): every ordinary drain below physically returns its ball to
+// this trough (game.captureInTrough); every ordinary serve now pulls the next one back out
+// (game.serveFromTrough) rather than an unconditional spawn — the mechanism this game used to
+// fake by just creating a fresh ball object on every serve with nothing tracking whether one
+// was actually "available". A locked ball (mounted on the merry-go-round) or an add-a-ball
+// never touches the trough at all — deliberately: those balls are physically elsewhere, not
+// waiting in the under-playfield channel, so pulling them through the trough queue would be
+// modelling a path they never take.
+const troughState = game.createTrough();
+
 function serveToChute() {
+  const served = game.serveFromTrough(troughState);
+  if (served === null) {
+    // See serveFromTrough's own doc comment: this should never happen in ordinary play (every
+    // serve is preceded by a matching drain, and the trough starts pre-loaded) — loud, not
+    // silent, if it ever does, rather than quietly masking a real drain/serve imbalance.
+    console.warn('serveToChute: trough reported empty on an ordinary serve — drain/serve count has drifted out of balance.');
+  }
   chuteBall = spawnBall(recess.LAUNCH_POSITION, { x: 0, y: 0 });
 }
 serveToChute();
@@ -870,6 +887,7 @@ function frame(now) {
     if (entry.phys.captured || !recess.isDrained(entry.phys)) continue;
     if (entry === chuteBall) chuteBall = null;
     despawnBall(entry);
+    game.captureInTrough(troughState, elapsedS); // every ordinary drain physically reaches the trough
     const liveBallsRemaining = balls.filter((b) => !b.phys.captured).length;
     scoreTags.push(drainTagFor({ liveBallsRemaining }));
   }

@@ -119,6 +119,55 @@ export function tickScoop(scoop, elapsedS) {
   return false;
 }
 
+// TROUGH AND SERVE (2026-09-05). fs2's own structural mapping (haiku-fs2/
+// 20260904-missing-mechanism-analogues.md, item 6): closest analogue is the SANDBOX scoop
+// above — a capture zone plus a small state machine — but where the scoop holds exactly one
+// ball with a fixed timer, a trough holds several balls in arrival order and serves them out
+// one at a time to the plunger lane, on demand rather than on a timer. No new physics
+// primitive needed: this is pure queueing state, the same "rules layer owns the queue, main.js
+// owns the physical ball" boundary every other mechanism here uses.
+//
+// The trough's queue entries carry no physical ball reference (unlike armScoop's `ball` field)
+// because this codebase already treats a mechanism's internal ball-shuffling as an unmodeled,
+// instantaneous hand-off wherever it isn't the interesting part of the shot — the SAME
+// convention physics/ramp.js's own doc comment states for a ramp's untracked downhill return
+// ("collapses into a single deterministic hand-off"). A real trough's under-playfield ball
+// path is exactly that kind of unmodeled return trip; what's real and worth tracking is ARRIVAL
+// ORDER and COUNT, not a literal object identity for a ball sitting in a metal channel.
+//
+// `initialCount` (default 1): a real machine's trough already holds every ball it owns before
+// the very first plunge — this game has no fixed total ball pool (each serve simply spawns a
+// fresh ball object), so "how many start pre-loaded" is a design choice, not a sourced figure.
+// 1 is the minimum that lets the very first serve of a game succeed without the trough already
+// reporting empty before a single ball has ever drained.
+export function createTrough(initialCount = 1) {
+  const queue = [];
+  for (let i = 0; i < initialCount; i++) queue.push({ capturedAtS: null }); // present at power-on
+  return { queue };
+}
+
+/** A ball has physically reached the trough (this dispatch wires this to every ordinary
+ * drain — see main.js). FIFO: pushed to the back, served from the front. */
+export function captureInTrough(trough, atS) {
+  trough.queue.push({ capturedAtS: atS });
+}
+
+/** Pop the oldest waiting ball for the plunger lane. Returns `null` (not a thrown error, not a
+ * fabricated ball) if the trough is genuinely empty — main.js checks this and warns rather
+ * than assuming, the same "loud, not silent" standard this project settled on today for
+ * recess.js's degenerate-joint guard and currentDiverterRoute's corrupt-value check. Under
+ * ordinary single/multiball play this should never actually happen (every serve is preceded by
+ * a matching drain, and the trough starts pre-loaded) — if it does, that is a real bug
+ * somewhere in the drain/serve balance, worth surfacing rather than papering over. */
+export function serveFromTrough(trough) {
+  if (trough.queue.length === 0) return null;
+  return trough.queue.shift();
+}
+
+export function troughCount(trough) {
+  return trough.queue.length;
+}
+
 // LEFT OUTLANE KICKBACK. Whether the kickback starts lit is a game-design choice, not a
 // physics fact — a real table would tie relighting it to a mode or shot, which nothing here
 // builds (a future dispatch's call, not invented here). Starting lit is picked because a
