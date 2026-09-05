@@ -46,12 +46,21 @@ function gateForRamp(ramp, tag) {
  * (table/mechanisms.js builds it (-0.150,0.220) -> (-0.135,0.175) -> (-0.100,0.115), kick
  * 3.5), so the authored hand-off dropped the ball onto a kicking surface aimed down-LEFT,
  * away from a left flipper whose bat sweeps RIGHT of its pivot — it never arrived. Keeping
- * the feed in the inlane and only re-aiming was tried first and measured: it can be made to
- * reach the bat, but the slingshot underneath scatters it (mid-bat in 27 of 81 samples over
- * ±3mm/±4°/±0.15m/s). The habitrail is therefore carried past the slingshot and drops the
- * ball onto the bat directly — mid-bat in 66 of the same 81 samples, contact in 81/81.
- * The name is kept; what it denotes is now a habitrail drop over the inlane, not a return
- * into it.
+ * the feed in the inlane and only re-aiming was tried first and measured against that
+ * rejected config: it can be made to reach the bat, but the slingshot underneath scatters it
+ * (mid-bat in 27 of 81 samples over ±3mm/±4°/±0.15m/s — this config was abandoned, so this
+ * figure is historical and was not re-measured). The habitrail is therefore carried past the
+ * slingshot and drops the ball onto the bat directly. The name is kept; what it denotes is
+ * now a habitrail drop over the inlane, not a return into it.
+ *
+ * Contact in 81/81 of the same 81-sample sweep (±3mm/±4°/±0.15m/s × 3 flipper states),
+ * mid-bat in 81/81 — re-measured 2026-09-05 (STALE-1 audit) against today's HEAD. Corrects a
+ * stale "mid-bat in 66 of 81" recorded 2026-09-04 (commit c2ac18e): the geometry has not
+ * changed since, but the METHOD has — commit d901cbf the next day fixed how the
+ * 'flip-at-arrival' flipper state is simulated (a mid-swing catch is now genuinely resolved
+ * against the sweeping capsule, not folded into 'active'; that commit's own message reports
+ * this exact feed's alongBat moving from 0.464 to 0.590 for one flipper state). 66/81 was a
+ * correct count under the superseded pre-fix method, not a wrong measurement at the time.
  */
 export function buildSlideRamp() {
   const points = [
@@ -78,6 +87,10 @@ export function buildSlideRamp() {
  * extends to the RIGHT of its pivot — 2.58cm away at closest, in every flipper state. The
  * wireform now ends over the bat and drops onto its middle: contact in 81/81 samples over
  * ±3mm/±4°/±0.15m/s, mid-bat in all 81. Speed is unchanged.
+ *
+ * Re-measured 2026-09-05 (STALE-1 audit, same sweep against today's HEAD, post the
+ * 'flip-at-arrival' methodology fix d901cbf): 81/81 contact, 81/81 mid-bat. Confirmed,
+ * unchanged.
  */
 export function buildMonkeyBarsRamp() {
   const points = [
@@ -113,6 +126,13 @@ export function buildMonkeyBarsRamp() {
  * straight into the 'tunnel' layer without touching any wall at all: "enters the orbit
  * cleanly", the first of the two acceptable outcomes. See the handoff for the re-measured
  * trace. No guide wall — nothing else stands in this flight path to need one.
+ *
+ * STALE-1 audit (2026-09-05): the ~19% and ~40% speed-loss figures above describe two
+ * configurations neither of which exists in this file any more (the pre-move mouth position,
+ * and a guide-rail segment that was tried and reverted) — there is no current code path to
+ * re-measure them against, and they predate the flip-at-arrival methodology fix entirely
+ * (this mechanism doesn't involve a flipper). Left as historical record of why the actual
+ * fix was chosen, not re-verified.
  */
 export function buildTunnelRamp() {
   const points = [
@@ -156,6 +176,11 @@ export function buildTunnelRamp() {
  * direction, ±0.15 m/s speed, × 3 flipper states) — 81/81 contact, 46/81 mid-bat. No re-aim
  * needed; every sampled condition reaches the right flipper. This now carries the same measured
  * guarantee LEFT_INLANE_FEED/UPPER_LEFT_FLIPPER_FEED do, not just a verified-safe landing spot.
+ *
+ * STALE-1 audit (2026-09-05): this figure was recorded (commit 59911cf, 08:32) shortly before
+ * the 'flip-at-arrival' methodology fix (d901cbf, 09:00) — the same ordering that made SLIDE's
+ * figure stale. Re-run against today's HEAD: still 81/81 contact, 46/81 mid-bat, unchanged.
+ * Unlike SLIDE, this feed's numbers happen to survive the fix.
  */
 export const ORBIT_EXIT_FEED = { x: 0.08, y: 0.25 };
 
@@ -245,6 +270,24 @@ export function buildDiverter(routeARampId, routeBRampId) {
  * the ball's whole approach saw a motionless bat. See mechanism-handoffs.test.mjs's
  * towardFlipper for the fuller measurement across other feeds, including a prior mistaken
  * conclusion on this exact point (corrected there).
+ *
+ * STALE-1 audit (2026-09-05): re-checked the whole paragraph above against today's HEAD.
+ * Arrival (statesHit=3/3) and the three bat fractions (rest/active/flip-at-arrival) all
+ * reproduce exactly via test/mechanism-handoffs.test.mjs's towardFlipper — confirmed,
+ * unchanged, no correction needed for those.
+ *
+ * The "35 of 35", "26 headings", and "5 of 25 perturbations" figures earlier in this comment
+ * are a different case: they were recorded 2026-09-04 (commit c2ac18e, the same pass that
+ * chose -94°), before the flip-at-arrival fix (d901cbf, 2026-09-05) — the same ordering that
+ * made SLIDE's mid-bat count stale — and no committed sweep script implements that exact
+ * heading/perturbation grid, so they cannot be re-run bit-for-bit. A best-effort
+ * reconstruction (±3°/±0.2m/s over a 5×5 grid at the chosen -94° heading, ×3 flipper states,
+ * "mid-bat" counted if any state lands on the bat) finds arrival 25/25 and mid-bat survival
+ * 25/25 today — much better than the published 5/25, and in the same direction as SLIDE's
+ * correction (the pre-fix method under-counted flip-at-arrival contact, since it folded that
+ * state into 'active'). This is a reconstruction, not an exact reproduction of the original
+ * grid, so it is reported as evidence the published 5/25 is very likely stale rather than as
+ * a replacement figure to pin.
  */
 export function buildSandbox() {
   const centre = { x: -0.01, y: 0.56 };
