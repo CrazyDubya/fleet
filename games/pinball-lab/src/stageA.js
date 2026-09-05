@@ -25,6 +25,7 @@ import { INJECTION } from './arenas/e1_flippers.js';
 import { buildE1StageACfgs, cfgId as hashCfg, buildE3AllCfgs } from './sweep.js';
 import { flagGateResult, FLAG_GATE_FRACTION, rankingValidityResult, parseCfgSet } from './gate.js';
 import { rate as measuredRate, fmt as fmtMeasured } from './measured.js';
+import { mergeReservoirs, seedFromString, E3_FAMILY_SAMPLE_CAP as FAMILY_SAMPLE_CAP } from './reservoir.js';
 
 const DEFAULT_TOTAL_TRIALS = 400000; // §3.3 Stage A budget; --trials overrides for smoke tests
 const INBOUND_SD_FLOOR_FRACTION = 0.5;
@@ -363,7 +364,8 @@ async function runE3Stage(args) {
 
   // --- Merge per-cfg counters, per-family pooled samples, and the dead-zone map. ---
   const perCfgByIndex = new Map();
-  const familySamples = {}; // family -> { xx: [], tt: [] }
+  const familyReservoirs = {}; // family -> [{ items, seen }, ...] one per worker
+  const familySamples = {}; // family -> { xx: [], tt: [], seen } after the reservoir merge
   const deadZone = new Map();
   for (const r of results) {
     for (const row of r.perCfg) {
@@ -384,12 +386,23 @@ async function runE3Stage(args) {
         for (const [k, v] of Object.entries(row.rmp)) prior.rmp[k] = (prior.rmp[k] ?? 0) + v;
       }
     }
+    // SAMPLECAP-1: collect the workers' reservoirs rather than concatenating them. A plain
+    // concatenation gives every worker an equal share of the pooled sample no matter how many
+    // trials it saw, which over-weights the worker that saw fewest (E3's P5 spans five shards
+    // holding 32,064-42,062 reached trials each). `mergeReservoirs` weights by `seen`.
     for (const [family, fs] of Object.entries(r.familySamples)) {
-      const target = familySamples[family] ?? (familySamples[family] = { xx: [], tt: [] });
-      target.xx.push(...fs.xx);
-      target.tt.push(...fs.tt);
+      (familyReservoirs[family] ?? (familyReservoirs[family] = [])).push(fs);
     }
     for (const [key, count] of r.deadZone) deadZone.set(key, (deadZone.get(key) ?? 0) + count);
+  }
+
+  for (const [family, parts] of Object.entries(familyReservoirs)) {
+    const merged = mergeReservoirs(parts, FAMILY_SAMPLE_CAP, seedFromString(`merge:${family}`));
+    familySamples[family] = {
+      xx: merged.items.map((it) => it.xx),
+      tt: merged.items.map((it) => it.tt),
+      seen: merged.seen,
+    };
   }
 
   // --- Per-family metrics (§5.4). ---
@@ -425,6 +438,12 @@ async function runE3Stage(args) {
       stallRate: trials ? stallCount / trials : 0,
       returnXVariety: xVariety,
       timeToReturnMedianS: fs.tt.length ? percentile(fs.tt, 50) : null,
+      // SAMPLECAP-1: these two are the only family metrics computed from a SUBSAMPLE rather
+      // than every trial, and nothing in the summary said so — `returnRate` (192,850 trials)
+      // and `returnXVariety` (a few thousand) printed identically. Now stated. The sample is
+      // uniform over `familySampleSeen`, so these are unbiased estimates of the full family.
+      familySampleN: fs.xx.length,
+      familySampleSeen: fs.seen ?? fs.xx.length,
       cfgs: rows.length,
       // MEASURED-2: additive sidecars alongside the bare fractions above — those are unchanged
       // (this file's own downstream JSON/ranking code reads them as plain numbers). `reached`

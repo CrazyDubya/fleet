@@ -1,0 +1,129 @@
+{
+  "exp": "e3",
+  "kind": "family-stats-companion",
+  "runId": "lab19-20260904-regen",
+  "generatedAt": "2026-09-05T20:52:00.123Z",
+  "sourceRunDir": "data/e3/lab19-20260904-regen",
+  "sourceSummary": "data/summaries/e3-lab19-20260904-regen.json",
+  "instrumentCommitSha": "ba9fe4ee843e685bd45819b044a00af6dcc14f31",
+  "note": "Additive companion to the published summary, which is UNCHANGED. Both metrics are recomputed over every reached trial in the run; the published values came from a per-worker prefix (SAMPLECAP-1). No trial was re-simulated.",
+  "trials": 1000000,
+  "reachedTrials": 862448,
+  "families": {
+    "P1": {
+      "reachedTrials": 116954,
+      "returnXVariety": 0.8794399401915654,
+      "timeToReturnMedianS": 2.0291666666666623,
+      "publishedReturnXVariety": 0.4637581956030603,
+      "publishedTimeToReturnMedianS": 1.7874999999999952,
+      "publishedSampleN": null,
+      "publishedCoverage": null,
+      "returnXVarietyM": {
+        "kind": "indeterminate",
+        "estimand": "P1: normalised 32-bin entropy of return-x over EVERY reached trial",
+        "value": 0.8794399401915654,
+        "n": 116954,
+        "why": "entropy interval needs measured.js slice 3 (Dirichlet resample of the 32 bin counts)"
+      },
+      "timeToReturnMedianSM": {
+        "kind": "indeterminate",
+        "estimand": "P1: median time to return over EVERY reached trial",
+        "value": 2.0291666666666623,
+        "n": 116954,
+        "why": "median interval needs measured.js slice 3 (order-statistic interval)"
+      }
+    },
+    "P2": {
+      "reachedTrials": 149296,
+      "returnXVariety": 0.8963924506055735,
+      "timeToReturnMedianS": 1.1583333333333306,
+      "publishedReturnXVariety": 0.9054527932307581,
+      "publishedTimeToReturnMedianS": 1.104166666666664,
+      "publishedSampleN": null,
+      "publishedCoverage": null,
+      "returnXVarietyM": {
+        "kind": "indeterminate",
+        "estimand": "P2: normalised 32-bin entropy of return-x over EVERY reached trial",
+        "value": 0.8963924506055735,
+        "n": 149296,
+        "why": "entropy interval needs measured.js slice 3 (Dirichlet resample of the 32 bin counts)"
+      },
+      "timeToReturnMedianSM": {
+        "kind": "indeterminate",
+        "estimand": "P2: median time to return over EVERY reached trial",
+        "value": 1.1583333333333306,
+        "n": 149296,
+        "why": "median interval needs measured.js slice 3 (order-statistic interval)"
+      }
+    },
+    "P3": {
+      "reachedTrials": 196201,
+      "returnXVariety": 0.8968599138955513,
+      "timeToReturnMedianS": 0.7416666666666653,
+      "publishedReturnXVariety": 0.8752947975228663,
+      "publishedTimeToReturnMedianS": 0.7541666666666652,
+      "publishedSampleN": null,
+      "publishedCoverage": null,
+      "returnXVarietyM": {
+        "kind": "indeterminate",
+        "estimand": "P3: normalised 32-bin entropy of return-x over EVERY reached trial",
+        "value": 0.8968599138955513,
+        "n": 196201,
+        "why": "entropy interval needs measured.js slice 3 (Dirichlet resample of the 32 bin counts)"
+      },
+      "timeToReturnMedianSM": {
+        "kind": "indeterminate",
+        "estimand": "P3: median time to return over EVERY reached trial",
+        "value": 0.7416666666666653,
+        "n": 196201,
+        "why": "median interval needs measured.js slice 3 (order-statistic interval)"
+      }
+    },
+    "P4": {
+      "reachedTrials": 199997,
+      "returnXVariety": 0.9084404243664096,
+      "timeToReturnMedianS": 0.8624999999999982,
+      "publishedReturnXVariety": 0.9092319233563295,
+      "publishedTimeToReturnMedianS": 0.9874999999999977,
+      "publishedSampleN": null,
+      "publishedCoverage": null,
+      "returnXVarietyM": {
+        "kind": "indeterminate",
+        "estimand": "P4: normalised 32-bin entropy of return-x over EVERY reached trial",
+        "value": 0.9084404243664096,
+        "n": 199997,
+        "why": "entropy interval needs measured.js slice 3 (Dirichlet resample of the 32 bin counts)"
+      },
+      "timeToReturnMedianSM": {
+        "kind": "indeterminate",
+        "estimand": "P4: median time to return over EVERY reached trial",
+        "value": 0.8624999999999982,
+        "n": 199997,
+        "why": "median interval needs measured.js slice 3 (order-statistic interval)"
+      }
+    },
+    "P5": {
+      "reachedTrials": 200000,
+      "returnXVariety": 0.9095341475597432,
+      "timeToReturnMedianS": 0.2208333333333336,
+      "publishedReturnXVariety": 0.8875131206912139,
+      "publishedTimeToReturnMedianS": 0.05833333333333333,
+      "publishedSampleN": null,
+      "publishedCoverage": null,
+      "returnXVarietyM": {
+        "kind": "indeterminate",
+        "estimand": "P5: normalised 32-bin entropy of return-x over EVERY reached trial",
+        "value": 0.9095341475597432,
+        "n": 200000,
+        "why": "entropy interval needs measured.js slice 3 (Dirichlet resample of the 32 bin counts)"
+      },
+      "timeToReturnMedianSM": {
+        "kind": "indeterminate",
+        "estimand": "P5: median time to return over EVERY reached trial",
+        "value": 0.2208333333333336,
+        "n": 200000,
+        "why": "median interval needs measured.js slice 3 (order-statistic interval)"
+      }
+    }
+  }
+}

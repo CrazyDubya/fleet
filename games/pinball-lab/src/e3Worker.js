@@ -3,10 +3,11 @@
 // stageAWorker.js: hundreds of cfgs at a few hundred-to-few-thousand trials each would waste
 // wall-clock spinning one worker thread per cfg). Writes every record into one gzipped shard
 // and returns per-cfg counters (cheap: no raw arrays) plus per-family pooled samples (xx for
-// the return-x entropy/variety metric, tt for timeToReturn's distribution — capped per family
-// per worker at FAMILY_SAMPLE_CAP so memory stays bounded regardless of trial count; large
-// enough at this run's per-family trial volumes for stable percentiles/entropy, a documented
-// resolution-vs-memory trade-off, not a silent truncation) and a merged dead-zone occupancy
+// the return-x entropy/variety metric, tt for timeToReturn's distribution — held in a uniform
+// RESERVOIR of FAMILY_SAMPLE_CAP per family per worker, so memory stays bounded regardless of
+// trial count while the sample still represents the whole stream. It used to keep the first
+// CAP instead, which is a prefix of this worker's contiguous cfg slice and not a sample of
+// the family at all; see src/reservoir.js and SAMPLECAP-1) and a merged dead-zone occupancy
 // Map (§5.4's heatmap), keyed `family:bx,by` since each family's dead zones live in a
 // completely different part of the arena.
 import { parentPort, workerData } from 'node:worker_threads';
@@ -14,9 +15,9 @@ import { createWriteStream } from 'node:fs';
 import { createGzip } from 'node:zlib';
 import { pipeline } from 'node:stream/promises';
 import { Readable } from 'node:stream';
+import { basename } from 'node:path';
 import { runTrialWithMeta } from './instrument.js';
-
-const FAMILY_SAMPLE_CAP = 6000;
+import { makeReservoir, seedFromString, E3_FAMILY_SAMPLE_CAP as FAMILY_SAMPLE_CAP } from './reservoir.js';
 
 function newCfgRow(cfg) {
   return {
@@ -65,10 +66,16 @@ async function run() {
           row.reachedCount += 1;
           if (record.xs >= 1.0 && record.xs <= 2.5) row.inBandSpeed += 1;
           row.xsVals.push(record.xs);
+          // SAMPLECAP-1: a uniform reservoir, not the first CAP seen. Keeping the prefix kept
+          // the opening cfgs of this worker's contiguous slice, which is not a sample of the
+          // family — see src/reservoir.js for the measured consequence. `xx` and `tt` are
+          // offered as ONE object so the pair survives together.
           let fs = familySamples[cfg.family];
-          if (!fs) fs = familySamples[cfg.family] = { xx: [], tt: [] };
-          if (fs.xx.length < FAMILY_SAMPLE_CAP) fs.xx.push(record.xx);
-          if (fs.tt.length < FAMILY_SAMPLE_CAP) fs.tt.push(record.tt);
+          if (!fs) {
+            fs = familySamples[cfg.family] =
+              makeReservoir(FAMILY_SAMPLE_CAP, seedFromString(`${basename(outPath)}:${cfg.family}`));
+          }
+          fs.offer({ xx: record.xx, tt: record.tt });
         }
         for (const [bx, by] of deadZoneHits) {
           const key = `${cfg.family}:${bx},${by}`;
@@ -84,8 +91,15 @@ async function run() {
 
   await pipeline(source, createGzip(), createWriteStream(outPath));
 
+  // Reservoirs cannot cross the worker boundary as live objects; send the held items plus the
+  // count they were drawn from, which is exactly what `mergeReservoirs` needs to weight them.
+  const familySampleOut = {};
+  for (const [family, r] of Object.entries(familySamples)) {
+    familySampleOut[family] = { items: r.items, seen: r.seen };
+  }
+
   parentPort.postMessage({
-    ok: true, outPath, perCfg, familySamples,
+    ok: true, outPath, perCfg, familySamples: familySampleOut,
     deadZone: [...deadZone.entries()],
   });
 }

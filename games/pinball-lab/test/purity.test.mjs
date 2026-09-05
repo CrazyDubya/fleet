@@ -17,7 +17,10 @@ const TIMING_ALLOWED = new Set(['runner.js', 'profile.js', 'stageA.js']);
 // timestamp, never a trial.
 // e4Report.js (LAB-6) is the same category: an orchestration CLI writing a summary timestamp.
 // e5aReport.js (LAB-10) is the same category: an orchestration CLI writing a summary timestamp.
-const WALLCLOCK_ALLOWED = new Set(['runner.js', 'stageA.js', 'lab2Report.js', 'e2Report.js', 'e4Report.js', 'e5aReport.js']); // Date.now/new Date() — meta.json/summary timestamps only
+// e3FamilyStats.js (SAMPLECAP-1) is the same category: an orchestration CLI that re-reads an
+// existing run's shards and writes a companion summary timestamp. It re-simulates nothing, and
+// its sampling is seeded (src/reservoir.js), so it stays under the Math.random ban below.
+const WALLCLOCK_ALLOWED = new Set(['runner.js', 'stageA.js', 'lab2Report.js', 'e2Report.js', 'e4Report.js', 'e5aReport.js', 'e3FamilyStats.js']); // Date.now/new Date() — meta.json/summary timestamps only
 
 function walk(dir) {
   const out = [];
