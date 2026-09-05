@@ -239,3 +239,141 @@ export function formatReport(report) {
   }
   return JSON.stringify(report);
 }
+
+// --- GRID SWEEPS ---------------------------------------------------------------------------
+// This week's actual throwaway scripts all did the same thing: vary one or two parameters and
+// report a table (six speeds against containment, eighty-one start positions against contact,
+// four feeds against contact point) — one configuration in, one result out, every time re-run
+// by hand. runScenarioGrid sweeps two parameters over a named scenario and reports the matrix,
+// so that becomes a standing call instead of a new script.
+//
+// Determinism across the grid: each cell is an entirely independent runScenario() call against
+// a freshly `structuredClone`d overrides object — nothing here mutates state that a later cell
+// could see. This isn't new plumbing to get right; it falls out of runSandboxTableScenario/
+// runChannelScenario already building a fresh world from scratch on every single call. What
+// this function has to get right is not accidentally sharing anything ACROSS cells itself
+// (e.g. reusing one overrides object and mutating it per-cell, which would make cell 5 see
+// leftover fields cell 4 set) — hence the clone per cell, not a shared mutable draft.
+
+/** Sets a dot-path (e.g. 'ball.speed') on `obj`, creating intermediate objects as needed, and
+ * returns `obj`. Pure string-key traversal — no array-index or bracket syntax needed for any
+ * scenario field that exists today. */
+function setPath(obj, path, value) {
+  const keys = path.split('.');
+  let cur = obj;
+  for (let i = 0; i < keys.length - 1; i++) {
+    if (typeof cur[keys[i]] !== 'object' || cur[keys[i]] === null) cur[keys[i]] = {};
+    cur = cur[keys[i]];
+  }
+  cur[keys[keys.length - 1]] = value;
+  return obj;
+}
+
+/**
+ * Runs `name` once per (x, y) pair in `xValues` x `yValues`, applying each value as an override
+ * at `xPath`/`yPath` (dot-separated into the scenario's own overrides shape — e.g. 'ball.speed',
+ * 'ball.offset') on top of `overrides`. `extract(report)` pulls the one value worth putting in
+ * the matrix out of each cell's full report (e.g. `(r) => r.contained`); omit it to keep full
+ * reports per cell (readable for a small grid, unwieldy for a large one — see formatGrid).
+ *
+ * A cell whose run throws (see assertRan in runSandboxTableScenario/runChannelScenario — a
+ * scenario that executed 0 physics steps refuses to return a result at all) is recorded as
+ * `{ ok: false, error }`, a hole in the matrix, never coerced into a value that reads as a
+ * result. This is the same principle SBX-FIX-1 fixed for a single run, multiplied by a grid:
+ * a hole must show as a hole, not silently disappear into whatever a summary's default would be.
+ *
+ * Returns `{ name, xPath, xValues, yPath, yValues, cells, summary }` — `cells[i][j]` is the
+ * result for `(xValues[i], yValues[j])`; `summary` is `summarizeBooleanGrid`'s shape-level read
+ * of the matrix when every cell's extracted value is a boolean (the common case — contained/
+ * escaped, hit/miss), since a wall of 81 raw values helps nobody but the question a sweep is
+ * usually asked ("where's the boundary, is it monotonic, are there islands") is a shape
+ * question, answerable from booleans alone.
+ */
+export function runScenarioGrid(name, { xPath, xValues, yPath, yValues, overrides = {}, extract } = {}) {
+  const cells = [];
+  for (const xv of xValues) {
+    const row = [];
+    for (const yv of yValues) {
+      const cellOverrides = setPath(setPath(structuredClone(overrides), xPath, xv), yPath, yv);
+      try {
+        const report = runScenario(name, cellOverrides);
+        row.push({ ok: true, value: extract ? extract(report) : report });
+      } catch (err) {
+        row.push({ ok: false, error: err.message });
+      }
+    }
+    cells.push(row);
+  }
+  const summary = extract ? summarizeBooleanGrid(cells) : { note: 'no extract() given — cells hold full reports, no shape summary' };
+  return { name, xPath, xValues, yPath, yValues, cells, summary };
+}
+
+/**
+ * A shape-level read of a grid whose cells hold booleans (or holes): an ASCII render ('#'=true,
+ * '.'=false, '?'=hole — one line per xValues row, left-to-right along yValues) plus whether
+ * each row (fixed x, varying y) and each column (fixed y, varying x) changes value at most once
+ * (monotonic) or more than once (an ISLAND — the exact shape the arc-containment escape-speed
+ * question turned on: containment at two speeds either side of an escape is not guaranteed
+ * monotonic, and that was only visible because someone laid the numbers in a row). Holes are
+ * skipped when counting transitions (a missing cell is neither true nor false), so a hole
+ * doesn't get misread as a spurious transition — but every hole is still counted and reported,
+ * since a matrix with a hole in it must show the hole, not paper over it.
+ */
+function summarizeBooleanGrid(cells) {
+  const holeCoords = [];
+  for (let i = 0; i < cells.length; i++) {
+    for (let j = 0; j < cells[i].length; j++) {
+      if (!cells[i][j].ok) holeCoords.push([i, j]);
+      else if (typeof cells[i][j].value !== 'boolean') {
+        return { note: 'summary only implemented for boolean-valued grids — read cells directly', holeCoords };
+      }
+    }
+  }
+
+  function transitions(values) {
+    let count = 0;
+    let last = null;
+    for (const v of values) {
+      if (v === null) continue; // hole
+      if (last !== null && v !== last) count += 1;
+      last = v;
+    }
+    return count;
+  }
+
+  const rows = cells.map((row) => row.map((c) => (c.ok ? c.value : null)));
+  const rowTransitions = rows.map(transitions);
+  const colCount = rows[0]?.length ?? 0;
+  const colTransitions = [];
+  for (let j = 0; j < colCount; j++) {
+    colTransitions.push(transitions(rows.map((row) => row[j])));
+  }
+
+  return {
+    ascii: rows.map((row) => row.map((v) => (v === null ? '?' : v ? '#' : '.')).join('')),
+    holeCount: holeCoords.length,
+    holeCoords,
+    rowsWithMultipleTransitions: rowTransitions.filter((t) => t > 1).length,
+    colsWithMultipleTransitions: colTransitions.filter((t) => t > 1).length,
+    monotonic: rowTransitions.every((t) => t <= 1) && colTransitions.every((t) => t <= 1),
+  };
+}
+
+/** Formats a grid report (from runScenarioGrid) as short, human-readable lines: the ASCII
+ * shape plus its own summary — never the raw per-cell values (that's the "wall of numbers"
+ * this exists to avoid; read `report.cells` directly for that). */
+export function formatGrid(report) {
+  const lines = [
+    `grid: ${report.name} (${report.xPath} x ${report.yPath}, ${report.xValues.length}x${report.yValues.length})`,
+  ];
+  if (report.summary.ascii) {
+    lines.push(...report.summary.ascii.map((row) => `  ${row}`));
+    lines.push(`  holes: ${report.summary.holeCount}  monotonic: ${report.summary.monotonic}`);
+    if (!report.summary.monotonic) {
+      lines.push(`  islands — rows: ${report.summary.rowsWithMultipleTransitions}, cols: ${report.summary.colsWithMultipleTransitions}`);
+    }
+  } else {
+    lines.push(`  ${report.summary.note}`);
+  }
+  return lines.join('\n');
+}
