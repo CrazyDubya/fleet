@@ -13,7 +13,7 @@ import { createGunzip } from 'node:zlib';
 import readline from 'node:readline';
 import path from 'node:path';
 import { mean } from './metrics.js';
-import { validExclStalled } from './gate.js';
+import { validExclStalled, rankingValidityResult } from './gate.js';
 
 async function* streamShards(dir, meta) {
   for (const shard of meta.shards) {
@@ -116,9 +116,16 @@ async function main() {
   // steep rise.
   const STEEP_R_THRESHOLD = 0.5;
   const STEEP_MAX_THRESHOLD = 0.01; // 1% — ~10x Stage C's banked max of 0.12%
-  const verdict = (pearsonR !== null && pearsonR >= STEEP_R_THRESHOLD && maxShotRate >= STEEP_MAX_THRESHOLD)
-    ? 'GEOMETRY'
-    : 'MODEL';
+  // LAB-25: gate the verdict on whether the AXIS can carry a correlation at all. E5a's
+  // assemblies are binned from an analytic hsS prediction, and the feasible set can collapse
+  // onto a handful of distinct values — the regenerated run has 9 of 15 assemblies at
+  // hsSPredicted = 0.0000 exactly. A Pearson r over that is decided by the few rows that are
+  // not tied, which is the LAB-16 family of mistake arriving in a correlation instead of a
+  // ranking. No new threshold: this is gate.js's existing population test (distinct-value
+  // floor and tie-block ceiling), the same one every other table in the lab already answers to.
+  const axisGuard = rankingValidityResult(xs);
+  const curveIsReadable = pearsonR !== null && pearsonR >= STEEP_R_THRESHOLD && maxShotRate >= STEEP_MAX_THRESHOLD;
+  const verdict = !axisGuard.ok ? 'INDETERMINATE' : (curveIsReadable ? 'GEOMETRY' : 'MODEL');
 
   const out = {
     exp: 'e5a', runId, generatedAt: new Date().toISOString(), instrumentCommitSha: meta.instrumentCommitSha,
@@ -126,6 +133,7 @@ async function main() {
     trialCount: meta.trialCount, secs: meta.secs,
     assemblies,
     curve: { pearsonR, maxShotRate, minShotRate, nAssemblies: assemblies.length },
+    axisGuard,
     verdict,
   };
   writeFileSync(path.join('data/summaries', `e5a-${runId}.json`), JSON.stringify(out, null, 2));
@@ -136,6 +144,17 @@ async function main() {
   lines.push(`- **instrument commit**: \`${meta.instrumentCommitSha}\`  ·  **generated**: ${out.generatedAt}`);
   lines.push('');
   lines.push(`## VERDICT: **${verdict}**`);
+  lines.push('');
+  if (!axisGuard.ok) {
+    lines.push(`> ⚠ **The verdict is INDETERMINATE because the axis cannot carry it.** ` +
+      `\`hsSPredicted\` has ${axisGuard.distinctCount} distinct values across ${axisGuard.n} assemblies ` +
+      `and ${(axisGuard.maxTieFraction * 100).toFixed(0)}% of them are tied at a single value — ` +
+      `${axisGuard.reason}. A Pearson r computed over that is decided by the handful of rows that are ` +
+      `not tied, so neither GEOMETRY nor MODEL can be read off it. The per-assembly table below is ` +
+      `real measured data and stands on its own; what does not stand is the curve drawn through it. ` +
+      `Fixing this needs a denser feasible hsS sweep, not a re-run of this grid.`);
+    lines.push('');
+  }
   lines.push('');
   if (verdict === 'GEOMETRY') {
     lines.push(`Shot rate rises with \`hsS\` (Pearson r = ${fmt(pearsonR, 3)}, max shot rate ${fmt(maxShotRate * 100, 2)}%` +

@@ -28,6 +28,15 @@ export const FLAG_GATE_FRACTION = 0.01;
 //   3. A premise is ATTRIBUTABLE. `reason` and `declaredBy` are required, so the claim traces
 //      back to the handoff that made it and can be argued with rather than merely obeyed.
 export const PREMISE_MIN_REASON_CHARS = 40;
+// LAB-26, found by an outside review (opencode) within a dispatch of the mechanism landing.
+// A ceiling of 1.0 is not a ceiling: the check is `fraction > ceiling`, so 1.0 > 1.0 is false
+// and a corpus with EVERY trial flagged passed. The design principle was "a premise is a
+// ceiling that still fails"; at 1.0 it cannot. The bound is placed at the declaration rather
+// than the comparison, because an unfailable ceiling is a malformed CLAIM, not a permissive
+// one — and it is set at one half on a principle rather than to taste: a premise may not
+// declare that the MAJORITY of a corpus is flagged. Past that, "expected" has stopped being an
+// exemption and become a description of a broken corpus.
+export const PREMISE_MAX_CEILING = 0.5;
 const PREMISE_KEYS = new Set(['expectedFlagFraction', 'expectedFlags', 'reason', 'declaredBy']);
 // Mirrors instrument.js's FLAGS. Duplicated rather than imported to keep gate.js free of the
 // instrument's own imports (it is the one module every stage runner pulls in); the test
@@ -62,8 +71,8 @@ export function parseCfgSet(parsed, { source = '<cfg>' } = {}) {
   }
   const { expectedFlagFraction: frac, expectedFlags: flags, reason, declaredBy } = raw;
 
-  if (typeof frac !== 'number' || !Number.isFinite(frac) || frac <= 0 || frac > 1) {
-    throw badPremise(source, `\`expectedFlagFraction\` must be a finite fraction in (0, 1], got ${JSON.stringify(frac)}`);
+  if (typeof frac !== 'number' || !Number.isFinite(frac) || frac <= 0 || frac >= PREMISE_MAX_CEILING) {
+    throw badPremise(source, `\`expectedFlagFraction\` must be a finite fraction in (0, ${PREMISE_MAX_CEILING}), got ${JSON.stringify(frac)} — a premise may not declare that half or more of a corpus is flagged, and a ceiling at or above 1.0 could never fail at all`);
   }
   if (!Array.isArray(flags) || flags.length === 0) {
     throw badPremise(source, '`expectedFlags` must be a non-empty array naming the flags this premise covers — an unscoped premise would weaken the gate for every other flag too');
@@ -131,9 +140,28 @@ export function flagGateResult({ trials, flagged, gateFraction = FLAG_GATE_FRACT
       `— over the ${(gateFraction * 100).toFixed(0)}% gate and NOT covered by the declared premise ` +
       `(which covers ${premise.expectedFlags.join(', ')})`);
   }
+  // LAB-26, second hole from the same review. Holding each undeclared flag to 1% INDIVIDUALLY
+  // multiplies the allowance by the number of flags: five undeclared flags at 0.99% each is
+  // 4.95% of the corpus carrying an undeclared flag, five times what §2.7 permits, with every
+  // one of them passing. A premise carves out the flags it NAMES; everything it does not name
+  // must still satisfy the original gate as if no premise existed — together, not one at a
+  // time. (The reviewer put the exposure at ~18%; that adds the declared flag back in and
+  // double-counts. 4.95% is the real number, and it is still five times the gate.)
+  let undeclaredCombined = 0;
+  for (const [flag, count] of Object.entries(flagCounts)) {
+    if (premise.expectedFlags.includes(flag) || excludedFlags.includes(flag)) continue;
+    undeclaredCombined += count;
+  }
+  const undeclaredCombinedFraction = trials > 0 ? undeclaredCombined / trials : 0;
+  if (undeclaredCombinedFraction > gateFraction) {
+    reasons.push(
+      `the flags this premise does NOT declare come to ${(undeclaredCombinedFraction * 100).toFixed(2)}% combined, ` +
+      `over the ${(gateFraction * 100).toFixed(0)}% gate — a premise exempts the flags it names, and everything ` +
+      `else together must still clear §2.7 as if no premise existed`);
+  }
   return {
     fraction, ok: reasons.length === 0, premiseApplied: true, gateFraction: ceiling,
-    undeclaredOverGate, excludedFlags: [...excludedFlags],
+    undeclaredOverGate, excludedFlags: [...excludedFlags], undeclaredCombinedFraction,
     reason: reasons.length ? reasons.join('; ') : null,
   };
 }
@@ -142,7 +170,16 @@ export function flagGateResult({ trials, flagged, gateFraction = FLAG_GATE_FRACT
  * with the summary a reader actually opens rather than living only in the cfg file. Returns
  * `[]` when no premise was declared. */
 export function premiseHeaderLines(premise, gate) {
-  if (!premise) return [];
+  // LAB-26: returning [] here made "declared nothing" and "declared and passed" identical in
+  // the rendered summary — the not-checked-must-not-read-as-passed rule, broken by the module
+  // that enforces it everywhere else. Absence is now stated.
+  if (!premise) {
+    return [
+      `- **§2.7**: no declared premise — this corpus is held to the plain ${(FLAG_GATE_FRACTION * 100).toFixed(0)}% gate, ` +
+      `and measured ${(gate.fraction * 100).toFixed(2)}%.`,
+      '',
+    ];
+  }
   const declared = (premise.expectedFlagFraction * 100).toFixed(2);
   const actual = (gate.fraction * 100).toFixed(2);
   const head = gate.ok

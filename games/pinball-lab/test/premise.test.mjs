@@ -20,7 +20,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   FLAG_GATE_FRACTION, flagGateResult, parseCfgSet, premiseHeaderLines, PREMISE_MIN_REASON_CHARS,
-  PREMISE_FLAG_NAMES,
+  PREMISE_FLAG_NAMES, PREMISE_MAX_CEILING,
 } from '../src/gate.js';
 import { FLAGS } from '../src/instrument.js';
 
@@ -238,6 +238,89 @@ test('premiseHeaderLines: a premise that was EXCEEDED says so in the header, lou
   assert.match(text, /20\.00%/);
 });
 
-test('premiseHeaderLines: no premise means no header block at all', () => {
-  assert.deepEqual(premiseHeaderLines(null, { fraction: 0.005, ok: true }), []);
+test('premiseHeaderLines: no premise SAYS no premise (was: returned nothing at all)', () => {
+  // Superseded by LAB-26. This used to assert `[]`, which made a corpus that declared nothing
+  // indistinguishable in the markdown from one that declared and passed. Kept as a test rather
+  // than deleted, so the change of behaviour is visible in the history.
+  const lines = premiseHeaderLines(null, { fraction: 0.005, ok: true });
+  assert.notDeepEqual(lines, []);
+  assert.match(lines.join('\n'), /no declared premise/i);
+});
+
+// ============================================================================================
+// LAB-26: two holes in the mechanism, found by an outside reviewer (opencode) within a dispatch
+// of it landing, and reproduced before being closed. Both reproductions are the tests.
+// ============================================================================================
+
+test('LAB-26 EXPLOIT 1: a ceiling of 1.0 is not a ceiling — it must be rejected at declaration', () => {
+  // Reproduced first: `fraction > ceiling` means 1.0 > 1.0 is false, so a corpus with EVERY
+  // trial flagged passed with {ok:true, premiseApplied:true, reason:null}. The design principle
+  // was "a premise is a ceiling that still fails"; at 1.0 it cannot fail. The fix is at the
+  // declaration, not the comparison — an unfailable ceiling is a malformed claim, not a
+  // permissive one.
+  assert.throws(
+    () => parseCfgSet({ premise: { ...GOOD, expectedFlagFraction: 1.0 }, cfgs: [] }),
+    /expectedFlagFraction/i,
+    'a ceiling of 1.0 must be a declaration error');
+  assert.throws(() => parseCfgSet({ premise: { ...GOOD, expectedFlagFraction: 0.5 }, cfgs: [] }), /expectedFlagFraction/i);
+  assert.throws(() => parseCfgSet({ premise: { ...GOOD, expectedFlagFraction: 0.75 }, cfgs: [] }), /expectedFlagFraction/i);
+  // The bound is principled rather than arbitrary: a premise may not declare that the MAJORITY
+  // of a corpus is flagged. Past half, "expected" stops being an exemption and becomes a
+  // description of a broken corpus.
+  assert.equal(PREMISE_MAX_CEILING, 0.5);
+  assert.equal(parseCfgSet({ premise: { ...GOOD, expectedFlagFraction: 0.49 }, cfgs: [] }).premise.expectedFlagFraction, 0.49);
+});
+
+test('LAB-26 EXPLOIT 2: undeclared flags must clear the gate COMBINED, not just individually', () => {
+  // Reproduced first: a TIMEOUT-only premise at 13% let NAN, ESCAPED, IMPACTS_EXHAUSTED, CREEP
+  // and STALLED each sit at 0.99% — every one individually under the 1% gate, the aggregate
+  // under the declared ceiling, and the whole thing passing. That is 4.95% of the corpus
+  // carrying an undeclared flag, five times what §2.7 permits. (The reviewer put it at ~18%;
+  // that figure adds the declared TIMEOUT back in and double-counts. 4.95% is the real number
+  // and it is still five times the gate.)
+  //
+  // The rule: a premise carves out the flags it NAMES. Everything it does not name must still
+  // satisfy the original gate as if no premise existed — combined, not one at a time.
+  const { premise } = parseCfgSet({ premise: { ...GOOD, expectedFlagFraction: 0.13 }, cfgs: [] });
+  const exploit = { TIMEOUT: 80000, NAN: 9900, ESCAPED: 9900, IMPACTS_EXHAUSTED: 9900, CREEP: 9900, STALLED: 9900 };
+  const r = flagGateResult({ trials: 1000000, flagged: 129500, premise, flagCounts: exploit });
+  assert.equal(r.ok, false, '4.95% of trials carrying undeclared flags must not pass');
+  assert.match(r.reason, /combined|together/i);
+  assert.ok(Math.abs(r.undeclaredCombinedFraction - 0.0495) < 1e-9);
+
+  // And the honest corpus is unaffected: undeclared flags well under the gate in total.
+  const fine = flagGateResult({
+    trials: 1000000, flagged: 105000, premise,
+    flagCounts: { TIMEOUT: 100000, IMPACTS_EXHAUSTED: 3000, CREEP: 2000 },
+  });
+  assert.equal(fine.ok, true, '0.5% combined is under the gate and must still pass');
+  assert.ok(Math.abs(fine.undeclaredCombinedFraction - 0.005) < 1e-9);
+});
+
+test('LAB-26: a single undeclared flag over the gate is still caught (the old rule is not lost)', () => {
+  const { premise } = parseCfgSet({ premise: GOOD, cfgs: [] });
+  const r = flagGateResult({ trials: 10000, flagged: 1250, premise, flagCounts: { TIMEOUT: 1100, NAN: 150 } });
+  assert.equal(r.ok, false);
+  assert.deepEqual(r.undeclaredOverGate.map((u) => u.flag), ['NAN']);
+});
+
+test('LAB-26: an excluded flag is not counted into the combined undeclared total either', () => {
+  // E4 removes STALLED from its numerator by §7; it must not be re-admitted through the
+  // combined check any more than through the per-flag one.
+  const { premise } = parseCfgSet({ premise: GOOD, cfgs: [] });
+  const r = flagGateResult({
+    trials: 100000, flagged: 7669, premise, excludedFlags: ['STALLED'],
+    flagCounts: { STALLED: 56070, TIMEOUT: 7400, IMPACTS_EXHAUSTED: 269 },
+  });
+  assert.equal(r.ok, true);
+  assert.ok(Math.abs(r.undeclaredCombinedFraction - 0.00269) < 1e-9);
+});
+
+test('LAB-26: no premise means the header SAYS so — unchecked must not look like passed', () => {
+  // My own rule, violated by my own code: premiseHeaderLines returned [] for null, so a summary
+  // with no declaration and a summary that passed one were indistinguishable in the markdown.
+  const lines = premiseHeaderLines(null, { fraction: 0.005, ok: true });
+  assert.ok(lines.length > 0, 'absence of a premise must be stated, not silent');
+  assert.match(lines.join('\n'), /no declared premise/i);
+  assert.match(lines.join('\n'), /0\.50%/);
 });
