@@ -203,6 +203,25 @@ test('kickback: does not kick when unlit', () => {
   assert.equal(kickback.usedThisBall, false, 'an unlit contact is not a use — it never fired');
 });
 
+// Found by an outside review (2026-09-05): main.js drives the kickback's mesh material from
+// `lit` alone, and before this fix nothing cleared `lit` on a successful fire — the mesh kept
+// showing "armed" for the rest of the ball even though a second contact correctly did nothing.
+test('kickback: lit clears the moment it fires — the mesh must not keep claiming armed after a used kick', () => {
+  const kickback = game.createKickback();
+  assert.equal(game.tryKickback(kickback), true, 'the contact fires');
+  assert.equal(kickback.lit, false, 'lit must clear on a successful fire — this is the flag main.js reads for the mesh material, and it must not lie about being armed');
+  assert.equal(game.tryKickback(kickback), false, 'a second contact, same ball, still does not fire');
+  assert.equal(kickback.lit, false, 'still unlit — a refused contact does not relight it');
+});
+
+test('kickback: a new ball re-lights it, not just re-arms usedThisBall', () => {
+  const kickback = game.createKickback();
+  game.tryKickback(kickback);
+  assert.equal(kickback.lit, false, 'sanity: unlit after firing');
+  game.resetKickbackForNewBall(kickback);
+  assert.equal(kickback.lit, true, 'a genuinely new ball must re-light the kickback, not just clear usedThisBall — otherwise the mesh would show unlit forever after the first fire of the game');
+});
+
 test('kickback: does not kick twice in one ball', () => {
   const kickback = game.createKickback();
   assert.equal(game.tryKickback(kickback), true, 'the first contact this ball kicks');

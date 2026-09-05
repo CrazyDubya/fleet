@@ -134,19 +134,33 @@ export function createKickback() {
 /** Called on a genuinely NEW ball (main.js's 'ballServed' display kind) — not on a DO-OVER
  * 'ballSaved', since a DO-OVER is explicitly the SAME ball continuing (rules/game.js's own
  * saveBall doc comment), and "once per ball" means once per that same ball, kickback survives
- * across its own DO-OVER exactly the way its score/mode progress does. */
+ * across its own DO-OVER exactly the way its score/mode progress does. Restores `lit` to
+ * KICKBACK_STARTS_LIT along with `usedThisBall` — a new ball gets a freshly-armed kickback,
+ * same as it always has; only the *within-ball* lit state (below) is new. */
 export function resetKickbackForNewBall(kickback) {
   kickback.usedThisBall = false;
+  kickback.lit = KICKBACK_STARTS_LIT;
 }
 
-/** The actual save decision for one contact: true (and marks `usedThisBall`) if the kickback
- * is lit and hasn't already fired this ball, so the caller should override the ball's
- * velocity with the kick; false (no state change) if unlit or already used, so the ball is
- * left to its ordinary post-collision velocity and continues toward the drain like any other
+/** The actual save decision for one contact: true (and marks `usedThisBall`, clears `lit`) if
+ * the kickback is lit and hasn't already fired this ball, so the caller should override the
+ * ball's velocity with the kick; false (no state change) if unlit or already used, so the ball
+ * is left to its ordinary post-collision velocity and continues toward the drain like any other
  * passive collider contact. Pure decision only — main.js applies the actual velocity, since
- * only physics/main.js touches ball state directly (same boundary as armScoop/tickScoop above). */
+ * only physics/main.js touches ball state directly (same boundary as armScoop/tickScoop above).
+ *
+ * Clearing `lit` on a successful fire (2026-09-05, found by an outside review, reproduced
+ * here): main.js chooses the kickback's mesh material from `lit` alone, and before this fix
+ * nothing ever cleared it after firing — the mesh kept showing "armed" for the rest of the
+ * ball even though `tryKickback` correctly refused every further contact via `usedThisBall`.
+ * `usedThisBall` and `lit` were answering two different questions (`has this ball's one use
+ * been spent` vs. `is it currently armed`) that happened to only ever agree by coincidence,
+ * because nothing kept them in sync. Relighting mid-ball is still explicitly not built (a
+ * future dispatch's call, per this file's KICKBACK_STARTS_LIT comment) — `lit` simply reflects
+ * reality in the meantime instead of only ever going true->stays-true within a ball. */
 export function tryKickback(kickback) {
   if (!kickback.lit || kickback.usedThisBall) return false;
   kickback.usedThisBall = true;
+  kickback.lit = false;
   return true;
 }

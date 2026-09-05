@@ -74,21 +74,46 @@ function offsetSegment(a, b, dist) {
  * a two-segment polyline's segments separately (the naive approach) leaves a gap/kink at the
  * joint (offsetSegment alone does this: the two segments were each translated by their OWN
  * normal, which differ, so the copies don't meet). This was caught, not assumed: the drain-sweep
- * re-measurement below found a ball trapped in exactly that gap. */
-function lineIntersect(p1, p2, p3, p4) {
+ * re-measurement below found a ball trapped in exactly that gap.
+ *
+ * Returns `null` if the two lines are parallel or collinear (`denom` at or near zero) instead
+ * of dividing by it — found by an outside review (2026-09-05), reproduced: collinear input
+ * produced `t = NaN` and a `{x: NaN, y: NaN}` joint, with nothing thrown and nothing logged,
+ * silently putting NaN wall coordinates into the physics system. A future apron authored with
+ * two straight (rather than angled) runs would hit this for real, not just in a test. Callers
+ * must handle `null` explicitly (see offsetPolylineMitered below) rather than trust the result
+ * is always a point. */
+export function lineIntersect(p1, p2, p3, p4) {
   const d1x = p2.x - p1.x, d1y = p2.y - p1.y;
   const d2x = p4.x - p3.x, d2y = p4.y - p3.y;
   const denom = d1x * d2y - d1y * d2x;
+  if (Math.abs(denom) < 1e-9) return null;
   const t = ((p3.x - p1.x) * d2y - (p3.y - p1.y) * d2x) / denom;
   return { x: p1.x + t * d1x, y: p1.y + t * d1y };
 }
 
 /** Offset a 3-point polyline (a->mid->b) perpendicular by `dist`, mitered at `mid` so the two
- * resulting segments share one joint vertex instead of two disconnected offset endpoints. */
-function offsetPolylineMitered(a, mid, b, dist) {
+ * resulting segments share one joint vertex instead of two disconnected offset endpoints.
+ *
+ * On a degenerate joint (the two offset segments parallel/collinear — see lineIntersect's own
+ * comment) falls back to the midpoint of the two offset segments' own nearest endpoints
+ * (`t1b`/`t2a`, both already at distance `dist` from `mid` along their respective normals) —
+ * this keeps a straight run straight (the case that produces the degeneracy in the first
+ * place) rather than producing NaN, and is loud about it: `console.warn`, so a future author
+ * who introduces this geometry sees it immediately rather than finding a silently broken wall
+ * later. */
+export function offsetPolylineMitered(a, mid, b, dist) {
   const [t1a, t1b] = offsetSegment(a, mid, dist);
   const [t2a, t2b] = offsetSegment(mid, b, dist);
   const joint = lineIntersect(t1a, t1b, t2a, t2b);
+  if (joint === null) {
+    console.warn(
+      `recess.js: offsetPolylineMitered found a degenerate joint at mid=(${mid.x}, ${mid.y}) ` +
+      `— the two offset segments are parallel/collinear, so no miter intersection exists. ` +
+      `Falling back to the midpoint of the two segments' own nearest endpoints.`
+    );
+    return [t1a, { x: (t1b.x + t2a.x) / 2, y: (t1b.y + t2a.y) / 2 }, t2b];
+  }
   return [t1a, joint, t2b];
 }
 
