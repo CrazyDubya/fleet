@@ -71,6 +71,7 @@ const wallColorByTag = {
   'apron-left': 0x5a5a5a, 'apron-right': 0x5a5a5a, // dark chrome corner plate
   'lane-outer': 0xb8b8b8, 'lane-inner': 0xb8b8b8, 'lane-floor': 0xb8b8b8, // chrome lane guide
   'lane-deflector': 0xb8b8b8, 'lane-gate': 0xb8b8b8,
+  'outlane-divider-left': 0xb8b8b8, 'outlane-divider-right': 0xb8b8b8, // same chrome guide-rail finish as the lane guides — a real machine's outlane/inlane divider is the same metal stock
 };
 const wallMats = new Map();
 function wallMaterial(tag) {
