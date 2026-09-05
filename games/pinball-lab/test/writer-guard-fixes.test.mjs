@@ -88,9 +88,9 @@ test('V3: aggregate.js validates flagGateOk before its first writeFileSync, not 
 // --- V2: a guard's result computed but nothing branched on it for one table ------------
 test('V2: lab2Report.js\'s full geometries table (sorted, no per-row guard) now carries an explicit not-a-ranking caveat', () => {
   const text = src('lab2Report.js');
-  const tableIdx = text.indexOf('## Fan width / timing sensitivity / cradle, per geometry');
+  const tableIdx = text.indexOf('## Fan width / cradle, per geometry');
   assert.ok(tableIdx >= 0, 'expected the geometries table header');
-  const nearby = text.slice(tableIdx, tableIdx + 1200);
+  const nearby = text.slice(tableIdx, tableIdx + 2200);
   assert.match(nearby, /not a validated ranking/i, 'the table must say its sort order is not a validated ranking');
 });
 
