@@ -31,11 +31,34 @@
 //   at some speeds, tunnels through the thin Arc backstop at others — non-monotonic, not a
 //   simple "harder hits escape more" threshold) can be re-run at any speed/offset and reported,
 //   not re-derived by hand each time.
-import { createWorld, setLayerPrimitives, addBall, advance } from '../../pinball/src/physics/world.js';
+//   'ramp-reachability' — ports the 81-sample ramp-exit-to-flipper sweep methodology (its exact
+//   posOffsets/angleOffsetsDeg/speedOffsets/three-flipper-states/alongBat measurement) into the
+//   scenario harness, generalized over which ramp and which flipper. Three instances are ported
+//   below, each reproducing a figure already published in a comment or a test, never a fresh
+//   guess at what these should measure:
+//     - 'orbit-reachability-right' reproduces test/orbit-reachability.test.mjs's own pinned
+//       81/81 contact assertion (buildOrbitRamp -> right flipper).
+//     - 'slide-reachability-left' reproduces table/ramps.js's buildSlideRamp doc comment
+//       ("contact in 81/81 samples ... mid-bat in 66 of the same 81") — that figure was a
+//       one-off scratch measurement backing the 2026-09-04 re-aim, never committed as a
+//       standing check until now.
+//     - 'monkeybars-reachability-upperLeft' reproduces buildMonkeyBarsRamp's doc comment
+//       ("contact in 81/81 samples ... mid-bat in all 81"), same situation.
+//   The flipper's rest/active angle is read off the SAME createFlipper() object the trial fires
+//   the ball at (target.restAngle/activeAngle, already in radians) rather than re-deriving
+//   `180 - lowerAngle` locally — one source of truth, not a second copy of recess.js's own
+//   mirroring formula.
+import { createWorld, setLayerPrimitives, setLayerZones, addBall, addFlipper, advance } from '../../pinball/src/physics/world.js';
 import { buildTable, wireTable } from '../../pinball/src/table/assemble.js';
+import { createFlipper } from '../../pinball/src/physics/flipper.js';
 import * as game from '../../pinball/src/game/mechanisms.js';
+import * as recess from '../../pinball/src/table/recess.js';
+import * as ramps from '../../pinball/src/table/ramps.js';
 import { Segment, Arc } from '../../pinball/src/physics/shapes.js';
+import { scale, rotate, perp } from '../../pinball/src/physics/vec2.js';
 import { BALL_RADIUS, STEP_DT, E_WALL } from '../../pinball/src/physics/constants.js';
+
+const DEG = Math.PI / 180;
 
 export const SCENARIOS = {
   'scoop-two-balls': {
@@ -62,6 +85,38 @@ export const SCENARIOS = {
     // handoff's own fix note, but that's not this scenario's job to decide.
     channel: { length: 0.12, halfWidth: 1.6 * BALL_RADIUS, backstopPadding: 0 },
     ball: { speed: 6.0, offset: 0 },
+  },
+  'orbit-reachability-right': {
+    label: "THE ORBIT's exit reachability toward the right flipper (81-sample sweep)",
+    kind: 'ramp-reachability',
+    rampBuilder: 'buildOrbitRamp',
+    flipperName: 'right',
+    // Same 3x3x3x3 sweep as the ported test: ±3mm position (perpendicular to the exit
+    // direction), ±4° direction, ±0.15 m/s speed, x 3 flipper states (rest/active/flip-at-arrival).
+    posOffsets: [-0.003, 0, 0.003],
+    angleOffsetsDeg: [-4, 0, 4],
+    speedOffsets: [-0.15, 0, 0.15],
+    durationS: 1.5,
+  },
+  'slide-reachability-left': {
+    label: 'THE SLIDE\'s exit reachability toward the left flipper (81-sample sweep)',
+    kind: 'ramp-reachability',
+    rampBuilder: 'buildSlideRamp',
+    flipperName: 'left',
+    posOffsets: [-0.003, 0, 0.003],
+    angleOffsetsDeg: [-4, 0, 4],
+    speedOffsets: [-0.15, 0, 0.15],
+    durationS: 1.5,
+  },
+  'monkeybars-reachability-upperLeft': {
+    label: "MONKEY BARS' exit reachability toward the upper-left flipper (81-sample sweep)",
+    kind: 'ramp-reachability',
+    rampBuilder: 'buildMonkeyBarsRamp',
+    flipperName: 'upperLeft',
+    posOffsets: [-0.003, 0, 0.003],
+    angleOffsetsDeg: [-4, 0, 4],
+    speedOffsets: [-0.15, 0, 0.15],
+    durationS: 1.5,
   },
 };
 
@@ -187,6 +242,95 @@ function runChannelScenario(def, overrides) {
   };
 }
 
+function buildRampReachabilityWorld() {
+  const world = createWorld();
+  const table = buildTable();
+  setLayerPrimitives(world, 'playfield', table.primitives);
+  setLayerZones(world, 'playfield', table.zones);
+  const flippers = {};
+  for (const cfg of recess.buildFlipperConfigs()) {
+    const f = createFlipper(cfg);
+    addFlipper(world, f);
+    flippers[cfg.name] = f;
+  }
+  return { world, flippers };
+}
+
+/** One trial, identical in method to orbit-reachability.test.mjs's own `trial()`: fires a ball
+ * at `pos`/`vel` toward `flipperName`'s own capsule, held at `angleRad` (or naturally flipping
+ * mid-flight if `angleRad === 'flip-at-arrival'`), and reports whether it made contact within
+ * `durationS` plus the along-bat fraction (0=pivot, 1=tip; outside [0,1] = a graze on the round
+ * hub, not the bat body) of the first contact. */
+function rampReachabilityTrial({ pos, vel, flipperName, angleRad, durationS }) {
+  const { world, flippers } = buildRampReachabilityWorld();
+  const target = flippers[flipperName];
+  if (angleRad === 'flip-at-arrival') { target.angle = target.restAngle; target.angularVel = 0; target.active = true; }
+  else { target.angle = angleRad; target.angularVel = 0; target.active = false; }
+  const ball = addBall(world, { id: 't', pos: { x: pos.x, y: pos.y }, vel: { x: vel.x, y: vel.y }, radius: BALL_RADIUS });
+  const steps = Math.round(durationS / STEP_DT);
+  for (let i = 0; i < steps; i++) {
+    const prev = { x: ball.pos.x, y: ball.pos.y };
+    const angleNow = target.angle;
+    const events = advance(world, STEP_DT);
+    for (const e of events) {
+      if (e.primitive?.flipper?.tag !== target.tag) continue;
+      const alongBat = ((prev.x - target.pivot.x) * Math.cos(angleNow) + (prev.y - target.pivot.y) * Math.sin(angleNow)) / target.length;
+      return { hit: true, alongBat };
+    }
+    if (recess.isDrained(ball)) break;
+  }
+  return { hit: false, alongBat: null };
+}
+
+function runRampReachabilityScenario(def, overrides, name) {
+  const flipperName = overrides.flipperName ?? def.flipperName;
+  const rampBuilder = overrides.rampBuilder ?? def.rampBuilder;
+  const posOffsets = overrides.posOffsets ?? def.posOffsets;
+  const angleOffsetsDeg = overrides.angleOffsetsDeg ?? def.angleOffsetsDeg;
+  const speedOffsets = overrides.speedOffsets ?? def.speedOffsets;
+  const durationS = overrides.durationS ?? def.durationS;
+
+  // The ramp's own exit point/direction/speed, read live from ramps.js — never a copied
+  // constant, so a deliberate re-aim of the ramp shows up here automatically.
+  const built = ramps[rampBuilder]();
+  const pos = built.ramp.exit.pos;
+  const dir = built.ramp.exit.dir;
+  const speed = built.ramp.exit.speed;
+  const side = perp(dir);
+
+  // The target flipper's own rest/active angles (radians), read off a real createFlipper()
+  // object built from recess.js's own config — not re-derived from a mirrored-angle formula.
+  const probe = buildRampReachabilityWorld();
+  const target = probe.flippers[flipperName];
+  const flipperStates = [target.restAngle, target.activeAngle, 'flip-at-arrival'];
+
+  let total = 0, contact = 0, midBat = 0;
+  for (const dp of posOffsets) {
+    const p = { x: pos.x + side.x * dp, y: pos.y + side.y * dp };
+    for (const da of angleOffsetsDeg) {
+      const d = rotate(dir, da * DEG);
+      for (const ds of speedOffsets) {
+        const v = scale(d, speed + ds);
+        for (const angleRad of flipperStates) {
+          total += 1;
+          const r = rampReachabilityTrial({ pos: p, vel: v, flipperName, angleRad, durationS });
+          if (r.hit) {
+            contact += 1;
+            if (r.alongBat >= 0 && r.alongBat <= 1) midBat += 1;
+          }
+        }
+      }
+    }
+  }
+
+  if (total === 0) {
+    throw new Error(
+      `runScenario: "${name}" ran 0 trials — check posOffsets/angleOffsetsDeg/speedOffsets are non-empty arrays.`
+    );
+  }
+  return { name, flipperName, rampBuilder, durationS, total, contact, midBat };
+}
+
 // A report field is only trustworthy if something actually computed it. `contained`,
 // `captured`, etc. all start from values chosen so a run that never executes a single step
 // (a non-positive/NaN duration, a world that fails to build before the loop, balls that never
@@ -209,6 +353,7 @@ function assertRan(stepsRun, scenarioName) {
 const RUNNERS = {
   'sandbox-table': runSandboxTableScenario,
   channel: runChannelScenario,
+  'ramp-reachability': runRampReachabilityScenario,
 };
 
 /** Runs a named scenario from SCENARIOS, with optional per-field overrides (e.g.
@@ -219,7 +364,7 @@ export function runScenario(name, overrides = {}) {
   if (!def) throw new Error(`runScenario: unknown scenario "${name}"`);
   const runner = RUNNERS[def.kind];
   if (!runner) throw new Error(`runScenario: unknown scenario kind "${def.kind}"`);
-  return runner(def, overrides);
+  return runner(def, overrides, name);
 }
 
 /** Formats a report from runScenario() as short, human-readable lines for an on-screen readout. */
@@ -235,6 +380,12 @@ export function formatReport(report) {
       `scenario: arc-containment (speed=${report.ball.speed} m/s, offset=${report.ball.offset}m)`,
       `  contained: ${report.contained}`,
       report.contained ? `  max y reached: ${report.maxY.toFixed(4)}m` : `  escaped at t=${report.escapedAtS.toFixed(3)}s`,
+    ].join('\n');
+  }
+  if (report.rampBuilder) {
+    return [
+      `scenario: ${report.name} (${report.durationS.toFixed(1)}s, ${report.total} samples)`,
+      `  contact: ${report.contact}/${report.total}  mid-bat: ${report.midBat}/${report.total}`,
     ].join('\n');
   }
   return JSON.stringify(report);
