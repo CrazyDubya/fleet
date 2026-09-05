@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { createScene, toSceneVec } from './render/scene.js';
 import { startTween, tweenPosition } from './render/presentationTween.js';
 import { createWorld, addBall, removeBall, addFlipper, advance } from './physics/world.js';
-import { createFlipper } from './physics/flipper.js';
+import { createFlipper, setActive } from './physics/flipper.js';
 import { BALL_RADIUS, PLUNGER_MAX_SPEED, NUDGE_IMPULSE, PITCH_DEG } from './physics/constants.js';
 import * as recess from './table/recess.js';
 import * as mech from './table/mechanisms.js';
@@ -20,9 +20,11 @@ import {
   drainTagFor, mechanismTags,
 } from './table/switches.js';
 import * as game from './game/mechanisms.js';
-import { createGame, launchBall, processEvents as processRules, activePlayer } from './rules/game.js';
+import { createGame, launchBall, processEvents as processRules, activePlayer, tiltBall, slamTilt } from './rules/game.js';
+import * as tilt from './rules/tilt.js';
 import { wireInput } from './ui/input.js';
 import { isDebugEnabled, mountDebugPanel, mountEventLog } from './ui/debug.js';
+import { createCalloutLayer } from './ui/callouts.js';
 
 const canvas = document.getElementById('view');
 const { scene, camera, renderer, tiltGroup, resize } = createScene(canvas);
@@ -173,6 +175,13 @@ const pinwheelSpinner = game.createSpinner();
 const rulesState = createGame({ numPlayers: 1, ballsPerPlayer: 3 });
 const scoop = game.createScoop();
 const kickbackState = game.createKickback();
+// TILT (design §4.4): the bob and its "flippers died" flag both reset on 'ballServed' (a
+// genuinely new ball) — see the display-handling loop below. A DO-OVER re-serve ('ballSaved')
+// does NOT reset either: it's the same ball continuing, and the design's "resets each ball"
+// means a new ball, not a save.
+const tiltBob = tilt.createTiltBob();
+let flippersDisabled = false;
+const callouts = createCalloutLayer();
 // T8: which physical ball each SW_MERRY_GO_ROUND capture event this frame belongs to,
 // consumed in tag order against the matching lock/eject/multiballStart display events
 // rules/game.js returns for those same tags — see the frame loop's display-handling pass.
@@ -826,6 +835,22 @@ function serveToChute() {
 }
 serveToChute();
 
+// TILT (design §4.4): physically drains every ball actually in play — mirrors the ordinary
+// per-frame drain loop's own convention of skipping a `captured` ball (one pinned in the
+// SANDBOX scoop or mounted on the merry-go-round isn't rolling on the playfield to begin with;
+// multiball's own forceEnd, invoked by rules/game.js's tiltBall, already handles clearing a
+// mounted/locked slot). Called directly, not via the ordinary SW_DRAIN switch-tag path — a
+// tilt bypasses ball-save outright rather than merely failing its window check, so it must not
+// go through the same queue that lets a normal drain ask "is this within the save window?".
+function drainAllBallsForTilt() {
+  for (const entry of [...balls]) {
+    if (entry.phys.captured) continue;
+    if (entry === chuteBall) chuteBall = null;
+    despawnBall(entry);
+    game.captureInTrough(troughState, elapsedS);
+  }
+}
+
 // --- Input: flippers, plunger, nudge ---
 let plungerPower = 0;
 let charging = false;
@@ -858,6 +883,18 @@ wireInput(canvas, {
       if (b.phys.captured) continue;
       b.phys.vel = { x: b.phys.vel.x + (x / len) * NUDGE_IMPULSE, y: b.phys.vel.y + (y / len) * NUDGE_IMPULSE };
     }
+    // TILT (design §4.4): the SAME raw {x,y} this callback already receives, fed into the
+    // tilt bob (rules/tilt.js) — see TILT-1B, no new input detection needed. A nudge can
+    // itself be the thing that crosses a warning threshold (checked instantly here) or, for a
+    // single very large nudge, the slam-tilt threshold outright.
+    const nudgeResult = tilt.nudgeTiltBob(tiltBob, { x, y });
+    if (nudgeResult === 'warning') {
+      callouts.show("TEACHER'S WATCHING");
+    } else if (nudgeResult === 'tilt') {
+      applyDisplayEvents(tiltBall(rulesState, elapsedS));
+    } else if (nudgeResult === 'slam') {
+      applyDisplayEvents(slamTilt(rulesState, elapsedS));
+    }
   },
   onFlipperEdge: () => game.advanceFunPointer(funLamps),
 });
@@ -883,6 +920,94 @@ resizeToWindow();
 // imperceptible and keeps processRules the sole thing that ever mutates rules state.
 let pendingNextFrameTags = [];
 
+/** Reacts to a batch of rules-layer display events — physically spawning/reparenting balls,
+ * launching the next player's ball, clearing merry-go-round queues, logging. Extracted from
+ * the frame loop (was inline) so a tilt/slam-tilt result — which ends a ball OUTSIDE the
+ * ordinary switch-tag queue, see tiltBall/slamTilt's own doc comments in rules/game.js — can
+ * feed its own display array through the SAME reactions (ballServed re-arming the kickback,
+ * turnChange auto-launching the next ball, multiballForceEnd clearing MGR queues) instead of
+ * this file growing a second, parallel copy of that handling. */
+function applyDisplayEvents(display) {
+  for (const d of display) {
+    if (d.kind === 'ballServed' || d.kind === 'ballSaved') serveToChute();
+    // A genuinely NEW ball (not a DO-OVER 'ballSaved' — see game/mechanisms.js's
+    // resetKickbackForNewBall doc comment for why the two are treated differently) re-arms
+    // the kickback's once-per-ball use, and — TILT (design §4.4: "resets each ball") — the
+    // bob and the "flippers died" flag.
+    if (d.kind === 'ballServed') {
+      game.resetKickbackForNewBall(kickbackState);
+      tilt.resetTiltBob(tiltBob);
+      flippersDisabled = false;
+    }
+    // Auto-launch the next ball on a turn change — there's no "plunge to start" menu flow
+    // yet (ui/menus.js is T12), so without this the game would silently stop taking balls
+    // after the first one ends. gameOver is checked instead so a real end-of-game doesn't
+    // immediately re-launch a ball that has nowhere to go.
+    if (d.kind === 'turnChange' && !rulesState.gameOver) {
+      for (const d2 of launchBall(rulesState, elapsedS)) {
+        if (d2.kind === 'ballServed') {
+          serveToChute();
+          game.resetKickbackForNewBall(kickbackState);
+          tilt.resetTiltBob(tiltBob);
+          flippersDisabled = false;
+        }
+      }
+    }
+
+    // T8: MERRY-GO-ROUND lock/eject/multiball. Each of these display kinds corresponds 1:1,
+    // in emission order, to a queued SW_MERRY_GO_ROUND capture from this same frame's physics
+    // events — see mergeGoRoundQueue's doc comment.
+    if (d.kind === 'merryGoRoundEject') {
+      ejectFromMergeGoRound(findBallEntry(mergeGoRoundQueue.shift()));
+    } else if (d.kind === 'lock') {
+      const entry = findBallEntry(mergeGoRoundQueue.shift());
+      mgrMountedSlots.push(entry);
+      mountAtMergeGoRound(entry, d.locks - 1);
+    } else if (d.kind === 'lockedBallServed') {
+      // "locking ball N serves a new ball" — auto-plunged, not waiting in the chute.
+      spawnBall(recess.LAUNCH_POSITION, { x: 0, y: PLUNGER_MAX_SPEED * 0.7 });
+    } else if (d.kind === 'multiballStart') {
+      // The 3rd lock's own capture is still queued (it triggered this very display event) —
+      // it's the third mounted ball, never separately reported via a 'lock' display.
+      const thirdEntry = findBallEntry(mergeGoRoundQueue.shift());
+      mountAtMergeGoRound(thirdEntry, 2);
+      const releasing = [...mgrMountedSlots, thirdEntry];
+      mgrMountedSlots = [];
+      releasing.forEach((entry, i) => mgrReleaseQueue.push({ entry, atS: elapsedS + i * 0.4 }));
+    } else if (d.kind === 'addABall') {
+      // The SANDBOX shot that triggered this is a *separate* ball from whichever one the
+      // scoop is already timing an ordinary eject for (armed above) — this spawns another.
+      // Spawned at sandboxAddABallPlacement (computeEjectPlacement, table/mechanisms.js),
+      // not the zone's own centre — spawning at the centre re-captures the ball on the very
+      // next physics step, discarding the launch and orphaning the scoop's already-held ball.
+      spawnBall(sandboxAddABallPlacement.pos, {
+        x: sandboxAddABallPlacement.heading.x * 1.8,
+        y: sandboxAddABallPlacement.heading.y * 1.8,
+      });
+      pendingNextFrameTags.push(SW_BALL_ADDED); // see its declaration below
+    } else if (d.kind === 'multiballForceEnd') {
+      // A ball ended outright mid-multiball (tilt, or any other forced end) — nothing should
+      // keep riding the carousel or wait in a staggered release queue into a ball that no
+      // longer exists.
+      for (const entry of mgrMountedSlots) releaseFromMergeGoRound(entry, 0);
+      mgrMountedSlots = [];
+      for (const r of mgrReleaseQueue) releaseFromMergeGoRound(r.entry, 0);
+      mgrReleaseQueue = [];
+    } else if (d.kind === 'tilt') {
+      // TILT (design §4.4): "flippers die, the ball drains ... no ball save" — the rules side
+      // (rules/game.js's tiltBall) already ended the ball with no bonus and no save; this is
+      // the physical half main.js owns (the ball objects, the flipper input).
+      drainAllBallsForTilt();
+      flippersDisabled = true;
+      callouts.show("SENT TO THE PRINCIPAL");
+    } else if (d.kind === 'slamTilt') {
+      callouts.show('SLAM TILT');
+    }
+
+    if (eventLog) eventLog.log(`${d.kind}${'tag' in d ? ':' + d.tag : ''}`);
+  }
+}
+
 let last = performance.now();
 function frame(now) {
   const dt = Math.min((now - last) / 1000, 0.05);
@@ -902,6 +1027,20 @@ function frame(now) {
   game.tickDropBank(sandBankState, elapsedS);
   game.tickSpinner(tetherballSpinner, dt);
   game.tickSpinner(pinwheelSpinner, dt);
+
+  // TILT (design §4.4): steps the bob's own damped-oscillator decay forward by this frame's
+  // dt (see rules/tilt.js's own doc comment on why it fixed-steps internally rather than
+  // integrating at this variable dt directly). A warning/tilt can surface here even with no
+  // nudge this frame — decay alone can carry the bob back below threshold and a LATER nudge's
+  // own instant check (see onNudge above) is what actually re-crosses it; this call is what
+  // catches a crossing the decay itself causes, which is rare (energy only decreases while
+  // decaying) but keeps the edge-detection correct regardless of which call last touched it.
+  const tiltResult = tilt.tickTiltBob(tiltBob, dt);
+  if (tiltResult === 'warning') {
+    callouts.show("TEACHER'S WATCHING");
+  } else if (tiltResult === 'tilt') {
+    applyDisplayEvents(tiltBall(rulesState, elapsedS));
+  }
 
   const ejectedBalls = game.tickScoop(scoop, elapsedS);
   if (ejectedBalls) {
@@ -977,65 +1116,7 @@ function frame(now) {
     pendingSoftPlunge = false;
   }
 
-  const display = processRules(rulesState, scoreTags, elapsedS);
-  for (const d of display) {
-    if (d.kind === 'ballServed' || d.kind === 'ballSaved') serveToChute();
-    // A genuinely NEW ball (not a DO-OVER 'ballSaved' — see game/mechanisms.js's
-    // resetKickbackForNewBall doc comment for why the two are treated differently) re-arms
-    // the kickback's once-per-ball use.
-    if (d.kind === 'ballServed') game.resetKickbackForNewBall(kickbackState);
-    // Auto-launch the next ball on a turn change — there's no "plunge to start" menu flow
-    // yet (ui/menus.js is T12), so without this the game would silently stop taking balls
-    // after the first one ends. gameOver is checked instead so a real end-of-game doesn't
-    // immediately re-launch a ball that has nowhere to go.
-    if (d.kind === 'turnChange' && !rulesState.gameOver) {
-      for (const d2 of launchBall(rulesState, elapsedS)) {
-        if (d2.kind === 'ballServed') { serveToChute(); game.resetKickbackForNewBall(kickbackState); }
-      }
-    }
-
-    // T8: MERRY-GO-ROUND lock/eject/multiball. Each of these display kinds corresponds 1:1,
-    // in emission order, to a queued SW_MERRY_GO_ROUND capture from this same frame's physics
-    // events — see mergeGoRoundQueue's doc comment.
-    if (d.kind === 'merryGoRoundEject') {
-      ejectFromMergeGoRound(findBallEntry(mergeGoRoundQueue.shift()));
-    } else if (d.kind === 'lock') {
-      const entry = findBallEntry(mergeGoRoundQueue.shift());
-      mgrMountedSlots.push(entry);
-      mountAtMergeGoRound(entry, d.locks - 1);
-    } else if (d.kind === 'lockedBallServed') {
-      // "locking ball N serves a new ball" — auto-plunged, not waiting in the chute.
-      spawnBall(recess.LAUNCH_POSITION, { x: 0, y: PLUNGER_MAX_SPEED * 0.7 });
-    } else if (d.kind === 'multiballStart') {
-      // The 3rd lock's own capture is still queued (it triggered this very display event) —
-      // it's the third mounted ball, never separately reported via a 'lock' display.
-      const thirdEntry = findBallEntry(mergeGoRoundQueue.shift());
-      mountAtMergeGoRound(thirdEntry, 2);
-      const releasing = [...mgrMountedSlots, thirdEntry];
-      mgrMountedSlots = [];
-      releasing.forEach((entry, i) => mgrReleaseQueue.push({ entry, atS: elapsedS + i * 0.4 }));
-    } else if (d.kind === 'addABall') {
-      // The SANDBOX shot that triggered this is a *separate* ball from whichever one the
-      // scoop is already timing an ordinary eject for (armed above) — this spawns another.
-      // Spawned at sandboxAddABallPlacement (computeEjectPlacement, table/mechanisms.js),
-      // not the zone's own centre — spawning at the centre re-captures the ball on the very
-      // next physics step, discarding the launch and orphaning the scoop's already-held ball.
-      spawnBall(sandboxAddABallPlacement.pos, {
-        x: sandboxAddABallPlacement.heading.x * 1.8,
-        y: sandboxAddABallPlacement.heading.y * 1.8,
-      });
-      pendingNextFrameTags.push(SW_BALL_ADDED); // see its declaration below
-    } else if (d.kind === 'multiballForceEnd') {
-      // A ball ended outright mid-multiball (tilt) — nothing should keep riding the carousel
-      // or wait in a staggered release queue into a ball that no longer exists.
-      for (const entry of mgrMountedSlots) releaseFromMergeGoRound(entry, 0);
-      mgrMountedSlots = [];
-      for (const r of mgrReleaseQueue) releaseFromMergeGoRound(r.entry, 0);
-      mgrReleaseQueue = [];
-    }
-
-    if (eventLog) eventLog.log(`${d.kind}${'tag' in d ? ':' + d.tag : ''}`);
-  }
+  applyDisplayEvents(processRules(rulesState, scoreTags, elapsedS));
 
   for (const entry of balls) {
     if (entry.mgrMounted) continue; // carried by mgrGroup's own rotation instead
@@ -1052,6 +1133,13 @@ function frame(now) {
     }
     const p = toSceneVec(x, y, entry.phys.radius + z);
     entry.mesh.position.set(p.x, p.y, p.z);
+  }
+  // TILT (design §4.4): "flippers die" — forced inactive every frame while tilted, overriding
+  // whatever ui/input.js's own key/touch handlers tried to set on flippers directly (main.js
+  // has no other hook into that path — see rules/tilt.js's own doc comment on why this lives
+  // here rather than in input.js). Cleared on the next 'ballServed' (applyDisplayEvents above).
+  if (flippersDisabled) {
+    for (const flipper of Object.values(flippers)) setActive(flipper, false);
   }
   for (const flipper of Object.values(flippers)) updateFlipperMesh(flipper);
 

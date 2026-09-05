@@ -108,15 +108,21 @@ function saveBall(state) {
   return [{ kind: 'ballSaved', player: activePlayerIndex(state) }];
 }
 
-function endOfBall(state, atS) {
+function endOfBall(state, atS, { skipBonus = false } = {}) {
   const p = activePlayer(state);
   modes.abandonActiveMode(p.modesState);
-  const playtimeS = p.ballLaunchAtS !== null ? Math.max(0, atS - p.ballLaunchAtS) : 0;
-  const bonus = computeBonus({ playtimeS, shots: p.shotsThisBall, modes: p.modesCompletedThisBall, bonusX: p.bonusX });
-  p.score += bonus;
   p.ballActive = false;
   const playerIndex = activePlayerIndex(state);
-  const display = [{ kind: 'bonus', playerIndex, amount: bonus, bonusX: p.bonusX, total: p.score }];
+  // TILT (design §4.4): "bonus is lost" — a tilted ball skips the bonus term entirely rather
+  // than computing and discarding it, so no 'bonus' display event fires for a tilt (there is
+  // nothing to show).
+  const display = [];
+  if (!skipBonus) {
+    const playtimeS = p.ballLaunchAtS !== null ? Math.max(0, atS - p.ballLaunchAtS) : 0;
+    const bonus = computeBonus({ playtimeS, shots: p.shotsThisBall, modes: p.modesCompletedThisBall, bonusX: p.bonusX });
+    p.score += bonus;
+    display.push({ kind: 'bonus', playerIndex, amount: bonus, bonusX: p.bonusX, total: p.score });
+  }
 
   // Safety net for a multiball still running when the ball ends outright (a tilt, most
   // plausibly) — it has no business surviving past the ball it started on.
@@ -148,6 +154,41 @@ function handleDrain(state, atS) {
   const withinSaveWindow = !p.doOverUsed && p.ballSaveUntilS !== null && atS <= p.ballSaveUntilS;
   if (withinSaveWindow) return saveBall(state);
   return endOfBall(state, atS);
+}
+
+/** TILT (design §4.4, "TEACHER'S WATCHING"): called directly by main.js when its tilt bob
+ * (rules/tilt.js) reports 'tilt' — NOT routed through the switch-event queue like an ordinary
+ * drain, because a tilt bypasses ball-save entirely ("no ball save") rather than merely failing
+ * its window check. Reuses endOfBall's turn-advance/extra-ball/game-over/multiball-forceEnd
+ * machinery with `skipBonus: true` ("bonus is lost") — the only two ways a tilted ball differs
+ * from an ordinary end-of-ball. Physically draining the ball(s) and disabling the flippers are
+ * main.js's job (it owns the physics-layer ball objects and the flipper input); this only ends
+ * the ball on the rules side and reports it via a 'tilt' display event so main.js knows to do
+ * those physical things. */
+export function tiltBall(state, atS) {
+  const p = activePlayer(state);
+  if (!p.ballActive) return [];
+  const display = [{ kind: 'tilt', player: activePlayerIndex(state) }];
+  display.push(...endOfBall(state, atS, { skipBonus: true }));
+  return display;
+}
+
+/** SLAM TILT (design §4.4: "a slam-tilt threshold (very large single nudge) ends the game").
+ * Ends the WHOLE GAME outright, not just the current ball or turn — routes the current ball
+ * through the identical no-bonus, no-save path tiltBall uses (so a slam mid-multiball still
+ * forces multiball to end and still reports 'tilt' for main.js's existing drain/flipper
+ * handling), then overrides whatever turn-advance endOfBall computed: no next player, no
+ * auto-launch, the game is over right now, for everyone at the table. */
+export function slamTilt(state, atS) {
+  // tiltBall's own endOfBall call computes a normal 'turnChange' (state.gameOver is still
+  // false when it runs) — dropped here rather than left in, since main.js's turnChange
+  // handling would be relying on its own gameOver guard to make it a no-op rather than this
+  // function reporting a display array that doesn't contradict itself.
+  const display = tiltBall(state, atS).filter((d) => d.kind !== 'turnChange');
+  display.push({ kind: 'slamTilt' });
+  state.gameOver = true;
+  display.push({ kind: 'gameOver', scores: state.players.map((pl) => pl.score) });
+  return display;
 }
 
 /** Applies a mode-progression result (`{points, display}` from modes.js — see onModeShot /
