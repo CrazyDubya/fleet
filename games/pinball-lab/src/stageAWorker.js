@@ -40,6 +40,10 @@ async function run() {
             cfgId: cfg.cfgId, trials: 0, flagged: 0, contactCount: 0, xaVals: [], stallWithContact: 0,
             // E4 (LAB-6) fields — harmless no-ops on E1/E2 records, which never set ct/cr/cp/cv.
             ct: 0, cr: 0, cp: 0, cv: 0, creep: 0, flaggedExclStalled: 0, stVals: [], rxaVals: [], relCounts: {},
+            // GEO-2: per-trial min-contact-speed, pooled per cfg here and per GEOMETRY in
+            // stageA.js. Only contacting trials contribute (cs is null otherwise), matching
+            // lab2Report's own `csVals` filter so the two compute the same statistic.
+            csVals: [],
             // LAB-22: per-flag counts, so the declared-premise gate can hold every flag the
             // premise did NOT declare to FLAG_GATE_FRACTION. Two versions, because E4's
             // numerator (`flaggedExclStalled`) drops whole STALLED *trials*, not the STALLED
@@ -62,6 +66,7 @@ async function run() {
         }
         if (contacted) row.contactCount += 1;
         if (record.xa !== null) row.xaVals.push(record.xa);
+        if (record.cs !== null && record.cs !== undefined) row.csVals.push(record.cs);
         if (record.term === 'stall' && contacted) row.stallWithContact += 1;
         if (record.ct !== undefined) {
           if (record.ct) row.ct += 1;

@@ -219,8 +219,28 @@ test('cradle: a real settled cradle trial (seed 708, same cfg as the cr/st/bn te
   assert.ok(settled.cd > 0, 'a settled cradle trial has positive contact dwell time');
   assert.ok(settled.bn > 0 && settled.cd <= settled.bn * STEP_DT + 1e-9, 'dwell cannot exceed contact-substep-count * STEP_DT');
 
+  // GEO-2 changed this contract deliberately, so the assertion changes with it rather than
+  // being deleted. cs/cd used to be gated on `cfg.cradle`, which made min-contact-speed
+  // unmeasurable on the Stage A geometry screen — the place the selection is actually made.
+  // The new contract is about CONTACT, not about which family the cfg belongs to: cs is a
+  // number whenever the ball touched a flipper and null when it never did, on every cfg.
   const ordinary = cfgByPol('never');
   const rec = runTrial(ordinary, 1);
-  assert.equal(rec.cs, null);
-  assert.equal(rec.cd, null);
+  assert.notEqual(rec.cd, null, 'dwell is now reported on ordinary trials too');
+  if (rec.n > 0) {
+    assert.ok(rec.cs !== null && rec.cs >= 0, 'a non-cradle trial that DID contact reports its min contact speed');
+    assert.ok(rec.cd > 0, 'and a positive dwell');
+  } else {
+    assert.equal(rec.cs, null, 'a trial that never touched a flipper still reports cs = null');
+    assert.equal(rec.cd, 0, 'with zero dwell');
+  }
+
+  // The null case must still exist, or the downstream `cs !== null` filters mean nothing.
+  const neverTouches = { ...ordinary, restAngleDeg: -89, activeAngleDeg: -88 };
+  let sawNull = false;
+  for (let seed = 0; seed < 40 && !sawNull; seed++) {
+    const r = runTrial(neverTouches, seed);
+    if (r.n === 0) { assert.equal(r.cs, null); sawNull = true; }
+  }
+  assert.ok(sawNull, 'some trial in the sweep must miss the flipper entirely, or the null branch is untested');
 });

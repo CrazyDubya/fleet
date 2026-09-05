@@ -640,12 +640,16 @@ async function main() {
     const gKey = hashCfg(geometryOf(cfg));
     let g = geomStats.get(gKey);
     if (!g) {
-      g = { geometryKey: gKey, geometry: geometryOf(cfg), xaVals: [], trials: 0, flagged: 0, stallWithContact: 0 };
+      g = { geometryKey: gKey, geometry: geometryOf(cfg), xaVals: [], csVals: [], trials: 0, flagged: 0, stallWithContact: 0 };
       geomStats.set(gKey, g);
     }
     g.trials += row.trials;
     g.flagged += row.flagged;
     g.stallWithContact += row.stallWithContact;
+    // GEO-2: pooled across ALL of a geometry's 9 cfgs, every policy included — unlike xaVals,
+    // which excludes 'never'. Min-contact-speed is a property of how the ball rests against the
+    // bat, so a policy that never fires is as valid a sample of it as one that does.
+    g.csVals.push(...row.csVals);
     if (cfg.pol !== 'never') g.xaVals.push(...row.xaVals);
   }
 
@@ -656,6 +660,10 @@ async function main() {
     flaggedFraction: g.trials > 0 ? g.flagged / g.trials : 0,
     fanWidthXa: g.xaVals.length >= 2 ? percentile(g.xaVals, 95) - percentile(g.xaVals, 5) : null,
     cradleProxy: g.trials > 0 ? g.stallWithContact / g.trials : 0,
+    // GEO-2: the same statistic lab2Report publishes as cradleMinContactSpeedMedianMps —
+    // median over contacting trials of each trial's minimum speed while touching a flipper.
+    minContactSpeed: g.csVals.length ? percentile(g.csVals, 50) : null,
+    contactTrials: g.csVals.length,
     shotContacts: g.xaVals.length,
   }));
 
@@ -675,12 +683,24 @@ async function main() {
   const cradleGuard = rankingValidityResult(geometries.map((g) => g.cradleProxy), {
     topN: TOP_N, support: geometries.map((g) => g.trials),
   });
+  // GEO-2: the proposed cradleProxy replacement, guarded on the FULL population before anything
+  // is ranked on it. Reported, not yet blocking — cradleGuard above is still the gate, because
+  // swapping which metric selects geometries is the operator's call, not this runner's.
+  const withCs = geometries.filter((g) => g.minContactSpeed !== null);
+  // No `support`, deliberately, for the same reason fanWidthXa supplies none: LAB-21's
+  // raw-event check computes k = round(value * support), which is only meaningful when the
+  // value IS a rate. minContactSpeed is a median speed in m/s — round(0.73 * 500) is not an
+  // event count, it is nonsense. The distinct-value floor and tie ceiling still apply.
+  const minContactSpeedGuard = withCs.length
+    ? rankingValidityResult(withCs.map((g) => g.minContactSpeed), { topN: TOP_N })
+    : null;
   if (!fanWidthGuard.ok || !cradleGuard.ok) {
     console.error(JSON.stringify({
       ok: false,
       error: 'LAB-16 ranking gate: a geometry-selection metric cannot support "top N" selection',
       fanWidthGuard: fanWidthGuard.ok ? undefined : fanWidthGuard,
       cradleGuard: cradleGuard.ok ? undefined : cradleGuard,
+      minContactSpeedGuard,
       note: 'selected-geometries.json was NOT written. See ledger/handoffs for the corpus audit that found this.',
     }));
     process.exitCode = 1;
@@ -710,6 +730,15 @@ async function main() {
   const ranking = {
     topByFanWidth: byFanWidth.map((g) => g.geometryKey),
     topByCradle: byCradle.map((g) => g.geometryKey),
+    // GEO-2: reported alongside, not used to select. `topByMinContactSpeed` is what the cradle
+    // half WOULD be if the selection swapped metrics; `minContactSpeedGuard` is that metric's
+    // verdict on the full population, so a reader can see whether it could carry the choice.
+    topByMinContactSpeed: [...geometries]
+      .filter((g) => g.minContactSpeed !== null)
+      .sort((a, b) => b.minContactSpeed - a.minContactSpeed)
+      .slice(0, TOP_N)
+      .map((g) => g.geometryKey),
+    minContactSpeedGuard,
     selectedCount: selected.length,
     geometries: [...geometries].sort((a, b) => (b.fanWidthXa ?? -1) - (a.fanWidthXa ?? -1)),
     selected,

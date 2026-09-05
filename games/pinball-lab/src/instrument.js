@@ -169,9 +169,20 @@ function runE1Trial(cfg, seed, opts) {
   let term = null;
   let crossing = null;
   let steps = 0;
-  // §3.5 pilot only (cs/cd below): gated to cradle trials so ordinary E1 trials — the vast
-  // majority of runner volume — never build this array.
-  const contactSamples = cfg.cradle ? [] : null;
+  // GEO-2: cs/cd are now collected on EVERY E1 trial, not only cradle ones. They were gated to
+  // `cfg.cradle` purely to keep ordinary trials from building the array, and that gate made
+  // min-contact-speed unmeasurable on the Stage A screen — which is where the geometry
+  // selection is actually made. The alternative (marking the screen's cfgs `cradle: true`) was
+  // rejected after checking what that flag controls: line ~152 above picks the INJECTION BAND
+  // from it, so flipping it would resample every ball from CRADLE_INJECTION and change the
+  // physics of the screen rather than extend its instrumentation.
+  //
+  // This collection is purely observational — it reads ball speed and a contact count that
+  // already exist and touches no rng, no world state and no trial control flow — so the
+  // trajectory of every trial is bit-identical to before. `cs` stays null on a trial that
+  // never touches a flipper, because contactStats returns minSpeed: null for an empty contact
+  // set, so downstream filters on `cs !== null` are unaffected.
+  const contactSamples = [];
 
   while (term === null) {
     steps += 1;
