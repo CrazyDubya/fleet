@@ -48,6 +48,42 @@
 //   the ball at (target.restAngle/activeAngle, already in radians) rather than re-deriving
 //   `180 - lowerAngle` locally — one source of truth, not a second copy of recess.js's own
 //   mirroring formula.
+//
+//   'rules-sequence' (SBX-SCENARIO-3) — everything above stages PHYSICS: balls on a table,
+//   run forward, geometry measured. This kind stages a RULES situation instead: a fresh
+//   rules/game.js game, driven through a sequence of steps (each an `events` call —
+//   processEvents with a tag batch at a given atS — a `tilt` call, or a `launchBall` call),
+//   reporting the display events and a caller-chosen set of state reads after every step. This
+//   is the class of bug the physics-only harness could never stage: a flag surviving a drain,
+//   a same-tick ordering race between two rules calls, a counter that should have reset and
+//   didn't — none of that is a physics question, all of it is "what did the rules layer do
+//   when driven in this order."
+//
+//   Driven ENTIRELY through rules/game.js's own public functions (createGame/launchBall/
+//   processEvents/tiltBall/activePlayer) — the same functions main.js calls, the same ones
+//   test/*.test.mjs in games/pinball/test call. Never a direct write to a rulesState field to
+//   fake a situation: rules/game.js is headless by design and enforces its own purity
+//   (test/purity.test.mjs, in games/pinball/test) precisely so it CAN be driven this way
+//   without a browser, a physics ball, or main.js's frame loop — this scenario kind exists to
+//   use that design, not to route around it. If some future rules question turns out not to
+//   be reachable through this public surface, the fix is asking rules/game.js to expose it
+//   (a new exported function, the same way tiltBall already is one), never reaching into its
+//   state directly from here.
+//
+//   Two instances below, both reproductions of REAL bugs found and fixed on 2026-09-05, not
+//   invented scenarios:
+//     - 'drain-with-mode-flags-lit' reproduces the LIT-1 finding (sandboxLit and
+//       hopscotchJackpot.lit surviving a drain — see modes.js's own resetForNewBall doc
+//       comment) — through the actual SW_DRAIN event + launchBall path (main.js's real
+//       'turnChange' -> next-ball sequence), not modes.test.mjs's own more direct
+//       launchBall()-only technique. A different vantage point on the same fix, not a copy of
+//       that file's assertions.
+//     - 'tilt-jackpot-same-tick' reproduces the SEAM-1 finding (a same-frame tilt beating a
+//       lit super jackpot's collection to the punch, silently downgrading 1 500 000 points to
+//       an ordinary shot's value) — the exact hazard
+//       games/pinball/test/tilt-jackpot-frame-order.test.mjs's own first test constructs, now
+//       stageable as data (which order the two steps run in) instead of only from that one
+//       hand-written file.
 import { createWorld, setLayerPrimitives, setLayerZones, addBall, addFlipper, advance } from '../../pinball/src/physics/world.js';
 import { buildTable, wireTable } from '../../pinball/src/table/assemble.js';
 import { createFlipper } from '../../pinball/src/physics/flipper.js';
@@ -57,6 +93,11 @@ import * as ramps from '../../pinball/src/table/ramps.js';
 import { Segment, Arc } from '../../pinball/src/physics/shapes.js';
 import { scale, rotate, perp } from '../../pinball/src/physics/vec2.js';
 import { BALL_RADIUS, STEP_DT, E_WALL } from '../../pinball/src/physics/constants.js';
+import { createGame, launchBall, processEvents, tiltBall, activePlayer, activePlayerIndex } from '../../pinball/src/rules/game.js';
+import {
+  SW_POP_DUCK, SW_HOPSCOTCH_COMPLETE, SW_SLIDE_EXIT, SW_DRAIN,
+  SW_TREEHOUSE, SW_MERRY_GO_ROUND, SW_MONKEYBARS_EXIT, SW_TUNNEL_EXIT, SW_SANDBOX_ENTRY,
+} from '../../pinball/src/table/switches.js';
 
 const DEG = Math.PI / 180;
 
@@ -117,6 +158,53 @@ export const SCENARIOS = {
     angleOffsetsDeg: [-4, 0, 4],
     speedOffsets: [-0.15, 0, 0.15],
     durationS: 1.5,
+  },
+  'drain-with-mode-flags-lit': {
+    label: 'A ball earns sandboxLit and hopscotchJackpot.lit, then drains — do the flags survive onto the next ball? (LIT-1)',
+    kind: 'rules-sequence',
+    reads: ['modesState.sandboxLit', 'modesState.hopscotchJackpot.lit'],
+    steps: [
+      // 25 pop hits lights sandboxLit (modes.js's onPopHit, DODGEBALL_LIGHT_EVERY) — all 25 in
+      // one processEvents call is faithful, not a shortcut: onPopHit doesn't depend on atS
+      // varying between hits, only on being called 25 times.
+      { type: 'events', tags: Array(25).fill(SW_POP_DUCK), atS: 1 },
+      { type: 'events', tags: [SW_HOPSCOTCH_COMPLETE], atS: 2 },
+      // Well past the 12s launch DO-OVER window (from the initial launchBall at atS=0) — a
+      // real, uncontested drain, through the actual SW_DRAIN event, not a direct field write.
+      { type: 'events', tags: [SW_DRAIN], atS: 100 },
+      // The real 'turnChange' -> next-ball path (main.js's own applyDisplayEvents calls
+      // launchBall exactly like this in response to the display event the drain above
+      // produced) — this is the call that actually runs resetForNewBall.
+      { type: 'launchBall', atS: 101 },
+    ],
+  },
+  'tilt-jackpot-same-tick': {
+    label: 'Super jackpot lit, then a tilt and the earning MONKEY BARS hit land in the same tick — does the award survive? (SEAM-1)',
+    kind: 'rules-sequence',
+    reads: ['multiball.active', 'multiball.superJackpotLit'],
+    // Which of the two same-tick calls runs first is the entire question this scenario exists
+    // to answer — see runRulesSequenceScenario's own doc comment on why it's a first-class
+    // override rather than two duplicated step arrays. true = the pre-SEAM-1 hazard order
+    // (main.js used to run the tilt check before this tick's own already-captured collision
+    // tag reached processRules); false = main.js's actual order today.
+    tiltFirst: true,
+    sameTickAtS: 40,
+    sameTickTags: [SW_MONKEYBARS_EXIT],
+    steps: [
+      { type: 'events', tags: [SW_TREEHOUSE], atS: 0 },
+      { type: 'events', tags: [SW_MERRY_GO_ROUND], atS: 1 },
+      { type: 'events', tags: [SW_TREEHOUSE], atS: 2 },
+      { type: 'events', tags: [SW_MERRY_GO_ROUND], atS: 3 },
+      { type: 'events', tags: [SW_TREEHOUSE], atS: 4 },
+      { type: 'events', tags: [SW_MERRY_GO_ROUND], atS: 5 }, // 3rd lock: multiball starts
+      // Each of the next three collects one jackpot (MONKEYBARS/TUNNEL/SANDBOX light it,
+      // SLIDE collects it) — the 3rd lights the super jackpot (JACKPOTS_FOR_SUPER).
+      { type: 'events', tags: [SW_MONKEYBARS_EXIT, SW_TUNNEL_EXIT, SW_SANDBOX_ENTRY, SW_SLIDE_EXIT], atS: 10 },
+      { type: 'events', tags: [SW_MONKEYBARS_EXIT, SW_TUNNEL_EXIT, SW_SANDBOX_ENTRY, SW_SLIDE_EXIT], atS: 20 },
+      { type: 'events', tags: [SW_MONKEYBARS_EXIT, SW_TUNNEL_EXIT, SW_SANDBOX_ENTRY, SW_SLIDE_EXIT], atS: 30 },
+      // The constructed same-tick hazard/fix (tilt + the earning MONKEY BARS hit, both at
+      // sameTickAtS) is appended by the runner, in `tiltFirst`'s order — see above.
+    ],
   },
 };
 
@@ -391,10 +479,84 @@ function assertRan(stepsRun, scenarioName) {
   }
 }
 
+/** Reads a dot-path (e.g. 'modesState.sandboxLit') off `obj`, returning `undefined` if any
+ * segment along the way is missing — the read-side counterpart to setPath below, and never
+ * throws on a path that doesn't (yet, or anymore) exist, since "this field is undefined at
+ * this point in the timeline" is itself a legitimate, reportable answer. */
+function getPath(obj, path) {
+  return path.split('.').reduce((cur, key) => (cur == null ? undefined : cur[key]), obj);
+}
+
+/** One entry in a 'rules-sequence' scenario's timeline: the step that ran, the display events
+ * it produced, and a snapshot of every requested `reads` path taken IMMEDIATELY after this
+ * step — `structuredClone`d so a later step mutating the same nested object (e.g.
+ * hopscotchJackpot, mutated in place by modes.js) can never retroactively change what an
+ * earlier timeline entry reports. */
+function makeTimelineEntry(step, state, display, readPaths) {
+  const p = activePlayer(state);
+  const reads = {};
+  for (const path of readPaths) reads[path] = structuredClone(getPath(p, path));
+  return { step, display, playerIndex: activePlayerIndex(state), score: p.score, reads };
+}
+
+/** Stages a RULES situation (see the module's own 'rules-sequence' doc comment above
+ * SCENARIOS for why this exists) by driving a fresh rules/game.js game through `steps` —
+ * `{type:'events', tags, atS}` (processEvents), `{type:'tilt', atS}` (tiltBall), or
+ * `{type:'launchBall', atS}` (launchBall) — in order, ENTIRELY through those three exported
+ * functions (plus activePlayer/activePlayerIndex to read state back). Never writes a
+ * rulesState field directly: a scenario that needs a rules situation this surface can't reach
+ * is a rules/game.js gap to close with a new exported function (the same way `tiltBall` is
+ * already one), not a reason for this file to reach past the boundary.
+ *
+ * `tiltFirst` (boolean, only meaningful when `def.sameTickAtS` is set — see
+ * 'tilt-jackpot-same-tick's own definition) appends a `{type:'tilt'}` step and a
+ * `{type:'events', tags: def.sameTickTags}` step, BOTH stamped with `def.sameTickAtS`, in
+ * either order — the exact same-tick ordering question that scenario exists to answer, without
+ * needing two fully duplicated step arrays for the hazard order and the fixed order: overriding
+ * `tiltFirst` alone re-stages the other order.
+ */
+function runRulesSequenceScenario(def, overrides, name) {
+  const seed = overrides.seed ?? def.seed ?? 1;
+  const numPlayers = overrides.numPlayers ?? def.numPlayers ?? 1;
+  const reads = overrides.reads ?? def.reads ?? [];
+  const tiltFirst = overrides.tiltFirst ?? def.tiltFirst;
+
+  let steps = overrides.steps ?? def.steps ?? [];
+  if (typeof tiltFirst === 'boolean' && def.sameTickAtS !== undefined) {
+    const tiltStep = { type: 'tilt', atS: def.sameTickAtS };
+    const eventStep = { type: 'events', tags: def.sameTickTags, atS: def.sameTickAtS };
+    steps = [...steps, ...(tiltFirst ? [tiltStep, eventStep] : [eventStep, tiltStep])];
+  }
+  if (!Array.isArray(steps) || steps.length === 0) {
+    throw new Error('runScenario: "rules-sequence" needs at least one step (after any tiltFirst expansion)');
+  }
+
+  const state = createGame({ numPlayers, ballsPerPlayer: 3, seed });
+  const timeline = [];
+  let stepsRun = 0;
+
+  const initialDisplay = launchBall(state, 0);
+  stepsRun += 1;
+  timeline.push(makeTimelineEntry({ type: 'launchBall', atS: 0, note: 'initial launch' }, state, initialDisplay, reads));
+
+  for (const step of steps) {
+    let display;
+    if (step.type === 'events') display = processEvents(state, step.tags, step.atS);
+    else if (step.type === 'tilt') display = tiltBall(state, step.atS);
+    else if (step.type === 'launchBall') display = launchBall(state, step.atS);
+    else throw new Error(`runScenario: "rules-sequence" unknown step type "${step.type}"`);
+    stepsRun += 1;
+    timeline.push(makeTimelineEntry(step, state, display, reads));
+  }
+
+  return { name, kind: 'rules-sequence', stepsRun, timeline };
+}
+
 const RUNNERS = {
   'sandbox-table': runSandboxTableScenario,
   channel: runChannelScenario,
   'ramp-reachability': runRampReachabilityScenario,
+  'rules-sequence': runRulesSequenceScenario,
 };
 
 /** Runs a named scenario from SCENARIOS, with optional per-field overrides (e.g.
@@ -428,6 +590,17 @@ export function formatReport(report) {
       `scenario: ${report.name} (${report.durationS.toFixed(1)}s, ${report.total} samples)`,
       `  contact: ${report.contact}/${report.total}  mid-bat: ${report.midBat}/${report.total}`,
     ].join('\n');
+  }
+  if (report.kind === 'rules-sequence') {
+    const lines = [`scenario: ${report.name} (${report.stepsRun} steps)`];
+    for (const entry of report.timeline) {
+      const kinds = entry.display.map((d) => d.kind).join(',') || '(no display events)';
+      lines.push(`  ${entry.step.type}@${entry.step.atS}: [${kinds}]`);
+      for (const [path, value] of Object.entries(entry.reads)) {
+        lines.push(`    ${path} = ${JSON.stringify(value)}`);
+      }
+    }
+    return lines.join('\n');
   }
   return JSON.stringify(report);
 }
