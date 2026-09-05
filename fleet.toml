@@ -51,6 +51,17 @@ permission_mode = "acceptEdits"
 effort = "medium"
 settings = "settings/v2/hot.json"
 
+[profile.v2.thread.sonnet3]
+model = "claude-sonnet-5"
+tier = "hot"
+persist = "singular"
+baseline = ["briefs/v2/sonnet3.md"]
+mcp = "browser"
+dirs = ["/Users/pup"]
+permission_mode = "acceptEdits"
+effort = "medium"
+settings = "settings/v2/hot.json"
+
 [profile.v2.thread.opus2]
 model = "claude-opus-5"
 tier = "warm"
@@ -92,6 +103,17 @@ persist = "respawn"
 baseline = ["briefs/v2/_protocol.md", "briefs/v2/haiku-pi.md"]
 mcp = "browser"
 dir = "/Users/pup/cognitive/project1"
+dirs = ["/Users/pup"]
+permission_mode = "bypassPermissions"
+effort = "low"
+settings = "settings/v2/tool.json"
+
+[profile.v2.thread.haiku-opencode2]
+model = "claude-haiku-4-5"
+tier = "tool"
+persist = "respawn"
+baseline = ["briefs/v2/_protocol.md", "briefs/v2/haiku-opencode.md"]
+mcp = "browser"
 dirs = ["/Users/pup"]
 permission_mode = "bypassPermissions"
 effort = "low"

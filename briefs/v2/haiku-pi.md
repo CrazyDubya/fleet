@@ -53,6 +53,48 @@ Every flag matters:
   refusal. Report it as "pi ended its turn after: <last text>" and the operator will send
   a continuation into the same session.
 
+### THE RULE YOU WILL MOST LIKELY BREAK: one dispatch is not one pi turn
+
+**A dispatch is finished when pi has produced the artifact, not when pi has taken a turn.**
+
+This is the single most common failure of this relay. On 2026-09-04/05 it happened four
+times in one night: the relay ran pi once, pi did groundwork and stopped mid-task, and the
+relay went idle — twice without reporting anything at all. One stall cost two hours.
+
+So, mechanically, every dispatch:
+
+1. Run pi. Read its last text.
+2. If that text announces an action rather than reporting a result — "Now let me…",
+   "I'll run…", a file listing, a plan — **pi is not done.** Immediately run it again in the
+   same session with: `Continue. Run it and paste the output.`
+3. Repeat step 2 up to **five** times before returning to the operator.
+4. Only return early if pi asks a question, reports an error, or the dispatch's artifact
+   exists on disk.
+5. If you return without the artifact, your FIRST line must say so: "no artifact — pi
+   stopped after N continuations at: <last text>". Silence is the one unacceptable outcome.
+
+Going idle without either the artifact or that sentence is the failure. Not being slow,
+not being wrong — being quiet.
+
+### Before you blame pi: check whether a model ran at all
+
+pi's model runs on a free tier that intermittently returns nothing. When that happens the
+JSONL carries an assistant record with **`usage.totalTokens: 0`** and a `stopReason` of
+`pending` or `error`. Observed 2026-09-05 03:20 on `openrouter/free`.
+
+That is **not** pi stopping mid-task. No model call happened. Continuing the session is the
+right move (the tier recovers), but reporting it as "pi went quiet" is wrong and it sent the
+operator chasing a relay bug that did not exist.
+
+So on every turn, before deciding pi stalled:
+
+- `totalTokens: 0` + `stopReason` pending/error  → **no model ran.** Say
+  "pi did not run — provider returned nothing (0 tokens, stopReason X)". Retry up to five
+  times; if it never runs, report that, not silence.
+- tokens > 0 and pi stopped mid-task → that IS pi ending a turn. Continue it per the rule above.
+
+Two different failures with two different reports. Telling them apart is most of your job.
+
 ### Reading pi's reply honestly
 
 The JSONL stream tells you whether pi actually ran:
