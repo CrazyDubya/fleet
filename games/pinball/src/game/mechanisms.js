@@ -270,12 +270,21 @@ export function setDiverterRoute(diverter, route) {
  * tracks the last value actually logged; it's cleared the moment `toLayer` reads back as a real
  * route, so a LATER, genuinely new corruption (a different bad value, or the same one
  * recurring after a real fix) still gets its own fresh log line — this bounds repeats of the
- * SAME unresolved corruption, not corruption reporting in general. */
+ * SAME unresolved corruption, not corruption reporting in general.
+ *
+ * Compares with `Object.is`, not `!==` (found by a second review round, real): `NaN !== NaN` is
+ * always `true` — NaN never equals itself under `!==` (or `===`) — so a `NaN` `toLayer`, quite
+ * plausibly the single most likely corrupt value in practice (an arithmetic mistake, a bad
+ * lookup returning `undefined` used in a computation), defeated the dedup entirely and logged
+ * on every single call, exactly the flood this fix exists to prevent, open for exactly the
+ * value most likely to occur. `Object.is` treats `NaN` as equal to itself (and `+0`/`-0` as
+ * distinct, neither of which matters here, but it is the correct general tool for "is this the
+ * same value as last time" over `!==`). */
 export function currentDiverterRoute(diverter) {
   const toLayer = diverter.gate.gate.toLayer;
   if (toLayer === diverter.routeARampId) { diverter._lastLoggedCorruption = undefined; return 'A'; }
   if (toLayer === diverter.routeBRampId) { diverter._lastLoggedCorruption = undefined; return 'B'; }
-  if (diverter._lastLoggedCorruption !== toLayer) {
+  if (!Object.is(diverter._lastLoggedCorruption, toLayer)) {
     diverter._lastLoggedCorruption = toLayer;
     console.error(
       `currentDiverterRoute: diverter.gate.gate.toLayer is ${JSON.stringify(toLayer)}, which is ` +

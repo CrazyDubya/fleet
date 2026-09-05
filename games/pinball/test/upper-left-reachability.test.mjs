@@ -72,13 +72,24 @@ function buildFullWorld() {
  * ball spawns — covering "the flipper was already down," "already up," "mid-swing," and "the
  * player flips right as the ball arrives," since a static-angle sweep plus a triggered-flip
  * case dominates the space a real player's timing could land in), then simulates for
- * `durationS` and reports whether any collision event's primitive belongs to that flipper. */
+ * `durationS` and reports whether any collision event's primitive belongs to that flipper.
+ *
+ * Correction (2026-09-05, an outside review's suspicion, confirmed by direct measurement — see
+ * mechanism-handoffs.test.mjs's towardFlipper, which shares this exact setup): "the player
+ * flips right as the ball arrives" is the INTENT this state was named for, but it is not what
+ * it measures. `active = true` at spawn means the flip (upMs=14ms, ~3.4 physics steps) is
+ * essentially always complete — `target.angularVel` already 0 — before the ball's own travel
+ * time to the flipper on this table's real distances. What this state actually exercises is "the
+ * flipper was already fully active for the whole trial," the same claim the separate `active`
+ * static-angle case already covers, not a genuine mid-swing catch. Left in place (removing it
+ * would lose real trial coverage, and it is not WRONG, just not distinct from `active` here) —
+ * documented accurately rather than left implying it tests something it doesn't. */
 function trialContactsFlipper({ world, flippers, targetFlipperName, pos, vel, flipperState, durationS = 0.7 }) {
   const target = flippers[targetFlipperName];
   if (flipperState === 'flip-at-arrival') {
     target.angle = target.restAngle;
     target.angularVel = 0;
-    target.active = true; // updateFlipper drives it toward activeAngle from here
+    target.active = true; // in practice always resolves before contact — see this function's own doc comment
   } else {
     target.angle = flipperState; // a held static angle (radians)
     target.angularVel = 0;

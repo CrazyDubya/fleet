@@ -40,7 +40,12 @@ function buildFullWorld() {
 
 /** One trial: does a ball at `pos`/`vel` contact `flipperName`'s own capsule within
  * DURATION_S, with that flipper held at `angleRad` (or naturally flipping mid-flight if
- * `angleRad === 'flip-at-arrival'`, matching mechanism-handoffs.test.mjs's own convention)?
+ * `angleRad === 'flip-at-arrival'`, matching mechanism-handoffs.test.mjs's own convention —
+ * including that convention's own naming correction: measured directly for this exact exit
+ * (ORBIT_EXIT_FEED -> right flipper), contact happens at 62.5ms with `angularVel` already 0 —
+ * the flip, upMs=14ms, is long since complete by the time the ball arrives. This state
+ * exercises "already fully active," not a genuine mid-swing catch, same as every other real
+ * feed on this table; see mechanism-handoffs.test.mjs's towardFlipper for the full account)?
  * Also reports the along-bat fraction (0=pivot, 1=tip; negative = a graze on the round hub,
  * not a real hit) of the FIRST contact, the same distinction ramps.js's own "mid-bat" figures
  * are built from. */
@@ -111,9 +116,12 @@ test('THE ORBIT exit (ORBIT_EXIT_FEED) reachability sweep toward the right flipp
   console.log(`\n=== THE ORBIT -> right flipper: ${result.contact}/${result.total} contact, ${result.midBat}/${result.total} mid-bat ===`);
   console.log(`ORBIT_EXIT_FEED = (${orbit.ramp.exit.pos.x}, ${orbit.ramp.exit.pos.y}), dir = (${orbit.ramp.exit.dir.x.toFixed(4)}, ${orbit.ramp.exit.dir.y.toFixed(4)}), speed = ${orbit.ramp.exit.speed}`);
 
-  // The actual gate: at minimum, SOME real contact across the swept conditions — this is what
-  // "a real exit that connects back to the playfield where a player would expect" requires, per
-  // the dispatch that flagged this as unverified. A pure miss here (0/81) means the exit needs
-  // re-aiming, the same as slide/monkeyBars did.
-  assert.ok(result.contact > 0, `THE ORBIT's exit missed the right flipper in all ${result.total} sampled conditions — needs re-aiming, same as slide/monkeyBars did`);
+  // Pinned to the actual measured figure (2026-09-05: 81/81), not just "greater than zero" —
+  // found by an outside review: an operator claim of "81/81, no re-aim needed" had been made on
+  // the strength of this test, but `> 0` passes on a single connecting sample same as it passes
+  // on all 81. That gap means the exit could degrade to one connecting sample and this test
+  // would stay green, silently contradicting the number already reported as fact. Asserting the
+  // literal measured value means any future regression away from it fails loudly, with the real
+  // number in the message, instead of asserting a claim nothing here actually pins.
+  assert.equal(result.contact, 81, `THE ORBIT's exit reachability regressed from the measured 81/81 — got ${result.contact}/${result.total}; re-aim if this is a real miss, update this assertion (with a fresh measured figure, not a guess) if the geometry changed deliberately`);
 });

@@ -38,7 +38,20 @@ function buildFullWorld() {
 /** Simulates one deterministic hand-off toward a target FLIPPER, across the flipper states a
  * real player's timing could produce (the flipper's own state is a real independent variable
  * in play; the ball's hand-off itself is still the single real deterministic point/velocity —
- * this is not a swept neighbourhood of the hand-off, only of the receiving flipper's timing). */
+ * this is not a swept neighbourhood of the hand-off, only of the receiving flipper's timing).
+ *
+ * The third state's own LABEL is corrected here (2026-09-05, an outside review's suspicion,
+ * confirmed by measurement): 'flip-at-arrival' sets `active = true` at the same instant the
+ * ball is spawned, meant to model "the player flips exactly as the ball arrives." Measured
+ * directly (a scratch trace logging `target.angularVel` at the moment of contact) for every
+ * real feed in this file: the flip completes (upMs=14ms, ~3.4 physics steps) well before the
+ * ball's own travel time to the flipper in every case checked — SLIDE and MONKEY BARS both
+ * make contact at exactly 12.5ms with `angularVel` already 0 (fully stopped). This state is
+ * therefore, for every feed this table actually has, indistinguishable from "the flipper was
+ * ALREADY fully active for the whole trial" — not a genuine mid-swing catch. The label stays
+ * (renaming it everywhere `perState`/`statesHit` read it is a larger, separate change), but the
+ * claim it's testing is corrected here rather than left implied: this is an early-active
+ * check, not a mid-swing one, on this table's actual travel distances. */
 function towardFlipper(pos, vel, flipperName) {
   const restDeg = flipperName === 'left' || flipperName === 'right'
     ? (flipperName === 'left' ? -50 : 180 - -50)

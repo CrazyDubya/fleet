@@ -311,3 +311,24 @@ test('currentDiverterRoute logs again once a NEW, different corruption occurs �
     console.error = originalError;
   }
 });
+
+// Found by a second outside review (2026-09-05), real: the dedup compared with `!==`, and
+// `NaN !== NaN` is always `true` — NaN never equals itself under `!==`. A `NaN` toLayer (quite
+// plausibly the single most likely real corrupt value: a failed arithmetic operation, or a bad
+// object lookup used in a computation rather than returning `undefined` directly) defeated the
+// dedup entirely and logged on every single call — exactly the flood this fix exists to
+// prevent, wide open for the value most likely to occur in practice.
+test('currentDiverterRoute\'s corruption dedup is not defeated by NaN — the value most likely to occur in practice', () => {
+  const { diverter } = makeWorldWithDiverter();
+  diverter.gate.gate.toLayer = NaN;
+
+  const originalError = console.error;
+  const errors = [];
+  console.error = (...args) => errors.push(args.join(' '));
+  try {
+    for (let i = 0; i < 5; i++) assert.equal(game.currentDiverterRoute(diverter), null);
+  } finally {
+    console.error = originalError;
+  }
+  assert.equal(errors.length, 1, 'five calls with the SAME NaN corruption must log exactly once, not five times — a plain !== comparison fails this because NaN !== NaN is always true');
+});
