@@ -188,7 +188,22 @@ export function setDiverterRoute(diverter, route) {
 
 /** The diverter's current route, read back from the same field setDiverterRoute writes —
  * never tracked separately, so this can never drift out of sync with what a ball entering
- * right now would actually get routed to. */
+ * right now would actually get routed to.
+ *
+ * Found by an outside review (2026-09-05), confirmed real: this used to be a plain
+ * `=== routeARampId ? 'A' : 'B'` ternary, which means ANY other value — routeBRampId, yes, but
+ * also undefined, null, or a corrupted/typo'd ramp id from some future bug — silently read as
+ * a perfectly normal route B. A corrupt value must be distinguishable from a real one, not
+ * quietly promoted to it. Now explicitly checks against both known values and throws on
+ * anything else, the same "loud, not silent" standard this project settled on for recess.js's
+ * degenerate-joint guard earlier today. */
 export function currentDiverterRoute(diverter) {
-  return diverter.gate.gate.toLayer === diverter.routeARampId ? 'A' : 'B';
+  const toLayer = diverter.gate.gate.toLayer;
+  if (toLayer === diverter.routeARampId) return 'A';
+  if (toLayer === diverter.routeBRampId) return 'B';
+  throw new Error(
+    `currentDiverterRoute: diverter.gate.gate.toLayer is ${JSON.stringify(toLayer)}, which is ` +
+    `neither routeARampId (${JSON.stringify(diverter.routeARampId)}) nor routeBRampId ` +
+    `(${JSON.stringify(diverter.routeBRampId)}) — the diverter's routing state is corrupt.`
+  );
 }

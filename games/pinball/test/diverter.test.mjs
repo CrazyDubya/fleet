@@ -94,3 +94,55 @@ test('a slow approach to the diverter does not transition — same RAMP_ENTRY_MI
   shootThroughDiverter(world, ball, diverter, 0.05);
   assert.equal(ball.layer, 'playfield', 'a near-stationary ball should not be swept through the diverter');
 });
+
+// Found by an outside review (2026-09-05), confirmed real: currentDiverterRoute used to be a
+// plain `=== routeARampId ? 'A' : 'B'` ternary — any OTHER value (undefined, null, a corrupted
+// or typo'd ramp id) silently read as a perfectly normal route B instead of being recognisable
+// as corrupt.
+test('currentDiverterRoute throws, rather than silently reporting B, when toLayer is neither known route', () => {
+  const { diverter } = makeWorldWithDiverter();
+  diverter.gate.gate.toLayer = 'some_unrelated_ramp_id';
+  assert.throws(() => game.currentDiverterRoute(diverter), /corrupt/i);
+
+  diverter.gate.gate.toLayer = undefined;
+  assert.throws(() => game.currentDiverterRoute(diverter), /corrupt/i);
+});
+
+// Found by an outside review (2026-09-05), confirmed real: setDiverterRoute/
+// currentDiverterRoute existed only in their own definitions and this test file — nothing in
+// main.js or rules/ ever called setDiverterRoute, so the diverter was hardwired to route A in
+// an actual game regardless of the runtime-switchable API existing. main.js now alternates the
+// route on every successful diverter entry (see its own SW_DIVERTER_ENTER branch in
+// processMechanismEvents); main.js itself isn't importable under node --test (bare 'three'
+// specifier — see glue-scope.test.mjs), so this reproduces that exact branch's logic against
+// the real physics/game pieces it's built from, the same discipline
+// kickback-ball-save-interaction.test.mjs used for the kickback's own main.js wiring.
+test('production wiring: a real diverter entry alternates the route for the NEXT ball, reproducing main.js\'s own SW_DIVERTER_ENTER handling', () => {
+  const { world, ball, slide, tunnel, diverter } = makeWorldWithDiverter();
+
+  function crossAndApplyProductionLogic() {
+    const a = diverter.gate.a, b = diverter.gate.b;
+    const mouth = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    const dir = diverter.gate.gate.allowDir;
+    ball.layer = 'playfield';
+    ball.pos = { x: mouth.x - dir.x * 0.03, y: mouth.y - dir.y * 0.03 };
+    ball.vel = { x: dir.x * 3.0, y: dir.y * 3.0 };
+    let events = [];
+    for (let i = 0; i < 30 && ball.layer === 'playfield'; i++) events = events.concat(advance(world, STEP_DT));
+    // main.js's own branch: only a genuine transition (event.gateEntered) alternates the route.
+    for (const ev of events) {
+      const tag = ev.tag ?? ev.primitive?.shape?.tag;
+      if (tag === diverter.gate.tag && ev.gateEntered) {
+        game.setDiverterRoute(diverter, game.currentDiverterRoute(diverter) === 'A' ? 'B' : 'A');
+      }
+    }
+  }
+
+  crossAndApplyProductionLogic();
+  assert.equal(ball.layer, slide.ramp.id, 'first ball: route was A at the moment it crossed');
+  assert.equal(game.currentDiverterRoute(diverter), 'B', 'production logic alternates the route after a real entry — this is what makes setDiverterRoute a live production caller, not dead code the tests are the only thing exercising');
+
+  crossAndApplyProductionLogic();
+  assert.equal(ball.layer, tunnel.ramp.id, 'second ball: route had already flipped to B by the time it crossed');
+  assert.equal(game.currentDiverterRoute(diverter), 'A', 'flips back — an ordinary alternation, not a one-way latch');
+});

@@ -14,7 +14,7 @@ import {
   SW_SLING_LEFT, SW_SLING_RIGHT,
   SW_KICKBACK,
   SW_HOPSCOTCH, SW_SAND, SW_TREEHOUSE,
-  SW_SLIDE_ENTER, SW_MONKEYBARS_ENTER, SW_TUNNEL_ENTER,
+  SW_SLIDE_ENTER, SW_MONKEYBARS_ENTER, SW_TUNNEL_ENTER, SW_DIVERTER_ENTER,
   SW_SANDBOX_ENTRY, SW_SANDBOX_EJECT,
   SW_MERRY_GO_ROUND, SW_BALL_ADDED,
   drainTagFor, mechanismTags,
@@ -61,7 +61,7 @@ wireTable(world, table);
 const {
   wallSegments, popBumpers, slingshots, hopscotch, sandBank, treehouse, funLaneDefs,
   spinnerDefs, swingSetPosts, kickback, slide, monkeyBars, tunnel, sandbox, merryGoRound,
-  ejectionSites, mgrRelease, sandboxAddABallPlacement,
+  diverter, ejectionSites, mgrRelease, sandboxAddABallPlacement,
 } = table;
 
 // Wood-tone side rails + chrome lane/apron guides, sampled from the reference photo's
@@ -223,6 +223,20 @@ function processMechanismEvents(events) {
       // a slow crossing that didn't clear RAMP_ENTRY_MIN_SPEED fires the same tag but never
       // transitions (see physics/world.js's tryEnterGate).
       if (event.gateEntered) {
+        fired.push(tag);
+        if (eventLog) eventLog.log(tag);
+      }
+    } else if (tag === SW_DIVERTER_ENTER) {
+      // The production caller game/mechanisms.js's setDiverterRoute needed (2026-09-05, an
+      // outside review caught it): without this, the diverter was hardwired to route A
+      // forever — a runtime-switchable API with nothing in the running game ever calling it.
+      // Design choice, no real-machine source: alternates on every successful entry (real
+      // diverters commonly do exactly this — flip after each ball through). Only a real gate
+      // entry alternates it, same "gateEntered, not just a slow graze" guard as the ramp
+      // gates above, so a ball merely grazing the mouth below RAMP_ENTRY_MIN_SPEED can't
+      // silently flip the route without ever actually taking a path.
+      if (event.gateEntered) {
+        game.setDiverterRoute(diverter, game.currentDiverterRoute(diverter) === 'A' ? 'B' : 'A');
         fired.push(tag);
         if (eventLog) eventLog.log(tag);
       }
