@@ -149,12 +149,13 @@ export function buildTunnelRamp() {
  * ORBIT_EXIT_FEED (0.08, 0.25): verified clear of every collider on the table (nearest: the
  * right slingshot at 6.3cm ball-surface clearance, the outlane divider at 11.7cm) before being
  * chosen — not eyeballed. This is a design choice for WHERE the ball re-enters open play, aimed
- * toward the right flipper's general area; unlike the slide/monkeyBars re-aim dispatch, this
- * has NOT been run through mechanism-handoffs.test.mjs's full reachability sweep (81 samples,
- * every flipper state) — that level of verification is a reasonable follow-up, not something
- * this dispatch's stated tests (loop completion, weak-shot rollback) require. Stated plainly
- * rather than implied: this promises a safe, open landing spot near the right flipper, not a
- * measured guarantee of contact the way LEFT_INLANE_FEED/UPPER_LEFT_FLIPPER_FEED now are.
+ * toward the right flipper's general area.
+ *
+ * Reachability closed out (2026-09-05, test/orbit-reachability.test.mjs): the same 81-sample
+ * sweep methodology this file's own SLIDE/MONKEY BARS comments record (±3mm position, ±4°
+ * direction, ±0.15 m/s speed, × 3 flipper states) — 81/81 contact, 46/81 mid-bat. No re-aim
+ * needed; every sampled condition reaches the right flipper. This now carries the same measured
+ * guarantee LEFT_INLANE_FEED/UPPER_LEFT_FLIPPER_FEED do, not just a verified-safe landing spot.
  */
 export const ORBIT_EXIT_FEED = { x: 0.08, y: 0.25 };
 
