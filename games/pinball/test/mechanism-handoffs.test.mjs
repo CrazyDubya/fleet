@@ -40,18 +40,22 @@ function buildFullWorld() {
  * in play; the ball's hand-off itself is still the single real deterministic point/velocity —
  * this is not a swept neighbourhood of the hand-off, only of the receiving flipper's timing).
  *
- * The third state's own LABEL is corrected here (2026-09-05, an outside review's suspicion,
- * confirmed by measurement): 'flip-at-arrival' sets `active = true` at the same instant the
- * ball is spawned, meant to model "the player flips exactly as the ball arrives." Measured
- * directly (a scratch trace logging `target.angularVel` at the moment of contact) for every
- * real feed in this file: the flip completes (upMs=14ms, ~3.4 physics steps) well before the
- * ball's own travel time to the flipper in every case checked — SLIDE and MONKEY BARS both
- * make contact at exactly 12.5ms with `angularVel` already 0 (fully stopped). This state is
- * therefore, for every feed this table actually has, indistinguishable from "the flipper was
- * ALREADY fully active for the whole trial" — not a genuine mid-swing catch. The label stays
- * (renaming it everywhere `perState`/`statesHit` read it is a larger, separate change), but the
- * claim it's testing is corrected here rather than left implied: this is an early-active
- * check, not a mid-swing one, on this table's actual travel distances. */
+ * A note on the third state's own name, corrected twice now (2026-09-05): an outside review
+ * first suspected 'flip-at-arrival' — `active = true` set the instant the ball spawns — was
+ * indistinguishable from a flipper already sitting statically active, since a scratch trace
+ * showed `target.angularVel` was already 0 at the moment of first contact for SLIDE and MONKEY
+ * BARS (12.5ms, comfortably past the 14ms `upMs` stroke). That measurement was real but the
+ * conclusion drawn from it was wrong, caught by a second measurement: `physics/world.js`
+ * subdivides into `FLIPPER_SUBSTEPS` (24) finer sub-steps internally, within ONE call to
+ * `advance(world, STEP_DT)`, for every tick any flipper is moving — so the ball and the
+ * SWEEPING capsule are resolved together at fine resolution during the brief stroke, and the
+ * bat genuinely intercepts the ball's path at a different point than a bat that sat still at
+ * either rest or active the whole time, even though the swing has JUST finished by the exact
+ * instant that first contact is reported. Measured directly, comparing the actual `alongBat`
+ * fraction (not just `angularVel`) between 'active' and 'flip-at-arrival' for the same feed:
+ * SLIDE 0.464 vs 0.590, MONKEY BARS 0.547 vs 0.694, THE ORBIT -0.107 vs 0.457 — a real,
+ * physically meaningful difference every time, not noise. This state genuinely IS a mid-swing
+ * catch, exactly as its name says; the first correction was itself the bug. */
 function towardFlipper(pos, vel, flipperName) {
   const restDeg = flipperName === 'left' || flipperName === 'right'
     ? (flipperName === 'left' ? -50 : 180 - -50)

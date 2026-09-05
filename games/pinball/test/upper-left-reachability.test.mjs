@@ -74,22 +74,22 @@ function buildFullWorld() {
  * case dominates the space a real player's timing could land in), then simulates for
  * `durationS` and reports whether any collision event's primitive belongs to that flipper.
  *
- * Correction (2026-09-05, an outside review's suspicion, confirmed by direct measurement — see
- * mechanism-handoffs.test.mjs's towardFlipper, which shares this exact setup): "the player
- * flips right as the ball arrives" is the INTENT this state was named for, but it is not what
- * it measures. `active = true` at spawn means the flip (upMs=14ms, ~3.4 physics steps) is
- * essentially always complete — `target.angularVel` already 0 — before the ball's own travel
- * time to the flipper on this table's real distances. What this state actually exercises is "the
- * flipper was already fully active for the whole trial," the same claim the separate `active`
- * static-angle case already covers, not a genuine mid-swing catch. Left in place (removing it
- * would lose real trial coverage, and it is not WRONG, just not distinct from `active` here) —
- * documented accurately rather than left implying it tests something it doesn't. */
+ * A note on this state, corrected twice now (2026-09-05) — see mechanism-handoffs.test.mjs's
+ * towardFlipper, which shares this exact setup, for the fuller account: a first pass concluded
+ * `active = true` at spawn was indistinguishable from a statically-active flipper, since
+ * `target.angularVel` reads 0 by the moment of first contact on this table's real distances. A
+ * second measurement caught that conclusion as wrong: `physics/world.js` sub-steps 24x
+ * internally, within one `advance()` call, for every tick a flipper is moving, so the ball is
+ * genuinely resolved against the SWEEPING capsule during the brief stroke, not a settled one —
+ * confirmed by comparing the actual contact point (not just angularVel) between this state and
+ * the static `active` case for several real feeds, all of which differed substantially. This
+ * state is a genuine mid-swing catch, as its name says. */
 function trialContactsFlipper({ world, flippers, targetFlipperName, pos, vel, flipperState, durationS = 0.7 }) {
   const target = flippers[targetFlipperName];
   if (flipperState === 'flip-at-arrival') {
     target.angle = target.restAngle;
     target.angularVel = 0;
-    target.active = true; // in practice always resolves before contact — see this function's own doc comment
+    target.active = true; // updateFlipper drives it toward activeAngle from here — see this function's own doc comment for why this genuinely differs from a static active angle
   } else {
     target.angle = flipperState; // a held static angle (radians)
     target.angularVel = 0;

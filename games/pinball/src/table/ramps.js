@@ -231,6 +231,20 @@ export function buildDiverter(routeARampId, routeBRampId) {
  * was 5 of 25 perturbations. -94° is chosen for arrival reliability; today it happens to land
  * at 0.32 of the bat at rest and active, 0.88 (near the tip) on a flip-at-arrival. The test
  * therefore asserts arrival for this feed and bat-fraction for the other two.
+ *
+ * Re-checked (2026-09-05, an outside review asked whether 0.88 was stale, since a same-week
+ * trace of other feeds' flip-at-arrival state showed it settling to the SAME angularVel=0 as a
+ * statically-active flipper by the moment of contact): confirmed live, unchanged — rest 0.325,
+ * active 0.324, flip-at-arrival 0.879. It is real, and here is why it is not the same as
+ * active despite both ending at angularVel=0: `physics/world.js` sub-steps 24x internally, in
+ * one `advance()` call, for every tick a flipper is moving, so the ball is resolved against the
+ * flipper's SWEEPING capsule during the ~14ms stroke — a moving bat intercepts the ball's path
+ * at a different point than a bat that sat still at either endpoint the whole time, even though
+ * the swing has JUST finished by the instant contact is reported. Reaching angularVel=0 at
+ * contact means the swing happened to complete right around when the ball arrived, not that
+ * the ball's whole approach saw a motionless bat. See mechanism-handoffs.test.mjs's
+ * towardFlipper for the fuller measurement across other feeds, including a prior mistaken
+ * conclusion on this exact point (corrected there).
  */
 export function buildSandbox() {
   const centre = { x: -0.01, y: 0.56 };

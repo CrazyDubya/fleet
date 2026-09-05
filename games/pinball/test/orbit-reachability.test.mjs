@@ -40,14 +40,12 @@ function buildFullWorld() {
 
 /** One trial: does a ball at `pos`/`vel` contact `flipperName`'s own capsule within
  * DURATION_S, with that flipper held at `angleRad` (or naturally flipping mid-flight if
- * `angleRad === 'flip-at-arrival'`, matching mechanism-handoffs.test.mjs's own convention —
- * including that convention's own naming correction: measured directly for this exact exit
- * (ORBIT_EXIT_FEED -> right flipper), contact happens at 62.5ms with `angularVel` already 0 —
- * the flip, upMs=14ms, is long since complete by the time the ball arrives. This state
- * exercises "already fully active," not a genuine mid-swing catch, same as every other real
- * feed on this table; see mechanism-handoffs.test.mjs's towardFlipper for the full account)?
- * Also reports the along-bat fraction (0=pivot, 1=tip; negative = a graze on the round hub,
- * not a real hit) of the FIRST contact, the same distinction ramps.js's own "mid-bat" figures
+ * `angleRad === 'flip-at-arrival'`, matching mechanism-handoffs.test.mjs's own convention — this
+ * genuinely is a mid-swing catch, not indistinguishable from a statically-active flipper; see
+ * that file's own towardFlipper doc comment for the measurement, including a prior mistaken
+ * correction on this exact point)? Also reports the along-bat fraction (0=pivot, 1=tip;
+ * negative = a graze on the round hub, not a real hit) of the FIRST contact, the same
+ * distinction ramps.js's own "mid-bat" figures
  * are built from. */
 function trial({ pos, vel, flipperName, angleRad }) {
   const { world, flippers } = buildFullWorld();
