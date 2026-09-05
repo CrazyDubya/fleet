@@ -83,6 +83,22 @@ test('arc-containment: a ball starting outside the channel walls is correctly re
   assert.ok(r.escapedAtS > 0 && r.escapedAtS < 0.3);
 });
 
+test('a non-positive duration is a reported failure, not a silent pass', () => {
+  // Regression: a zero/negative duration used to skip the simulation loop entirely, leaving
+  // `contained` at its default-true value — the harness reporting success for a run that never
+  // happened. Both scenario kinds must refuse to return a result when zero steps ran.
+  assert.throws(() => runScenario('arc-containment', { durationS: 0 }), /0 physics steps/);
+  assert.throws(() => runScenario('arc-containment', { durationS: -1 }), /0 physics steps/);
+  assert.throws(() => runScenario('scoop-two-balls', { durationS: 0 }), /0 physics steps/);
+});
+
+test('every scenario reports the step count it actually ran, and it is nonzero on a real run', () => {
+  const r1 = runScenario('scoop-two-balls');
+  assert.ok(Number.isInteger(r1.stepsRun) && r1.stepsRun > 0);
+  const r2 = runScenario('arc-containment');
+  assert.ok(Number.isInteger(r2.stepsRun) && r2.stepsRun > 0);
+});
+
 test('formatReport produces multi-line, human-readable text for both scenario kinds', () => {
   const scoopText = formatReport(runScenario('scoop-two-balls'));
   assert.ok(scoopText.includes('scoop-two-balls'));

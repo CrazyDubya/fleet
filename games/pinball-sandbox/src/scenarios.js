@@ -78,9 +78,11 @@ function runSandboxTableScenario(def, overrides) {
   const durationS = overrides.durationS ?? def.durationS;
   const events = [];
   let elapsedS = 0;
+  let stepsRun = 0;
   const steps = Math.round(durationS / STEP_DT);
 
   for (let i = 0; i < steps; i++) {
+    stepsRun += 1;
     for (const b of balls) {
       if (!b.spawned && elapsedS >= b.spawnAtS) {
         b.phys = addBall(world, {
@@ -121,9 +123,11 @@ function runSandboxTableScenario(def, overrides) {
     elapsedS += STEP_DT;
   }
 
+  assertRan(stepsRun, 'scoop-two-balls');
   return {
     name: 'scoop-two-balls',
     durationS,
+    stepsRun,
     events,
     balls: balls.map((b) => ({ id: b.id, captured: !!b.phys?.captured, finalPos: { ...b.phys.pos } })),
   };
@@ -158,18 +162,22 @@ function runChannelScenario(def, overrides) {
   let escapedAtS = null;
   let maxY = ball.pos.y;
   let elapsedS = 0;
+  let stepsRun = 0;
   const steps = Math.round(durationS / STEP_DT);
 
   for (let i = 0; i < steps; i++) {
+    stepsRun += 1;
     advance(world, STEP_DT);
     elapsedS += STEP_DT;
     maxY = Math.max(maxY, ball.pos.y);
     if (escapedAtS === null && ball.pos.y > escapeThreshold) escapedAtS = elapsedS;
   }
 
+  assertRan(stepsRun, 'arc-containment');
   return {
     name: 'arc-containment',
     durationS,
+    stepsRun,
     channel,
     ball: ballParams,
     contained: escapedAtS === null,
@@ -177,6 +185,25 @@ function runChannelScenario(def, overrides) {
     maxY,
     finalPos: { ...ball.pos },
   };
+}
+
+// A report field is only trustworthy if something actually computed it. `contained`,
+// `captured`, etc. all start from values chosen so a run that never executes a single step
+// (a non-positive/NaN duration, a world that fails to build before the loop, balls that never
+// get placed) can't silently read as a passing result just because nothing overwrote a
+// pre-set default — the failure mode a review caught here (a zero-duration channel scenario
+// reporting `contained: true` because `escapedAtS` never left its `null` initial value).
+// Rather than special-casing "reject non-positive duration" (which only closes this one input
+// and leaves the same shape open for every other reason a run could execute zero steps), both
+// runners count the steps they actually ran and this throws if that count is ever zero — an
+// explicit failure instead of a report indistinguishable from success.
+function assertRan(stepsRun, scenarioName) {
+  if (stepsRun === 0) {
+    throw new Error(
+      `runScenario: "${scenarioName}" executed 0 physics steps — nothing was simulated, so its ` +
+      'result cannot be trusted. Check durationS (must be a positive number).'
+    );
+  }
 }
 
 const RUNNERS = {
