@@ -22,6 +22,7 @@ import {
   DEAD_ZONE_SPEED, HALF_WIDTH as E3_HALF_WIDTH, LANE_DEFLECTOR_EFFICIENCY,
 } from './arenas/e3_paths.js';
 import { loadShotlineSamples, sampleShotline } from './e1Coupling.js';
+import { makeReservoir, seedFromString } from './reservoir.js';
 
 export const FLAGS = {
   IMPACTS_EXHAUSTED: 1,
@@ -40,11 +41,27 @@ const E1_TIMEOUT_S = 2.0; // §3.1
 const E2_TIMEOUT_S = 12.0; // §4.3
 const E4_TIMEOUT_S = 4.0; // §1.2's revised window, Stages A/B
 const E3_TIMEOUT_S = 12.0; // §5.2
-const E3_DEAD_ZONE_CAP = 300; // per-trial cap on recorded dead-zone samples (see runE3Trial)
+// PREFIX-FIX: `E3_DEAD_ZONE_CAP` used to bound `deadZoneHits` to the first 300 substeps per
+// trial, ordered by time within the trial — and the map's whole subject is where a slow ball
+// ends up, which time is the axis of (opus2, PREFIX-SWEEP §1). Deleted rather than
+// reservoir-sampled: the metric is an occupancy COUNT per bin, not a sample statistic, and
+// uniformly sampling would preserve the shape while destroying the weight — half of what the
+// map means. No cap defended anything real either: the array's own hard bound
+// (E3_TIMEOUT_S / STEP_DT = 2,880) is transient per-trial memory, and the bin `Map` it folds
+// into is bounded by arena bin count, not trial count. The six already-published heatmaps this
+// affects are not correctable after the fact (`deadZoneHits` never reaches the shard record) —
+// see `ledger/handoffs/opus2/20260905T230606Z-prefix-sweep.md` §1 for which runs and by how
+// much.
 const E4_RELEASE_TIMEOUT_S = 6.0; // Stage C
 const E4_CREEP_THRESHOLD_M = 0.005;
 const E2_INJECTION_X_MARGIN = 0.02; // keep the sampled x strictly inside the side walls
 const E2_EG_CAP = 12; // §4.3's eg[] array: "capped at 12 entries"
+// PREFIX-FIX: `eg[]` was a `length < CAP` prefix ordered by bumper-hit index, and the ratio
+// falls with hit index on the cfgs that matter (opus2, PREFIX-SWEEP §2) — the same defect
+// SAMPLECAP-1 fixed for E3's family samples, on a stream ordered by time within a trial
+// instead of by cfg. Reservoir-sampled instead, seeded from (cfgId, seed) so re-runs of the
+// same trial draw the same twelve hits. §4.3 still specifies "capped at 12 entries" — this
+// changes WHICH twelve, not how many.
 
 /** `(cfgId, seed) -> seeded rng`, per §2.4/§2.4a: the hash of cfgId XORed with the seed, fed
  * through `seed.js`'s splitmix32-seeded, warmed-up xorshift128 — NOT the game's makeRng
@@ -365,7 +382,13 @@ function runE2Trial(cfg, seed, opts) {
   let chain = 0; // §4.4 "chain length": count of bumper-contact events this trial (this
                  // arena's analogue of E1's flipper `contacts` counter).
   let firstHit = null; // §4.3 h1: {dev, vo} from the FIRST bumper contact only.
-  const energyRatios = []; // §4.3 eg[]: v_out/v_in per hit, capped at E2_EG_CAP entries.
+  // PREFIX-FIX: a reservoir, not a prefix array — see E2_EG_CAP's comment above. Seeded from
+  // (cfgId, seed) rather than drawn from `rng` above: `rng` also drives the trial's own physics
+  // (injection sampling), so sharing it would perturb every trial's trajectory the moment a
+  // chain exceeds 12 hits. This reservoir is lazy (reservoir.js) — it draws no randomness at
+  // all for the ~99% of trials whose chain never exceeds the cap, so purity holds exactly as
+  // before for those trials and the physics stream is untouched for every trial, capped or not.
+  const energyRatios = makeReservoir(E2_EG_CAP, seedFromString(`e2eg:${cfg.cfgId}:${seed}`));
   let stallSinceS = null;
   let term = null;
   let crossing = null;
@@ -401,7 +424,7 @@ function runE2Trial(cfg, seed, opts) {
       const preSpeed = Math.hypot(preVel.x, preVel.y);
       const postSpeed = Math.hypot(ball.vel.x, ball.vel.y);
       chain += 1;
-      if (energyRatios.length < E2_EG_CAP && preSpeed > 0) energyRatios.push(postSpeed / preSpeed);
+      if (preSpeed > 0) energyRatios.offer(postSpeed / preSpeed);
       if (firstHit === null) {
         firstHit = {
           dev: angleDiffDeg(angleDeg(ball.vel), angleDeg(preVel)),
@@ -468,7 +491,7 @@ function runE2Trial(cfg, seed, opts) {
     h1: firstHit ? { dev: firstHit.dev, vo: firstHit.vo } : null,
     ch: chain,
     dw: elapsedS,
-    eg: energyRatios,
+    eg: energyRatios.items,
     // §4.3: "exit KE / entry KE" — same-mass ratio of squared speeds; null when the trial
     // never reached the exit boundary (a stalled/timed-out ball has no exit KE to report).
     ecum: crossing ? (crossing.xs * crossing.xs) / (speed0 * speed0) : null,
@@ -741,7 +764,7 @@ function runE4Trial(cfg, seed, opts) {
  * until the ball crosses the flipper zone, drains, stalls, or times out (12s per §5.2).
  * Structurally the same shape as runE1Trial/runE2Trial; the two things unique to E3 are the
  * §5.4 dead-zone occupancy sampling (every substep the ball is slower than
- * DEAD_ZONE_SPEED, capped per trial — see E3_DEAD_ZONE_CAP) and P4's manual ramp-mouth
+ * DEAD_ZONE_SPEED — uncapped, PREFIX-FIX) and P4's manual ramp-mouth
  * make/reject hand-off (arenas/e3_paths.js's file header explains why it's manual rather than
  * the game's own Gate/world.ramps path).
  */
@@ -891,7 +914,7 @@ function runE3Trial(cfg, seed, opts) {
     }
 
     const speed = Math.hypot(ball.vel.x, ball.vel.y);
-    if (speed < DEAD_ZONE_SPEED && deadZoneHits.length < E3_DEAD_ZONE_CAP) {
+    if (speed < DEAD_ZONE_SPEED) {
       deadZoneHits.push([Math.round(ball.pos.x * 100), Math.round(ball.pos.y * 100)]);
     }
 

@@ -20,7 +20,9 @@ const TIMING_ALLOWED = new Set(['runner.js', 'profile.js', 'stageA.js']);
 // e3FamilyStats.js (SAMPLECAP-1) is the same category: an orchestration CLI that re-reads an
 // existing run's shards and writes a companion summary timestamp. It re-simulates nothing, and
 // its sampling is seeded (src/reservoir.js), so it stays under the Math.random ban below.
-const WALLCLOCK_ALLOWED = new Set(['runner.js', 'stageA.js', 'lab2Report.js', 'e2Report.js', 'e4Report.js', 'e5aReport.js', 'e3FamilyStats.js']); // Date.now/new Date() — meta.json/summary timestamps only
+// e2EnergyRatioBound.js (PREFIX-FIX) is the same category as e3FamilyStats.js: re-reads an
+// existing run's shards and writes a companion summary timestamp, re-simulating nothing.
+const WALLCLOCK_ALLOWED = new Set(['runner.js', 'stageA.js', 'lab2Report.js', 'e2Report.js', 'e4Report.js', 'e5aReport.js', 'e3FamilyStats.js', 'e2EnergyRatioBound.js']); // Date.now/new Date() — meta.json/summary timestamps only
 
 function walk(dir) {
   const out = [];

@@ -6,7 +6,7 @@
 // without ever satisfying a naive "must have risen above the exit line first" crossing check.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { runTrial, rngForTrial } from '../src/instrument.js';
+import { runTrial, runTrialWithMeta, rngForTrial } from '../src/instrument.js';
 import {
   buildE2SeriesACfgs, buildE2SeriesBCfgs, buildE2DivergenceCfgs,
   E2_N_VALUES, E2_LAYOUT_VARIANTS, E2_PERTURB_ANGLE_RAD,
@@ -136,4 +136,49 @@ test('regression: no ESCAPED trials from ordinary near-horizontal injections (2,
 test('rngForTrial: E2 cfgs are seeded the same way as E1 (pure function of cfgId, seed)', () => {
   const cfg = { cfgId: 'deadbeef' };
   assert.equal(rngForTrial(cfg, 3)(), rngForTrial(cfg, 3)());
+});
+
+// PREFIX-FIX (opus2, PREFIX-SWEEP §2): `eg[]` used to keep the FIRST 12 per-hit energy ratios,
+// a prefix ordered by bumper-hit index — and the ratio falls with hit index on chains that
+// matter, so the prefix reported a declining series' HIGH end as if it were the whole thing.
+// Now a reservoir. Two properties matter: it stays exactly reproducible (same as the prefix
+// it replaced), and on a long chain it is genuinely NOT the first 12 — the defect this
+// replaces, reintroduced by a future edit, would make this second assertion fail.
+test('eg[]: reservoir-sampled, not a prefix — reproducible, capped, and not just "the first 12" on a long chain', () => {
+  const cfgs = buildE2SeriesBCfgs();
+  const cfg = cfgs.find((c) => c.cfgId === 'd97982e0');
+  assert.ok(cfg, 'fixture cfg not found — Series B cfg construction changed');
+  const seed = 2;
+
+  const r1 = runTrial(cfg, seed);
+  const r2 = runTrial(cfg, seed);
+  assert.ok(r1.ch > 12, `fixture (${cfg.cfgId}, seed ${seed}) should have a chain > 12, got ${r1.ch} — pick a new fixture if sweep.js's cfg construction changed`);
+  assert.equal(r1.eg.length, 12);
+  // Reproducibility: same (cfg, seed) draws the same twelve hits, same order.
+  assert.deepEqual(r1.eg, r2.eg, 'eg[] must be reproducible for the same (cfg, seed) — a re-run is not a re-sample');
+
+  // Reconstruct the TRUE uncapped ratio sequence via onStep — the same preVel/postVel-around-a-
+  // bumper-event computation runE2Trial does internally, traced from the outside so this test
+  // has no dependency on instrument.js's own (now-fixed) bookkeeping.
+  const trueRatios = [];
+  let preVel = null;
+  runTrialWithMeta(cfg, seed, {
+    onStep: ({ vel, contacts }) => {
+      if (preVel && contacts > 0) {
+        const preSpeed = Math.hypot(preVel.x, preVel.y);
+        const postSpeed = Math.hypot(vel.x, vel.y);
+        if (preSpeed > 0) trueRatios.push(postSpeed / preSpeed);
+      }
+      preVel = vel;
+    },
+  });
+  assert.equal(trueRatios.length, r1.ch, 'reconstructed uncapped ratio count should match the reported chain length');
+
+  // The old defect: eg was always trueRatios.slice(0, 12). Assert it no longer is.
+  assert.notDeepEqual(r1.eg, trueRatios.slice(0, 12), 'eg[] must not be the first 12 hits of a chain this long — that is the prefix defect this reservoir replaces');
+  // But every retained value really did come from this trial's true stream (a reservoir can
+  // only hold what it was offered).
+  for (const v of r1.eg) {
+    assert.ok(trueRatios.some((t) => Math.abs(t - v) < 1e-12), `eg value ${v} not found in the reconstructed true stream`);
+  }
 });

@@ -136,3 +136,17 @@ test('P4 ramp mouth: the make/reject hand-off actually fires somewhere across th
   }
   assert.ok(anyRmp, 'no P4 trial in a 30-seed sample ever reached the ramp mouth — check the gate/geometry alignment');
 });
+
+// PREFIX-FIX (opus2, PREFIX-SWEEP §1): `deadZoneHits` used to be capped at the first 300
+// substeps per trial, a prefix ordered by time within the trial — and the map's whole subject
+// is where a slow ball ENDS UP, so the cap kept the approach and threw away the settle. Cap
+// removed entirely (not reservoir-sampled: this is an occupancy count, not a sample statistic —
+// see instrument.js's comment on the deleted E3_DEAD_ZONE_CAP). A trial spending more than 300
+// substeps below DEAD_ZONE_SPEED must report every one of them, not 300.
+test('deadZoneHits: uncapped — a trial spending > 300 substeps below DEAD_ZONE_SPEED reports all of them', () => {
+  const cfgs = buildE3P3Cfgs();
+  const cfg = cfgs.find((c) => c.cfgId === 'ff8a8115');
+  assert.ok(cfg, 'fixture cfg not found — P3 grid construction changed');
+  const { deadZoneHits } = runTrialWithMeta(cfg, 89);
+  assert.ok(deadZoneHits.length > 300, `fixture (${cfg.cfgId}, seed 89) should spend > 300 substeps below the dead-zone speed, got ${deadZoneHits.length} — pick a new fixture if the grid/physics changed`);
+});
