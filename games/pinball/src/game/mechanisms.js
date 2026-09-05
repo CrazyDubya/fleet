@@ -164,3 +164,31 @@ export function tryKickback(kickback) {
   kickback.lit = false;
   return true;
 }
+
+// RAMP DIVERTER (2026-09-05). table/ramps.js's buildDiverter returns `{gate, routeARampId,
+// routeBRampId}`; there is no separate diverter "state object" the way createKickback/
+// createScoop have one — the current route lives directly on the shared Gate's own
+// `gate.toLayer` field, because physics/world.js's tryEnterGate reads that field fresh on
+// every crossing. Mutating it here is the entire mechanism: the same "game layer mutates a
+// field on the shared physics-owned object" pattern this file's own drop-target `.active`
+// flag already uses (applyDropHit above), not a new kind of boundary.
+export function setDiverterRoute(diverter, route) {
+  if (route !== 'A' && route !== 'B') {
+    throw new RangeError(`setDiverterRoute: route must be 'A' or 'B', got ${JSON.stringify(route)}`);
+  }
+  // physics/shapes.js's Gate(a, b, tag, meta) nests the routing metadata one level deep as
+  // `.gate` on the Zone it returns — `diverter.gate` IS that Zone/Gate object, so the field
+  // tryEnterGate actually reads is `diverter.gate.gate.toLayer`, not `diverter.gate.toLayer`.
+  // Caught by this function's own test: writing the wrong path silently added a stray
+  // `toLayer` property on the Zone object instead of ever touching the one physics reads, so
+  // every "switch to B" call had no effect at all — exactly the class of bug this whole day
+  // has been about (bad state, nothing checking it).
+  diverter.gate.gate.toLayer = route === 'A' ? diverter.routeARampId : diverter.routeBRampId;
+}
+
+/** The diverter's current route, read back from the same field setDiverterRoute writes —
+ * never tracked separately, so this can never drift out of sync with what a ball entering
+ * right now would actually get routed to. */
+export function currentDiverterRoute(diverter) {
+  return diverter.gate.gate.toLayer === diverter.routeARampId ? 'A' : 'B';
+}

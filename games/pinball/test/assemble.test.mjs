@@ -30,7 +30,8 @@ test('buildTable assembles every known playfield contributor, with the right cou
   const expectedZoneCount =
     mech.buildFunLanes().length +
     2 + // tetherball + pinwheel spinners
-    3; // slide/monkeyBars/tunnel gates
+    3 + // slide/monkeyBars/tunnel gates
+    1; // diverter gate
   assert.equal(table.zones.length, expectedZoneCount);
 
   assert.equal(table.captureZones.length, 2); // sandbox + merry-go-round

@@ -45,6 +45,13 @@ export const SW_TUNNEL_EXIT = 'tunnel_exit';
 export const SW_SANDBOX_ENTRY = 'sandbox_entry';
 export const SW_SANDBOX_EJECT = 'sandbox_eject';
 
+// RAMP DIVERTER (2026-09-05). Fires on every entry regardless of which of the two routes is
+// currently active — "did the ball take the diverter" is scored the same either way; which
+// ramp it actually landed on is scored by that ramp's own `_exit`/`_rollback` tags, same as
+// any other gate (see mechanismTags' own doc comment on why those come from the ramp id, not
+// a switches.js export).
+export const SW_DIVERTER_ENTER = 'diverter_enter';
+
 // T8 — RECESS MULTIBALL (design doc §4.4/§9 T8 row). SW_MERRY_GO_ROUND fires on every
 // physical capture by the merry-go-round zone, whether or not lock is lit — rules/multiball.js
 // decides what that capture means (lock, re-lock jackpot escalator, or an unlit pass-through
@@ -84,6 +91,7 @@ export function mechanismTags({ slide, monkeyBars, tunnel }) {
     ...SW_FUN,
     SW_TETHERBALL_SPIN, SW_PINWHEEL_SPIN,
     SW_SLIDE_ENTER, SW_MONKEYBARS_ENTER, SW_TUNNEL_ENTER,
+    SW_DIVERTER_ENTER,
     `${slide}_exit`, `${monkeyBars}_exit`, `${tunnel}_exit`,
     `${slide}_rollback`, `${monkeyBars}_rollback`, `${tunnel}_rollback`,
     SW_SANDBOX_ENTRY, SW_SANDBOX_EJECT,

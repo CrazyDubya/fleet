@@ -41,6 +41,9 @@ export function buildTable() {
   const tunnel = ramps.buildTunnelRamp();
   const sandbox = ramps.buildSandbox();
   const merryGoRound = mech.buildMerryGoRound();
+  // Routes onto two of the ramps already built above — see buildDiverter's own doc comment
+  // for why this needs no new ramp geometry of its own.
+  const diverter = ramps.buildDiverter(slide.ramp.id, tunnel.ramp.id);
 
   // Every mechanism-leaving landing point (merry-go-round release/eject, SANDBOX add-a-ball)
   // computed against the real table layout up front — see computeEjectPlacement's doc comment
@@ -69,6 +72,7 @@ export function buildTable() {
     slide.gate,
     monkeyBars.gate,
     tunnel.gate,
+    diverter.gate,
   ];
 
   const captureZones = [sandbox.captureZone, merryGoRound.captureZone];
@@ -77,7 +81,7 @@ export function buildTable() {
   return {
     wallSegments, popBumpers, slingshots, hopscotch, sandBank, treehouse, funLaneDefs,
     spinnerDefs, swingSetPosts, kickback, slide, monkeyBars, tunnel, sandbox, merryGoRound,
-    ejectionSites, mgrRelease, sandboxAddABallPlacement,
+    diverter, ejectionSites, mgrRelease, sandboxAddABallPlacement,
     primitives, zones, captureZones, rampTracks,
   };
 }

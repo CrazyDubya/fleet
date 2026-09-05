@@ -7,7 +7,7 @@ import { perp, normalize, scale } from '../physics/vec2.js';
 import { RAMP_ENTRY_MIN_SPEED, SCOOP_EJECT } from '../physics/constants.js';
 import {
   SW_SLIDE_ENTER, SW_MONKEYBARS_ENTER, SW_TUNNEL_ENTER,
-  SW_SANDBOX_ENTRY, SW_SANDBOX_EJECT,
+  SW_SANDBOX_ENTRY, SW_SANDBOX_EJECT, SW_DIVERTER_ENTER,
 } from './switches.js';
 
 // Hand-off points where each ramp's untracked habitrail puts the ball back on the playfield.
@@ -128,6 +128,45 @@ export function buildTunnelRamp() {
   });
 
   return { ramp, gate: gateForRamp(ramp, SW_TUNNEL_ENTER) };
+}
+
+/**
+ * RAMP DIVERTER (2026-09-05). fs2's own structural mapping named the closest analogue: the
+ * existing ramp entry gates, with exactly one wiring stage differing — a diverter's `toLayer`
+ * is chosen at runtime by game state, not fixed at construction. No new physics primitive:
+ * physics/world.js's `tryEnterGate` already re-reads `zone.gate.toLayer` fresh on every
+ * crossing (it's a plain object field, not baked into a closure), so simply MUTATING that
+ * field from the game layer makes the SAME Gate object route differently on the next contact.
+ * game/mechanisms.js's `setDiverterRoute` is the one place that mutation happens — the same
+ * "game layer mutates a field on the shared physics-owned object" pattern
+ * `game/mechanisms.js`'s drop-target `.active` flag already uses, not a new mechanism kind.
+ *
+ * Routes onto two of the table's own EXISTING ramp tracks (`routeARampId`/`routeBRampId`)
+ * rather than authoring new ramp geometry: a ramp track has no assumption that only one gate
+ * feeds it (`addRamp`/`tryEnterGate` key purely on `ramp.id`), so a second gate onto an
+ * already-built, already-measured ramp needs no new exit point to place or verify — it gets
+ * that ramp's own tested landing for free. This also means the standing "check clearance
+ * against ball diameter + padding" rule has nothing new to check here: a Gate is a Zone
+ * (physics/shapes.js), detected only by a straight-line crossing test, never a collision
+ * primitive a ball can wedge against — the only genuinely NEW geometry this function
+ * introduces is the gate's own mouth, which cannot trap a ball by construction.
+ *
+ * Placement (0.18, 0.40): a design choice, not a real-machine figure — a real diverter's exact
+ * position depends on table layout decisions well beyond this dispatch. Chosen and verified
+ * numerically (not eyeballed) to sit clear of every other primitive/zone on the table — nearest
+ * neighbour is the `lane-inner` wall at 7.7cm and the tunnel ramp's own gate mouth at 9.4cm,
+ * see the handoff for the full clearance scan.
+ */
+const DIVERTER_HALF_WIDTH = 0.022; // matches gateForRamp's own GATE_HALF_WIDTH convention
+
+export function buildDiverter(routeARampId, routeBRampId) {
+  const centre = { x: 0.18, y: 0.4 };
+  const allowDir = normalize({ x: -0.3, y: 1 }); // a ball headed up-and-left crosses it
+  const side = perp(allowDir);
+  const a = { x: centre.x - side.x * DIVERTER_HALF_WIDTH, y: centre.y - side.y * DIVERTER_HALF_WIDTH };
+  const b = { x: centre.x + side.x * DIVERTER_HALF_WIDTH, y: centre.y + side.y * DIVERTER_HALF_WIDTH };
+  const gate = Gate(a, b, SW_DIVERTER_ENTER, { toLayer: routeARampId, allowDir, minSpeed: RAMP_ENTRY_MIN_SPEED });
+  return { gate, routeARampId, routeBRampId };
 }
 
 /**
