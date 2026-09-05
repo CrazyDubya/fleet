@@ -74,10 +74,30 @@ export function createModesState(seed = 1) {
 /** Reset the per-ball parts of modes state at launchBall — combo multipliers are ball-scoped
  * artifacts (like bonusX and the pop escalator), everything else (queue, meter, jackpot
  * completions, lifetime pop count) persists for the whole game, per §4.4's "this game"
- * wording on the jackpot and meter. */
+ * wording on the jackpot and meter.
+ *
+ * LIT-1 (2026-09-05): sandboxLit and hopscotchJackpot.lit were missing from this list — both
+ * are "this ball earned a shot that's now armed" flags (sandboxLit by 25 pop hits / S-A-N-D
+ * completion / the super skill shot; hopscotchJackpot.lit by HOPSCOTCH bank completion), and
+ * neither is meant to survive a drain: a flag left lit let the next ball collect a shot it
+ * never earned (hopscotchJackpot.lit: 500000 uncontested on the first SLIDE exit) or start a
+ * mode with no completion required (sandboxLit: the next ball's first SANDBOX shot would
+ * start a mode instantly). Added below.
+ *
+ * Considered restructuring instead of extending the list: splitting state into a
+ * wholesale-replaceable `ball: {...}` sub-object (slideCombo, tunnelCombo, sandboxLit,
+ * hopscotchJackpot.lit) versus a `game: {...}` sub-object for everything else, so a reset can
+ * never miss a field because it replaces the whole thing at once. Rejected for now:
+ * hopscotchJackpot itself is a genuinely mixed object (`.lit` is ball-scoped, `.completions`
+ * is game-scoped), so the split isn't clean even at the top level, and every read site of
+ * these fields throughout modes.js and game.js would need updating for a state-shape change
+ * whose benefit here is avoiding a list two entries just grew to four. Not worth the blast
+ * radius for this fix; if a fifth or sixth ball-scoped field shows up later, revisit this. */
 export function resetForNewBall(modesState) {
   modesState.slideCombo = { mult: 1, lastAtS: -Infinity };
   modesState.tunnelCombo = { mult: 1, lastAtS: -Infinity, lit: false };
+  modesState.sandboxLit = false;
+  modesState.hopscotchJackpot.lit = false;
 }
 
 /** Abandon any in-progress mode without crediting a completion — called when the ball ends
@@ -89,22 +109,42 @@ export function abandonActiveMode(modesState) {
   modesState.activeMode = null;
 }
 
+// LIT-1 (2026-09-05): a NaN atS here used to poison lastAtS permanently — once
+// `combo.lastAtS` became NaN, every future `atS - combo.lastAtS` is NaN, `NaN >
+// COMBO_DECAY_S` is always false, so the combo could never decay again for the rest of the
+// game. onSlideExit/onTunnelExit are called from processEvents' bare `for (const raw of
+// events)` loop (rules/game.js) with no try/catch around it — the same shape as the
+// diverter's per-frame event loop — so throwing here would abort every other event in that
+// tick, the exact mistake already fixed there. Loud, not fatal: log once per bad streak and
+// hold the multiplier steady rather than silently accepting or advancing it; never let the
+// bad timestamp overwrite lastAtS, so decay works correctly again the moment a real
+// timestamp arrives.
 function decayedMult(combo, atS) {
+  if (!Number.isFinite(atS)) {
+    if (!combo._loggedNaNAtS) {
+      combo._loggedNaNAtS = true;
+      console.error(`decayedMult: atS=${atS} is not a finite timestamp — ignoring it, holding mult=${combo.mult} steady`);
+    }
+    return combo.mult;
+  }
+  combo._loggedNaNAtS = false;
   return atS - combo.lastAtS > COMBO_DECAY_S ? 1 : Math.min(6, combo.mult + 1);
 }
 
 /** THE SLIDE: 100 000 base, 2x-6x combo on consecutive slide shots, decaying after 8s. */
 export function onSlideExit(modesState, atS) {
-  const mult = decayedMult(modesState.slideCombo, atS);
-  modesState.slideCombo = { mult, lastAtS: atS };
+  const combo = modesState.slideCombo;
+  const mult = decayedMult(combo, atS);
+  modesState.slideCombo = { mult, lastAtS: Number.isFinite(atS) ? atS : combo.lastAtS, _loggedNaNAtS: combo._loggedNaNAtS };
   return 100000 * mult;
 }
 
 /** THE TUNNEL lights TETHERBALL for 10 000/rev (base 2 500), with its own consecutive-loop
  * combo, decaying the same way the slide's does. */
 export function onTunnelExit(modesState, atS) {
-  const mult = decayedMult(modesState.tunnelCombo, atS);
-  modesState.tunnelCombo = { mult, lastAtS: atS, lit: true };
+  const combo = modesState.tunnelCombo;
+  const mult = decayedMult(combo, atS);
+  modesState.tunnelCombo = { mult, lastAtS: Number.isFinite(atS) ? atS : combo.lastAtS, lit: true, _loggedNaNAtS: combo._loggedNaNAtS };
 }
 
 export function tetherballSpinValue(modesState, atS) {

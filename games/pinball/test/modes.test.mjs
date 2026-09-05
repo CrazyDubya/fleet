@@ -287,3 +287,56 @@ test('linkage: 25 lifetime spring-rider hits light DODGEBALL at the SANDBOX out 
   assert.equal(p.modesState.queue[0], 'DODGEBALL', 'moved to the front of the queue');
   assert.equal(p.modesState.sandboxLit, true, 'and the SANDBOX is lit for it');
 });
+
+// LIT-1 (2026-09-05): resetForNewBall used to only reset slideCombo/tunnelCombo, leaving
+// sandboxLit and hopscotchJackpot.lit to survive a drain — a flag earned by one ball paying
+// off, uncontested, on the very next one. All three reproduce the pre-fix carry-over first
+// (by asserting the flag/state is genuinely set before the next-ball transition), then assert
+// it's gone after — the same reproduce-before-fix discipline used for SCOOP-1.
+
+test('LIT-1: sandboxLit does not survive a drain — the next ball must re-earn it', () => {
+  const state = createGame({ numPlayers: 1, ballsPerPlayer: 3, seed: 1 });
+  launchBall(state, 0);
+  const p = activePlayer(state);
+
+  let atS = 1;
+  for (let i = 0; i < 25; i++) processEvents(state, [SW_POP_DUCK], atS++);
+  assert.equal(p.modesState.sandboxLit, true, 'precondition: this ball earned a lit SANDBOX');
+
+  launchBall(state, atS); // ball drains (no save), next ball is served
+  assert.equal(p.modesState.sandboxLit, false, 'must not carry over — the new ball has not earned it');
+});
+
+test('LIT-1: hopscotchJackpot.lit does not survive a drain — the next ball must not collect an uncontested jackpot', () => {
+  const state = createGame({ numPlayers: 1, ballsPerPlayer: 3, seed: 1 });
+  launchBall(state, 0);
+  const p = activePlayer(state);
+
+  processEvents(state, [SW_HOPSCOTCH_COMPLETE], 1);
+  assert.equal(p.modesState.hopscotchJackpot.lit, true, 'precondition: this ball completed HOPSCOTCH and lit the jackpot');
+
+  launchBall(state, 2); // ball drains (no save), next ball is served
+  assert.equal(p.modesState.hopscotchJackpot.lit, false, 'must not carry over — the new ball did not complete HOPSCOTCH');
+
+  const before = p.score;
+  processEvents(state, [SW_SLIDE_EXIT], 3);
+  assert.notEqual(p.score - before, 500000, 'the next ball must not collect a jackpot it did not earn on its first slide exit');
+});
+
+test('LIT-1: a NaN atS does not permanently poison slide-combo decay', () => {
+  const state = freshGame();
+  const p = activePlayer(state);
+
+  processEvents(state, [SW_SLIDE_EXIT], 1); // first hit: mult resets to 1 (lastAtS started at -Infinity), lastAtS=1
+  processEvents(state, [SW_SLIDE_EXIT], 2); // second consecutive hit within the decay window: mult now 2, lastAtS=2
+  let before = p.score;
+  processEvents(state, [SW_SLIDE_EXIT], NaN); // corrupted timestamp arrives
+  assert.equal(p.score - before, 200000, 'a NaN atS must hold the multiplier steady (2x), not silently advance or reset it');
+
+  // Decay must still work correctly once a real timestamp arrives again — this is exactly
+  // what a permanently-NaN lastAtS would break (NaN - anything is always NaN, so
+  // "> COMBO_DECAY_S" would always read false and the combo could never decay again).
+  before = p.score;
+  processEvents(state, [SW_SLIDE_EXIT], 40); // long after — should decay back to 1x
+  assert.equal(p.score - before, 100000, 'decay must still work after a NaN timestamp — lastAtS must not have been left poisoned');
+});
