@@ -61,17 +61,45 @@ export function clearMomentScope(state, scope) {
   return false;
 }
 
+// MENUS-T12: a start screen and a pause screen are both moments too — "how many players" and
+// "paused" each describe a current state the same way a bonus breakdown describes a past one,
+// and both need to be dismissed by something OTHER than a timer (a button tap), which is what
+// `endScope` was already built for. The one real extension a menu needs that a bonus/high-score
+// screen never did: BUTTONS. `el.textContent = ...` would wipe out any child elements, so the
+// text and the (optional) button row are now separate children of `el` rather than `el` being
+// pure text — `show()`'s own signature and every existing caller are unchanged, `buttons` is
+// simply a new, optional field on the same options object.
+const BUTTON_ROW_STYLE = [
+  'margin-top:16px', 'display:flex', 'flex-wrap:wrap', 'gap:10px', 'justify-content:center',
+  'pointer-events:auto', // overrides the container's own pointer-events:none — see below
+].join(';');
+// MENUS-T12: 44px is the floor a related tier's own design doc set for a minimum touch
+// target (opus/20260829T021451Z-gui-design.md: "min tap target 44×44"), not a target — sized
+// well above it here (56px tall, generous horizontal padding) for a real thumb on a portrait
+// phone, not the smallest square that technically clears the number.
+const MENU_BUTTON_STYLE = [
+  'min-height:56px', 'min-width:84px', 'padding:0 20px', 'font:bold 17px monospace',
+  'color:#fff', 'background:rgba(255,255,255,0.14)', 'border:1px solid rgba(255,255,255,0.5)',
+  'border-radius:10px', 'cursor:pointer',
+].join(';');
+
 export function createMomentScreen(parent = document.body) {
   const el = document.createElement('div');
   el.id = 'moment-screen';
   el.style.cssText = [
     'position:fixed', 'top:50%', 'left:50%', 'transform:translate(-50%,-50%)',
     'color:#fff', 'font:bold 20px monospace', 'text-align:center', 'line-height:1.7',
-    'letter-spacing:0.5px', 'z-index:7', 'pointer-events:none', 'white-space:pre',
+    'letter-spacing:0.5px', 'z-index:7', 'pointer-events:none', 'max-width:92vw',
     'background:rgba(20,20,20,0.72)', 'padding:20px 32px', 'border-radius:8px',
     'border:1px solid rgba(255,255,255,0.15)',
     'opacity:0', 'transition:opacity 0.15s',
   ].join(';');
+  const textEl = document.createElement('div');
+  textEl.style.whiteSpace = 'pre';
+  el.appendChild(textEl);
+  const buttonRow = document.createElement('div');
+  buttonRow.style.cssText = BUTTON_ROW_STYLE;
+  el.appendChild(buttonRow);
   parent.appendChild(el);
   const state = createMomentState();
   let timer = null;
@@ -81,11 +109,26 @@ export function createMomentScreen(parent = document.body) {
      * then fades out. Replaces whatever is currently showing immediately. `scope` (opaque,
      * default null = never externally cleared) lets a caller later end it early via
      * `endScope` — see the file's own doc comment on why bare ball/game-generation numbers
-     * must be namespaced before being passed here. */
-    show(lines, { durationMs = 3600, scope = null } = {}) {
+     * must be namespaced before being passed here. `buttons` (optional): an array of
+     * `{label, onClick}` — rendered below the text, clickable (the container itself stays
+     * `pointer-events:none` so a bonus/high-score moment never blocks the table underneath;
+     * the button row alone opts back in). Always cleared at the top of every `show()` call,
+     * whether or not this call passes any, so a later plain (non-interactive) moment can
+     * never inherit a previous one's stale buttons. */
+    show(lines, { durationMs = 3600, scope = null, buttons = null } = {}) {
       const id = setMoment(state, lines, scope);
       clearTimeout(timer);
-      el.textContent = Array.isArray(lines) ? lines.join('\n') : lines;
+      textEl.textContent = Array.isArray(lines) ? lines.join('\n') : lines;
+      buttonRow.replaceChildren();
+      if (buttons) {
+        for (const { label, onClick } of buttons) {
+          const btn = document.createElement('button');
+          btn.textContent = label;
+          btn.style.cssText = MENU_BUTTON_STYLE;
+          btn.addEventListener('click', onClick);
+          buttonRow.appendChild(btn);
+        }
+      }
       el.style.opacity = '1';
       timer = setTimeout(() => {
         clearMomentIfCurrent(state, id);
@@ -103,6 +146,14 @@ export function createMomentScreen(parent = document.body) {
     },
   };
 }
+
+// MENUS-T12: shown until explicitly dismissed (a button tap ending its scope), never by a
+// timer — the start screen and the pause screen both need this. `setTimeout`'s delay is a
+// 32-bit signed int internally; browsers clamp anything past ~24.8 days rather than
+// overflowing, so this is safely "no real timeout" without relying on `Infinity` (which
+// `setTimeout` does not treat consistently across engines) or adding a second, timer-less
+// code path to `show()` just for these two callers.
+export const PERSISTENT_DURATION_MS = 24 * 60 * 60 * 1000;
 
 /** Pure content builder for the end-of-ball bonus moment — HUD-BUILD's own regression test
  * target. Returns `null` for a zero bonus rather than an array of zeroed lines: per the

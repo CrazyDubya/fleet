@@ -26,7 +26,7 @@ import * as tilt from './rules/tilt.js';
 import { wireInput } from './ui/input.js';
 import { isDebugEnabled, mountDebugPanel, mountEventLog } from './ui/debug.js';
 import { createCalloutLayer } from './ui/callouts.js';
-import { createMomentScreen, bonusBreakdownLines } from './ui/moment-screen.js';
+import { createMomentScreen, bonusBreakdownLines, PERSISTENT_DURATION_MS } from './ui/moment-screen.js';
 import { insertScore, loadHighScores, saveHighScores, highScoreLines } from './ui/high-scores.js';
 import { createSynth } from './audio/synth.js';
 import { playMechanismCue, playDisplayCue } from './audio/cues.js';
@@ -224,7 +224,12 @@ const pinwheelSpinner = game.createSpinner();
 // rules/game.js to score, rather than scoring them itself. This retires the T4
 // game/scoreboard.js stub, which duplicated this same switch-points table outside the
 // purity boundary; there is now exactly one scoring path.
-const rulesState = createGame({ numPlayers: 1, ballsPerPlayer: 3 });
+// MENUS-T12: reassigned by startGame() when the player picks a count from the start screen —
+// this placeholder (1 player) is never actually played; it only exists so every function that
+// reads `rulesState` (activePlayer, the HUD text, window.__pinball) has a valid object to read
+// before the real game begins, the same way `chuteBall` starts null rather than main.js
+// growing a "has a game started yet" check at every one of those call sites.
+let rulesState = createGame({ numPlayers: 1, ballsPerPlayer: 3 });
 const scoop = game.createScoop();
 const kickbackState = game.createKickback();
 // TILT (design §4.4): the bob and its "flippers died" flag both reset on 'ballServed' (a
@@ -233,6 +238,15 @@ const kickbackState = game.createKickback();
 // means a new ball, not a save.
 const tiltBob = tilt.createTiltBob();
 let flippersDisabled = false;
+// MENUS-T12: frame() itself skips physics/scoring entirely while paused (see its own early
+// return below) — flippers therefore need no separate disabling (nothing simulates their
+// motion either way). The plunger and nudge callbacks below DO need their own guard: unlike
+// a flipper's `active` flag (harmless either way while nothing advances), a plunge or a nudge
+// mutates a ball's velocity directly, immediately, independent of frame() — left unguarded, a
+// plunge attempted while paused would silently "bank" a launch that fires the instant the
+// game resumes, and a nudge would feed the tilt bob while the player has no way to see the
+// consequence.
+let paused = false;
 const callouts = createCalloutLayer();
 const momentScreen = createMomentScreen();
 // GAME-POLISH: rules/modes.js's own internal names, mapped to what the design doc actually
@@ -960,7 +974,10 @@ function serveToChute() {
   }
   chuteBall = spawnBall(recess.LAUNCH_POSITION, { x: 0, y: 0 });
 }
-serveToChute();
+// MENUS-T12: no ball is served here anymore — the table now waits at the start screen
+// (below) until a player count is chosen. `chuteBall` simply stays null until `startGame`
+// calls `launchBall` for real, through the exact same 'ballServed' -> serveToChute path
+// every later ball already takes (see applyDisplayEvents) — not a second, parallel serve.
 
 // TILT (design §4.4): physically drains every ball actually in play — mirrors the ordinary
 // per-frame drain loop's own convention of skipping a `captured` ball (one pinned in the
@@ -992,10 +1009,12 @@ let pendingSoftPlunge = false;
 wireInput(canvas, {
   flippers,
   onPlungerChange: (p) => {
+    if (paused) return;
     charging = true;
     plungerPower = p;
   },
   onPlungerRelease: () => {
+    if (paused) return;
     if (charging && chuteBall) {
       if (plungerPower < SOFT_PLUNGE_THRESHOLD) pendingSoftPlunge = true;
       chuteBall.phys.vel = { x: 0, y: Math.max(0.6, plungerPower) * PLUNGER_MAX_SPEED };
@@ -1005,6 +1024,7 @@ wireInput(canvas, {
     }
   },
   onNudge: ({ x, y }) => {
+    if (paused) return;
     const len = Math.hypot(x, y) || 1;
     for (const b of balls) {
       if (b.phys.captured) continue;
@@ -1105,6 +1125,88 @@ muteButton.addEventListener('click', () => {
   renderMuteButton();
 });
 document.body.appendChild(muteButton);
+
+// MENUS-T12: the start path — a start screen, a player count, and a pause. Reuses the same
+// moment-screen surface the bonus/high-score screens already use (per the dispatch's own
+// instruction: this IS a moment, "how many players" / "paused" describing a current state
+// the same way a bonus breakdown describes a past one) rather than a second overlay system.
+//
+// Cut, and said so rather than built partially: attract mode and the chalk-on-slate score
+// display (ui/hud.js) are T12's own next tier — real polish, but polish on a thing that
+// doesn't work yet is the wrong order. A top-5 score prompting for 3-letter initials entry
+// (T12's own full acceptance line) is cut too — ui/high-scores.js already marks and persists
+// the just-finished game's own score without needing a name attached to it, and a touch
+// keyboard for initials is its own real design surface, not a few extra lines here.
+//
+// `game:${gameGeneration}` is the SAME scope the end-of-ball bonus's sibling, the
+// game-scoped high-score screen, already used — deliberately: both are "what's shown between
+// games," and showing a new one (whichever comes next) should always replace whatever
+// between-games moment was already up, exactly like moment-screen's own replace-not-queue
+// rule already does everywhere else.
+function playerCountButtons() {
+  return [1, 2, 3, 4].map((n) => ({ label: `${n}P`, onClick: () => startGame(n) }));
+}
+
+function showStartScreen() {
+  momentScreen.show(['RECESS', 'PINBALL', '', 'HOW MANY PLAYERS?'], {
+    durationMs: PERSISTENT_DURATION_MS,
+    scope: `game:${gameGeneration}`,
+    buttons: playerCountButtons(),
+  });
+}
+
+let gameHasStarted = false;
+
+/** Starts a real game for `numPlayers` — the ONLY place `rulesState` is ever reassigned.
+ * Ends whatever between-games moment (the start screen, or a previous game's own game-over
+ * screen) was showing under the OLD generation's scope, bumps the generation, then serves and
+ * launches the first ball through the exact same `launchBall` -> `applyDisplayEvents` path
+ * every later ball already takes — never a second, parallel "first ball" serve. */
+function startGame(numPlayers) {
+  const previousScope = `game:${gameGeneration}`;
+  gameGeneration += 1;
+  rulesState = createGame({ numPlayers, ballsPerPlayer: 3 });
+  gameHasStarted = true;
+  paused = false;
+  momentScreen.endScope(previousScope);
+  applyDisplayEvents(launchBall(rulesState, elapsedS));
+}
+
+showStartScreen();
+
+// Pause/resume. Bottom-right, not top-right with the mute/HUD cluster — a portrait phone's
+// bottom corners are the ones a thumb actually reaches one-handed without a grip shift; the
+// mute button shipped earlier today at the top only because nothing had yet raised the
+// one-handed-reach question this dispatch explicitly does. 56px square, well above the 44px
+// floor a related tier's own design doc set as a minimum, not a target
+// (opus/20260829T021451Z-gui-design.md).
+const pauseButton = document.createElement('button');
+pauseButton.id = 'pause-button';
+pauseButton.style.cssText = [
+  'position:fixed', 'bottom:16px', 'right:16px', 'z-index:6', 'width:56px', 'height:56px',
+  'border-radius:28px', 'border:1px solid rgba(255,255,255,0.4)', 'background:rgba(0,0,0,0.45)',
+  'color:#fff', 'font:20px sans-serif', 'cursor:pointer',
+].join(';');
+function renderPauseButton() { pauseButton.textContent = paused ? '▶' : '⏸'; }
+renderPauseButton();
+pauseButton.addEventListener('click', () => {
+  // A no-op before the first game starts, and after the last ball ends — nothing is running
+  // to pause in either case, and the start/game-over screens already occupy the same moment
+  // surface pausing would otherwise show a message on.
+  if (!gameHasStarted || rulesState.gameOver) return;
+  paused = !paused;
+  renderPauseButton();
+  if (paused) {
+    momentScreen.show(['PAUSED'], {
+      durationMs: PERSISTENT_DURATION_MS,
+      scope: 'pause',
+      buttons: [{ label: 'RESUME', onClick: () => { paused = false; renderPauseButton(); momentScreen.endScope('pause'); } }],
+    });
+  } else {
+    momentScreen.endScope('pause');
+  }
+});
+document.body.appendChild(pauseButton);
 
 function resizeToWindow() {
   resize(window.innerWidth, window.innerHeight);
@@ -1229,19 +1331,26 @@ function applyDisplayEvents(display) {
       // bonus screen uses, and for the same reason: an empty/placeholder table for a
       // 0-point game reads as an achievement it isn't. A scoreless game also isn't inserted
       // into the persisted table at all (nothing worth remembering).
+      // MENUS-T12: this is the restart flow MOMENT-SCOPE's own comment was written for
+      // ("the shape is still correct now... for whenever a restart flow (T12) exists") — the
+      // `game:${gameGeneration}` scope was already correct; what was missing was anything
+      // that ever called `startGame` to clear it. Persistent (no timeout) now, with the
+      // player-count buttons attached, rather than a 6s window to react in before the table
+      // was a dead end regardless.
       const thisScore = d.scores[0] ?? 0;
+      let lines;
       if (thisScore > 0) {
         const scores = insertScore(loadHighScores(window.localStorage), thisScore);
         saveHighScores(scores, window.localStorage);
-        const lines = highScoreLines(scores, thisScore);
-        // MOMENT-SCOPE: game-scoped, not ball-scoped — namespaced `game:` so this can never
-        // collide with a `ball:`-scoped bonus screen reaching the same integer by
-        // coincidence. Nothing clears this scope today (no new-game flow exists yet — see
-        // PLAYTEST-2's own finding that gameOver is a dead end until page reload), so in
-        // practice this lives out its own 6s timer uncontested; the shape is still correct
-        // now, while there's only one caller, for whenever a restart flow (T12) exists.
-        if (lines) momentScreen.show(lines, { durationMs: 6000, scope: `game:${gameGeneration}` });
+        lines = highScoreLines(scores, thisScore) ?? ['GAME OVER'];
+      } else {
+        lines = ['GAME OVER'];
       }
+      momentScreen.show([...lines, '', 'PLAY AGAIN'], {
+        durationMs: PERSISTENT_DURATION_MS,
+        scope: `game:${gameGeneration}`,
+        buttons: playerCountButtons(),
+      });
     }
 
     // T8: MERRY-GO-ROUND lock/eject/multiball. Each of these display kinds corresponds 1:1,
@@ -1335,6 +1444,17 @@ function applyDisplayEvents(display) {
 
 let last = performance.now();
 function frame(now) {
+  // MENUS-T12: paused freezes EVERYTHING — physics, timers, scoring, rendering updates —
+  // by simply not running the rest of this function at all. `last` is still advanced so the
+  // frame right after resuming doesn't see a multi-second `dt` (clamped to 0.05s anyway, but
+  // there's no reason to rely on the clamp for something this cheap to avoid outright).
+  // requestAnimationFrame keeps being scheduled so the pause/resume button itself, and any
+  // other real DOM UI, stays responsive — only the game's own simulation is frozen.
+  if (paused) {
+    last = now;
+    requestAnimationFrame(frame);
+    return;
+  }
   const dt = Math.min((now - last) / 1000, 0.05);
   last = now;
   elapsedS += dt;
@@ -1576,7 +1696,15 @@ window.__pinball = {
   get balls() { return balls.map((b) => b.phys); },
   get ballEntries() { return balls; }, // phys + mesh, for render-side debugging
   camera, scene,
-  rulesState, activePlayer: () => activePlayer(rulesState),
+  // MENUS-T12: a getter, not a bare shorthand property — `rulesState` is reassigned by
+  // startGame() on every new game, and a shorthand property here would capture only the
+  // ONE object that existed when this window.__pinball literal first evaluated (at module
+  // load, before any game has actually started), silently going stale on every restart.
+  // Found by a debug script (this file's own test suite of one) reading/mutating
+  // `window.__pinball.rulesState.players[0]` after a restart and getting the discarded
+  // placeholder game instead of the one actually being played.
+  get rulesState() { return rulesState; },
+  activePlayer: () => activePlayer(rulesState),
   tiltBob, get flippersDisabled() { return flippersDisabled; },
   hopscotchBankState, sandBankState, funLamps, tetherballSpinner, pinwheelSpinner,
   slide, monkeyBars, tunnel, sandbox, scoop, merryGoRound,
@@ -1585,4 +1713,5 @@ window.__pinball = {
   // FIELD DAY start) without waiting on the physical shot that would ordinarily produce the tag.
   injectTags: (tags) => applyDisplayEvents(processRules(rulesState, tags, elapsedS)),
   callouts, synth, get muted() { return muted; },
+  get troughCount() { return game.troughCount(troughState); }, get gameHasStarted() { return gameHasStarted; },
 };
