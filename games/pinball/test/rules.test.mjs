@@ -113,9 +113,12 @@ test('end-of-ball bonus counts up per the RECESS BELL formula and applies bonus 
   const display = processEvents(state, [SW_DRAIN], 20); // 20s playtime, past any save window
   const bonusEvent = display.find((d) => d.kind === 'bonus');
   const expected = computeBonus({ playtimeS: 20, shots: 2, modes: 0, bonusX: 2 });
-  assert.equal(bonusEvent.amount, expected);
+  assert.equal(bonusEvent.amount, expected.amount);
   assert.equal(bonusEvent.bonusX, 2);
-  assert.equal(p.score, scoreBeforeBonus + expected);
+  assert.equal(bonusEvent.playtimePoints, expected.playtimePoints);
+  assert.equal(bonusEvent.shotsPoints, expected.shotsPoints);
+  assert.equal(bonusEvent.modesPoints, expected.modesPoints);
+  assert.equal(p.score, scoreBeforeBonus + expected.amount);
 });
 
 test('end of game is reached and reported', () => {

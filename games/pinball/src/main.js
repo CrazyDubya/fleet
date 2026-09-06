@@ -26,6 +26,7 @@ import * as tilt from './rules/tilt.js';
 import { wireInput } from './ui/input.js';
 import { isDebugEnabled, mountDebugPanel, mountEventLog } from './ui/debug.js';
 import { createCalloutLayer } from './ui/callouts.js';
+import { createMomentScreen } from './ui/moment-screen.js';
 
 const canvas = document.getElementById('view');
 const { scene, camera, renderer, tiltGroup, resize } = createScene(canvas);
@@ -183,6 +184,7 @@ const kickbackState = game.createKickback();
 const tiltBob = tilt.createTiltBob();
 let flippersDisabled = false;
 const callouts = createCalloutLayer();
+const momentScreen = createMomentScreen();
 // GAME-POLISH: rules/modes.js's own internal names, mapped to what the design doc actually
 // calls each mode (§4.4) — a 'modeStart'/'modeEnd' display event carries the internal name
 // (e.g. 'HIDE_SEEK'), never the player-facing one.
@@ -1015,6 +1017,28 @@ function applyDisplayEvents(display) {
       // a flat "JACKPOT!" would say the same thing for a 500,000 collection and a
       // relocked-up-to-32x 16,000,000 one, wasting the reason this callout exists.
       callouts.show(`JACKPOT ${d.points.toLocaleString()}`, { durationMs: 2200 });
+    } else if (d.kind === 'bonus') {
+      // HUD-BUILD: the rules already compute a full breakdown (playtime/shots/modes,
+      // ×bonusX) and nothing ever showed it — haiku-fs2's HUD inventory. A moment screen
+      // (ui/moment-screen.js), not the one-line callout layer: this is several lines of "what
+      // this ball was made of," not a transient announcement, and it needs to hold long
+      // enough to actually read, not flash by like TILT's own warnings do.
+      //
+      // A zero bonus (an instant drain — 0 playtime, 0 shots, 0 modes) does not get a
+      // breakdown of zeros: per the dispatch, an itemization of nothing looks like something
+      // happened when nothing did. Simplest reading of "say so or say nothing" — say nothing;
+      // a silent HUD score that visibly didn't move already says it for a ball that earned
+      // nothing, and a fresh line of zeros would just be noise on top of that.
+      if (d.amount > 0) {
+        momentScreen.show([
+          'BALL BONUS',
+          `PLAYTIME     ${d.playtimePoints.toLocaleString()}`,
+          `SHOTS        ${d.shotsPoints.toLocaleString()}`,
+          `MODES        ${d.modesPoints.toLocaleString()}`,
+          `BONUS X${d.bonusX}`,
+          `TOTAL        ${d.amount.toLocaleString()}`,
+        ], { durationMs: 4200 });
+      }
     }
 
     // T8: MERRY-GO-ROUND lock/eject/multiball. Each of these display kinds corresponds 1:1,

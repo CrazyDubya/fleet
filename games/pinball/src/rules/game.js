@@ -120,8 +120,11 @@ function endOfBall(state, atS, { skipBonus = false } = {}) {
   if (!skipBonus) {
     const playtimeS = p.ballLaunchAtS !== null ? Math.max(0, atS - p.ballLaunchAtS) : 0;
     const bonus = computeBonus({ playtimeS, shots: p.shotsThisBall, modes: p.modesCompletedThisBall, bonusX: p.bonusX });
-    p.score += bonus;
-    display.push({ kind: 'bonus', playerIndex, amount: bonus, bonusX: p.bonusX, total: p.score });
+    p.score += bonus.amount;
+    display.push({
+      kind: 'bonus', playerIndex, amount: bonus.amount, bonusX: p.bonusX, total: p.score,
+      playtimePoints: bonus.playtimePoints, shotsPoints: bonus.shotsPoints, modesPoints: bonus.modesPoints,
+    });
   }
 
   // Safety net for a multiball still running when the ball ends outright (a tilt, most
