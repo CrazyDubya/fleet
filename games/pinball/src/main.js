@@ -1019,6 +1019,12 @@ let charging = false;
 // which exists only so a very light tap still clears the launch lane) and consumed as a
 // synthetic SW_SOFT_PLUNGE tag on the next frame's batch, the same pattern SW_DRAIN uses —
 // main.js never calls into rules directly.
+// PLUNGER-SPEED: checked, not assumed, when PLUNGER_MAX_SPEED was retuned — this threshold
+// compares against `plungerPower`, the raw 0..1 pull fraction ui/input.js reports, never an
+// absolute speed. It does not scale with PLUNGER_MAX_SPEED and needed no rescaling. (The
+// `Math.max(0.6, ...)` floor two lines below IS such a fraction-of-the-old-max quantity —
+// see PLUNGER_MAX_SPEED's own comment in physics/constants.js for why the new value was
+// chosen around what that floor still needs to guarantee.)
 const SOFT_PLUNGE_THRESHOLD = 0.35;
 let pendingSoftPlunge = false;
 

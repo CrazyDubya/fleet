@@ -41,7 +41,37 @@ export const SCOOP_EJECT = 2.2;
 // given contact is a game-rule decision (lit/once-per-ball, game/mechanisms.js's
 // tryKickback) — this constant is only the launch speed once that decision says yes.
 export const KICKBACK_SPEED = 3.0;
-export const PLUNGER_MAX_SPEED = 5.0;
+// PLUNGER-SPEED: was 5.0 — measured (ledger/handoffs/opus2/20260906T020000Z-ball-speed.md §6)
+// to carry ten table-lengths of energy on a table 1.067m long (apex 10.7m in free flight,
+// 4.7 m/s still on arrival at the top). That analysis's own "~1.6" candidate was computed
+// under a corrected-gravity model this dispatch does NOT apply (gravity is explicitly out of
+// scope here — see the same doc §5, and the operator's own dispatch: it breaks ~15 timing
+// windows and is the operator's call, not a plunger change). Re-measured free-flight under
+// the ACTUAL shipped (uncorrected, sliding-point-mass) gravity instead of inheriting that
+// number: under this table's real physics, 1.6 barely clears the table height at all
+// (apex 1.072m against a 1.067m table — a 5mm margin), so it was rejected as too fragile.
+//
+// The binding constraint turned out not to be "does a full pull reach the top" but "does the
+// WEAKEST possible tap still clear the lane" — onPlungerRelease (main.js) floors every launch
+// to `max(0.6, power) * PLUNGER_MAX_SPEED`, specifically so a very light touch still leaves
+// the chute, and there is no mechanism that re-arms a ball that rolls back down into the lane
+// (chuteBall is set to null the instant a release is attempted, regardless of what happens
+// physically afterward) — a floor that doesn't clear LANE_TOP_Y (0.9m) produces a genuinely
+// stuck, un-replungeable ball. Measured directly, both in a headless free-flight harness and
+// live in a browser: 2.2 fails this — a real touch-dispatched ~12% pull left the ball dead at
+// y≈0.75, never reaching the field, with no way to relaunch it. 2.7 was chosen because its
+// floor (0.6 × 2.7 = 1.62 m/s) clears LANE_TOP_Y with real margin (apex 1.024m, confirmed live
+// via the same touch-dispatch test) while a full pull (2.7 m/s) still lands with real, but far
+// more contained, energy (apex 2.79m in free flight vs the old 8.4m; ~2.10 m/s at the top vs
+// 4.7 before — a 55% reduction).
+//
+// Verified live, not just measured in the abstract: the SAME weakest-possible touch that
+// clears the lane at 2.7 also clips the lane-top deflector and gets redirected toward the
+// SANDBOX scoop's own neighbourhood (traced within ~4cm of the capture radius before drifting
+// past) — the super skill shot's physical path survives. A full pull, launched perfectly
+// centred, actually landed IN the sandbox in that same test — real evidence the field is
+// reachable with energy to spare, not just barely.
+export const PLUNGER_MAX_SPEED = 2.7;
 export const NUDGE_IMPULSE = 0.35;
 export const GATE_ONE_WAY_THRESHOLD = 0.2;
 
