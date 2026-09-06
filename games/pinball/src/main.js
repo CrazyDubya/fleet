@@ -986,6 +986,30 @@ const hud = document.createElement('div');
 hud.style.cssText = 'position:fixed;top:8px;right:8px;color:#fff;font:14px monospace;text-shadow:0 1px 2px #000;z-index:5;pointer-events:none;';
 document.body.appendChild(hud);
 
+// PLUNGE-TOUCH: visible power feedback WHILE charging, not only on release — a plunger you
+// can't see the strength of while pulling is barely better than a fixed-power launch. Placed
+// at the same right-edge strip ui/input.js's own PLUNGE_ZONE_FRACTION treats as the plunge
+// touch zone, so the meter sits where the thumb actually is. Read from `charging`/
+// `plungerPower` every frame (below), the same "state read directly each frame, never only
+// event-driven" convention every other live indicator on this page already uses (the HUD
+// text itself, the lit-shot colors) — so it can never go stale between an onPlungerChange
+// call and the next repaint.
+const plungerMeterTrack = document.createElement('div');
+plungerMeterTrack.id = 'plunger-meter';
+plungerMeterTrack.style.cssText = [
+  'position:fixed', 'right:4%', 'bottom:12%', 'width:14px', 'height:120px',
+  'border:1px solid rgba(255,255,255,0.6)', 'border-radius:7px', 'z-index:5',
+  'pointer-events:none', 'opacity:0', 'transition:opacity 0.1s', 'overflow:hidden',
+].join(';');
+const plungerMeterFill = document.createElement('div');
+plungerMeterFill.id = 'plunger-meter-fill';
+plungerMeterFill.style.cssText = [
+  'position:absolute', 'left:0', 'right:0', 'bottom:0', 'height:0%',
+  'background:#ffcc33',
+].join(';');
+plungerMeterTrack.appendChild(plungerMeterFill);
+document.body.appendChild(plungerMeterTrack);
+
 function resizeToWindow() {
   resize(window.innerWidth, window.innerHeight);
 }
@@ -1426,6 +1450,9 @@ function frame(now) {
     sprite.userData.life = Math.max(0, sprite.userData.life - dt);
     sprite.material.opacity = sprite.userData.life / SPARK_LIFE;
   }
+
+  plungerMeterTrack.style.opacity = charging ? '1' : '0';
+  plungerMeterFill.style.height = `${Math.round(plungerPower * 100)}%`;
 
   const player = activePlayer(rulesState);
   hud.textContent = rulesState.gameOver
