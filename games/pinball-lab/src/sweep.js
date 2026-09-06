@@ -562,6 +562,122 @@ export function buildE5aCfgs() {
   return { cfgs: kept, excluded, total, assemblyCount: assemblies.length };
 }
 
+// --- RUN-E5A: the same diagnostic with `gapX` HELD CONSTANT ---
+//
+// LAB-27's sample was picked range-uniformly across the whole feasible hsS range, and that
+// selection walks gapX and hsS together: Spearman(gapX, hsSRaw) is -0.90 over the 16 chosen
+// assemblies and -0.8177 over the full 1,080-candidate population. On that sample "shot rate
+// rises with hsS" and "rises as the guide gap narrows" are the same sentence, which is why
+// RETIRE-ALL §6 could retire the coefficient but not name what the step is a step IN.
+//
+// Holding gapX fixed breaks the confound by construction rather than by adjustment. The
+// collinearity is a property of the SELECTION, not of the geometry space: at gapX = 0.016 the
+// remaining 216 feasible candidates still span hsSRaw [-0.1130, +0.2546] over 88 distinct
+// values — 58% of the whole feasible range — so hsS can be swept across almost all of its
+// reach with gapX literally constant. (gapX = 0.021 is the fallback, spread 0.3439.)
+export const E5A_FIXED_GAP_X = 0.016;
+// LAB-27's own measured bracket: shot rate is 0.0060 at hsSRaw 0.1162 and 0.2926 at 0.1578,
+// with nothing sampled between. That interval is where the step is, so it is where the budget
+// goes.
+export const E5A_STEP_BRACKET = [0.1162, 0.1578];
+export const E5A_FIXED_GAP_CONTEXT_BINS = 8;
+
+/** Assemblies at ONE gapX: every distinct hsS value inside the published step's own bracket,
+ * plus `contextBins` range-uniform points across the rest of the reachable range.
+ *
+ * Deliberately NOT range-uniform overall. LAB-27 asked "does shot rate rise with hsS", a
+ * question about the whole axis, and binned evenly along it. This run asks a narrower question
+ * — the shape is already known to be a step; where is it, and does it survive holding gapX —
+ * so the budget concentrates where the behaviour changes and keeps only enough of the rest to
+ * show the low and high plateaus are still there. Same reasoning LAB-27 used to reject
+ * quantile binning, applied to a narrower question.
+ *
+ * De-duplicated by hsSRaw to 1e-6, not by geometry key: several (tilt, endDy, guideE, radius,
+ * activeAngle) combinations reach the same hsS at a fixed gapX, and a second assembly at an hsS
+ * already sampled buys resolution nowhere. */
+export function buildE5aFixedGapAssemblies({
+  gapX = E5A_FIXED_GAP_X, bracket = E5A_STEP_BRACKET, contextBins = E5A_FIXED_GAP_CONTEXT_BINS,
+} = {}) {
+  const candidates = [];
+  for (const g of expandGrid(E4_W1_GRID)) {
+    if (g.gapX !== gapX) continue;
+    for (const radius of E4_RADII) {
+      for (const activeAngleDeg of E5A_ACTIVE_ANGLES) {
+        const hsSRaw = predictHsSRaw({ ...g, activeAngleDeg, radius });
+        if (hsSRaw === null) continue;
+        candidates.push({
+          ...g, activeAngleDeg, radius, hsSRaw,
+          hsSPredicted: Math.max(0, Math.min(1, hsSRaw)),
+          guide: withPocketSolve(g, { activeAngleDeg, radius }),
+        });
+      }
+    }
+  }
+  if (candidates.length === 0) return [];
+  candidates.sort((a, b) => a.hsSRaw - b.hsSRaw);
+
+  const seenHsS = new Set();
+  const picked = [];
+  const take = (c) => {
+    const key = c.hsSRaw.toFixed(6);
+    if (seenHsS.has(key)) return false;
+    seenHsS.add(key);
+    picked.push(c);
+    return true;
+  };
+
+  const [lo, hi] = bracket;
+  for (const c of candidates) if (c.hsSRaw > lo && c.hsSRaw < hi) take(c);
+
+  // Context: range-uniform over everything OUTSIDE the bracket, nearest unused candidate to
+  // each bin centre — the low plateau and the high plateau both need to still be visible or
+  // the step has nothing to be a step between.
+  const outside = candidates.filter((c) => c.hsSRaw <= lo || c.hsSRaw >= hi);
+  if (outside.length > 0) {
+    const oLo = outside[0].hsSRaw, oHi = outside[outside.length - 1].hsSRaw;
+    for (let i = 0; i < contextBins; i++) {
+      const target = oLo + ((i + 0.5) * (oHi - oLo)) / contextBins;
+      let best = null, bestD = Infinity;
+      for (const c of outside) {
+        if (seenHsS.has(c.hsSRaw.toFixed(6))) continue;
+        const d = Math.abs(c.hsSRaw - target);
+        if (d < bestD) { bestD = d; best = c; }
+      }
+      if (best) take(best);
+    }
+  }
+
+  picked.sort((a, b) => a.hsSRaw - b.hsSRaw);
+  return picked;
+}
+
+export function buildE5aFixedGapCfgs(opts = {}) {
+  const assemblies = buildE5aFixedGapAssemblies(opts);
+  // `timeoutS` overrides instrument.js's E4_RELEASE_TIMEOUT_S per cfg. LAB-25 used the same
+  // override to show a 3x window barely moves E5a's measured quantity; this run needs the same
+  // check because its own timeout gradient is steeper (see the premise in the cfg file).
+  const { timeoutS = null } = opts;
+  const cfgs = [];
+  for (const asm of assemblies) {
+    for (const upMs of E4_STAGEC_UPMS) {
+      for (const releaseDelayMs of E4_STAGEC_RELEASE_DELAY_MS) {
+        cfgs.push(e4Base({
+          restAngleDeg: E4_LAB2_WINNER.restAngleDeg, activeAngleDeg: asm.activeAngleDeg, upMs,
+          omegaProfile: E4_LAB2_WINNER.omegaProfile, radius: asm.radius, restitution: E4_LAB2_WINNER.restitution,
+          inj: 'drop', guide: asm.guide, feed: null, post: null, outlaneW: null,
+          pol: 'holdThenRelease', releaseDelayMs, release: true, arm: 'E5a', hsSPredicted: asm.hsSPredicted, hsSRaw: asm.hsSRaw,
+          ...(timeoutS === null ? {} : { timeoutS }),
+        }));
+      }
+    }
+  }
+  const { cfgs: kept, excluded, total } = filterBuildable(withCfgIds(cfgs, 'buildE5aFixedGapCfgs'));
+  return {
+    cfgs: kept, excluded, total, assemblyCount: assemblies.length,
+    gapX: opts.gapX ?? E5A_FIXED_GAP_X, timeoutS,
+  };
+}
+
 // --- LAB-4: the §5 EXPERIMENT 3 (paths) cfg sets, per the program handoff §5.1/§5.3. Each
 // family is its own small grid (documented per family below), `withCfgIds`-hashed the same
 // way as every other experiment; `splitEvenly(1e6, 5)` gives each family 200,000 trials
@@ -828,6 +944,18 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const { cfgs, excluded, total, assemblyCount } = buildE5aCfgs();
     writeFileSync(out, JSON.stringify(cfgs) + '\n');
     console.log(JSON.stringify({ ok: true, cfgs: cfgs.length, excluded, total, assemblyCount, out }));
+  } else if (args.exp === 'e4' && args.grid === 'e5aFixedGap') {
+    const out = args.out ?? 'cfgs/e4-e5a-fixedgap.json';
+    const opts = {};
+    if (args.gapX !== undefined) opts.gapX = Number(args.gapX);
+    if (args.timeoutS !== undefined) opts.timeoutS = Number(args.timeoutS);
+    if (args.bracketLo !== undefined && args.bracketHi !== undefined) {
+      opts.bracket = [Number(args.bracketLo), Number(args.bracketHi)];
+    }
+    if (args.contextBins !== undefined) opts.contextBins = Number(args.contextBins);
+    const { cfgs, excluded, total, assemblyCount, gapX: usedGapX, timeoutS } = buildE5aFixedGapCfgs(opts);
+    writeFileSync(out, JSON.stringify(cfgs) + '\n');
+    console.log(JSON.stringify({ ok: true, cfgs: cfgs.length, excluded, total, assemblyCount, gapX: usedGapX, timeoutS, out }));
   } else {
     console.error('usage: node src/sweep.js --exp e1 --grid pilot|stageA|stageB|cradle --out <path.json> [--geometries <path.json>]');
     console.error('       node src/sweep.js --exp e2 --grid seriesA|seriesB --out <path.json>');

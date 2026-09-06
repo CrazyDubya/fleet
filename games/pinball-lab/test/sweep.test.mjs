@@ -8,6 +8,7 @@ import {
   buildGeometryGrid, buildStageAPolicies, buildE1StageACfgs,
   buildStageBPolicies, buildE1StageBCfgs, buildE1CradleCfgs,
   buildE5aAssemblies, buildE5aCfgs, E4_STAGEC_UPMS, E4_STAGEC_RELEASE_DELAY_MS,
+  buildE5aFixedGapAssemblies, buildE5aFixedGapCfgs, E5A_FIXED_GAP_X,
   assertUniqueCfgIds, withCfgIds,
 } from '../src/sweep.js';
 
@@ -70,6 +71,37 @@ test('E5a assemblies span a wide hsS range, not clustered at one point', () => {
   // Sorted, no duplicate (guide, activeAngleDeg, radius) triples.
   const keys = new Set(assemblies.map((a) => `${a.gapX}|${a.tiltDeg}|${a.endDy}|${a.guideE}|${a.activeAngleDeg}|${a.radius}`));
   assert.equal(keys.size, assemblies.length);
+});
+
+// RUN-E5A: the fixed-gapX variant exists to break the hsS/gapX collinearity BY CONSTRUCTION,
+// so the two properties worth pinning are exactly those: one gapX, and an hsS range that is
+// still wide enough for the question. A weaker "returns some assemblies" test would pass on a
+// sample that had quietly collapsed to one corner of the grid, which is the failure this
+// selector exists to avoid.
+test('E5a fixed-gap assemblies hold gapX constant while still spanning a wide hsS range', () => {
+  const assemblies = buildE5aFixedGapAssemblies();
+  assert.ok(assemblies.length >= 10, `expected a real spread, got ${assemblies.length}`);
+  assert.equal(new Set(assemblies.map((a) => a.gapX)).size, 1, 'every assembly must sit at ONE gapX');
+  assert.equal(assemblies[0].gapX, E5A_FIXED_GAP_X);
+  const hsS = assemblies.map((a) => a.hsSRaw);
+  assert.ok(Math.max(...hsS) - Math.min(...hsS) > 0.25, `hsS spread collapsed to ${Math.max(...hsS) - Math.min(...hsS)}`);
+  // No two assemblies at the same hsS: a duplicate buys resolution nowhere on this axis.
+  assert.equal(new Set(hsS.map((h) => h.toFixed(6))).size, assemblies.length);
+  // Sorted ascending, so the emitted table reads along the axis.
+  for (let i = 1; i < hsS.length; i++) assert.ok(hsS[i] > hsS[i - 1]);
+});
+
+test('E5a fixed-gap cfgs carry the same protocol as E5a, plus the optional timeoutS override', () => {
+  const { cfgs, gapX } = buildE5aFixedGapCfgs();
+  assert.equal(gapX, E5A_FIXED_GAP_X);
+  assert.ok(cfgs.every((c) => c.pol === 'holdThenRelease' && c.release === true && c.arm === 'E5a'));
+  assert.ok(cfgs.every((c) => c.guide.gapX === E5A_FIXED_GAP_X));
+  assert.ok(cfgs.every((c) => c.timeoutS === undefined), 'no timeoutS unless asked for');
+  assert.equal(new Set(cfgs.map((c) => c.cfgId)).size, cfgs.length);
+  const long = buildE5aFixedGapCfgs({ timeoutS: 18 });
+  assert.ok(long.cfgs.every((c) => c.timeoutS === 18));
+  // The window override must change the cfgIds, or the two arms would collide on disk.
+  assert.equal(new Set([...cfgs, ...long.cfgs].map((c) => c.cfgId)).size, cfgs.length + long.cfgs.length);
 });
 
 test('E5a cfgs: assemblies x upMs x releaseDelayMs, holdThenRelease + release:true throughout', () => {
