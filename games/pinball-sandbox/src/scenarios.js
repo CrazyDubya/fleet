@@ -84,6 +84,34 @@
 //       games/pinball/test/tilt-jackpot-frame-order.test.mjs's own first test constructs, now
 //       stageable as data (which order the two steps run in) instead of only from that one
 //       hand-written file.
+//     - 'fieldday-lone-ball-drain' (SBX-PARITY, 2026-09-06) reproduces the FIELDDAY-FIX
+//       finding: FIELD DAY starts with only ONE ball physically in play (the TREEHOUSE hit is
+//       a standup target — the triggering ball is never captured, unlike RECESS MULTIBALL's
+//       3rd-lock balls), and the 3 replacement balls arrive staggered, not instantly. Before
+//       the fix, that lone ball draining inside the gap force-ended FIELD DAY before a second
+//       ball ever appeared. Reaches FIELD DAY through every one of its own real preconditions
+//       (all 4 base modes completed via their own real paths — three timeouts, one KICKBALL
+//       home run — never `forceStartMode`'s direct-write shortcut
+//       games/pinball/test/field-day.test.mjs uses, which this harness's own rules-sequence
+//       contract rules out), then drains the lone ball inside the 20s window the fix grants.
+//       A different vantage point on the same fix games/pinball/test/field-day.test.mjs's own
+//       regression test covers, not a copy of its assertions.
+//
+//   'kickback-sequence' (SBX-PARITY, 2026-09-06) — a third, narrower kind: the LEFT OUTLANE
+//   KICKBACK's own `lit`/`usedThisBall` state machine (game/mechanisms.js's
+//   createKickback/resetKickbackForNewBall/tryKickback), driven directly through those three
+//   exported functions. This state is NOT part of rulesState and never flows through
+//   rules/game.js's processEvents at all — main.js owns `kickbackState` as a sibling object
+//   and calls `tryKickback` directly off its own SW_KICKBACK physics tag — so it genuinely
+//   doesn't fit 'rules-sequence's own documented contract (driven entirely through
+//   rules/game.js's public surface). Added as its own minimal kind rather than stretching
+//   'rules-sequence' to cover it or reaching into game/mechanisms.js's state some other way:
+//   the existing `game` import below already gives every function this kind needs.
+//   'kickback-fires-once-per-ball' reproduces the finding recorded in mechanisms.js's own
+//   tryKickback doc comment (2026-09-05, found by an outside review): a successful fire
+//   cleared `usedThisBall` correctly but left `lit` untouched, so main.js's mesh — which
+//   reads `lit` alone to choose lit/unlit material — kept showing the kickback as armed for
+//   the rest of the ball even though a second contact was already silently refused.
 import { createWorld, setLayerPrimitives, setLayerZones, addBall, addFlipper, advance } from '../../pinball/src/physics/world.js';
 import { buildTable, wireTable } from '../../pinball/src/table/assemble.js';
 import { createFlipper } from '../../pinball/src/physics/flipper.js';
@@ -97,6 +125,7 @@ import { createGame, launchBall, processEvents, tiltBall, activePlayer, activePl
 import {
   SW_POP_DUCK, SW_HOPSCOTCH_COMPLETE, SW_SLIDE_EXIT, SW_DRAIN,
   SW_TREEHOUSE, SW_MERRY_GO_ROUND, SW_MONKEYBARS_EXIT, SW_TUNNEL_EXIT, SW_SANDBOX_ENTRY,
+  SW_SAND_COMPLETE, SW_BALL_ADDED,
 } from '../../pinball/src/table/switches.js';
 
 const DEG = Math.PI / 180;
@@ -204,6 +233,63 @@ export const SCENARIOS = {
       { type: 'events', tags: [SW_MONKEYBARS_EXIT, SW_TUNNEL_EXIT, SW_SANDBOX_ENTRY, SW_SLIDE_EXIT], atS: 30 },
       // The constructed same-tick hazard/fix (tilt + the earning MONKEY BARS hit, both at
       // sameTickAtS) is appended by the runner, in `tiltFirst`'s order — see above.
+    ],
+  },
+  'fieldday-lone-ball-drain': {
+    label: 'FIELD DAY starts with one ball in play; that ball drains before the 3 replacements land — does it survive? (FIELDDAY-FIX)',
+    kind: 'rules-sequence',
+    reads: ['multiball.active', 'multiball.fieldDay', 'multiball.ballsInPlay', 'bonusX', 'modesState.fieldDayLit'],
+    steps: [
+      // KICKBALL: sandboxLit via a real SW_SAND_COMPLETE (never a direct write), then its own
+      // real 4-base sequence — the same completion path field-day.test.mjs's completeMode()
+      // drives, reached here through natural queue order (KICKBALL is MODE_ORDER[0]) rather
+      // than that file's forceStartMode shortcut, which this harness's own rules-sequence
+      // contract rules out (no direct rulesState writes).
+      { type: 'events', tags: [SW_SAND_COMPLETE], atS: 1 },
+      { type: 'events', tags: [SW_SANDBOX_ENTRY], atS: 2 },
+      { type: 'events', tags: [SW_SLIDE_EXIT], atS: 3 },
+      { type: 'events', tags: [SW_MONKEYBARS_EXIT], atS: 4 },
+      { type: 'events', tags: [SW_TUNNEL_EXIT], atS: 5 },
+      { type: 'events', tags: [SW_SANDBOX_ENTRY], atS: 6 }, // 4th base: home run, modeEnd
+      // HIDE_SEEK: its own real completion path IS a timeout (it never completes by hit
+      // count, per modes.js's own tickModes) — an empty event batch at startAtS +
+      // MODE_DURATION_S is enough, same technique completeMode() itself uses.
+      { type: 'events', tags: [SW_SAND_COMPLETE], atS: 7 },
+      { type: 'events', tags: [SW_SANDBOX_ENTRY], atS: 8 },
+      { type: 'events', tags: [], atS: 48 },
+      // DODGEBALL: 20 real pop hits (DODGEBALL_TARGET_HITS), one per step — matching
+      // completeMode()'s own per-hit loop, never batched into one call.
+      { type: 'events', tags: [SW_SAND_COMPLETE], atS: 49 },
+      { type: 'events', tags: [SW_SANDBOX_ENTRY], atS: 50 },
+      ...Array.from({ length: 20 }, (_, i) => ({ type: 'events', tags: [SW_POP_DUCK], atS: 51 + i })),
+      // JUMP_ROPE: unspun, completes at its own MODE_DURATION_S timeout too (mult stays 1;
+      // "elapsed >= MODE_DURATION_S" is its own success clause). Completing this 4th mode
+      // lights FIELD DAY.
+      { type: 'events', tags: [SW_SAND_COMPLETE], atS: 71 },
+      { type: 'events', tags: [SW_SANDBOX_ENTRY], atS: 72 },
+      { type: 'events', tags: [], atS: 112 },
+      // FIELD DAY starts (fieldDayLit && !multiball.active) — ballsInPlay becomes 1, the
+      // trigger ball, which (being a standup-target hit) is never captured.
+      { type: 'events', tags: [SW_TREEHOUSE], atS: 113 },
+      // The hazard: the lone trigger ball reaches the drain 1s later, well inside the 20s
+      // ball-save window FIELDDAY-FIX grants at FIELD DAY's own start — before that fix, an
+      // uncontested drain here force-ended FIELD DAY outright, before a second ball ever
+      // appeared.
+      { type: 'events', tags: [SW_DRAIN], atS: 114 },
+      // The 3 replacement balls main.js schedules on a 400ms stagger land independently of
+      // the drain above, reaching the full 4-ball count as designed.
+      { type: 'events', tags: [SW_BALL_ADDED], atS: 114.1 },
+      { type: 'events', tags: [SW_BALL_ADDED], atS: 114.2 },
+      { type: 'events', tags: [SW_BALL_ADDED], atS: 114.3 },
+    ],
+  },
+  'kickback-fires-once-per-ball': {
+    label: 'The kickback fires on its first contact, then must refuse (and visibly UNLIGHT for) every further contact the same ball',
+    kind: 'kickback-sequence',
+    steps: [
+      { type: 'newBall' }, // KICKBACK_STARTS_LIT — armed fresh
+      { type: 'fire' },    // first contact this ball: should fire, and clear `lit`
+      { type: 'fire' },    // second contact, same ball: usedThisBall must refuse it
     ],
   },
 };
@@ -552,11 +638,41 @@ function runRulesSequenceScenario(def, overrides, name) {
   return { name, kind: 'rules-sequence', stepsRun, timeline };
 }
 
+/** Stages a 'kickback-sequence' situation (see the module's own doc comment above SCENARIOS
+ * for why this is its own kind, not a stretch of 'rules-sequence') by driving a fresh
+ * `game.createKickback()` object through `steps` — `{type:'newBall'}`
+ * (resetKickbackForNewBall) or `{type:'fire'}` (tryKickback) — in order, entirely through
+ * those exported functions. Reports `lit`/`usedThisBall` after every step, the same "read
+ * state back after each step" shape 'rules-sequence' timelines use, so a reader who already
+ * knows that format doesn't have to learn a second one. */
+function runKickbackSequenceScenario(def, overrides, name) {
+  const steps = overrides.steps ?? def.steps ?? [];
+  if (!Array.isArray(steps) || steps.length === 0) {
+    throw new Error('runScenario: "kickback-sequence" needs at least one step');
+  }
+
+  const kickback = game.createKickback();
+  const timeline = [];
+  let stepsRun = 0;
+
+  for (const step of steps) {
+    let result;
+    if (step.type === 'newBall') { game.resetKickbackForNewBall(kickback); result = {}; }
+    else if (step.type === 'fire') { result = { fired: game.tryKickback(kickback) }; }
+    else throw new Error(`runScenario: "kickback-sequence" unknown step type "${step.type}"`);
+    stepsRun += 1;
+    timeline.push({ step, result, lit: kickback.lit, usedThisBall: kickback.usedThisBall });
+  }
+
+  return { name, kind: 'kickback-sequence', stepsRun, timeline };
+}
+
 const RUNNERS = {
   'sandbox-table': runSandboxTableScenario,
   channel: runChannelScenario,
   'ramp-reachability': runRampReachabilityScenario,
   'rules-sequence': runRulesSequenceScenario,
+  'kickback-sequence': runKickbackSequenceScenario,
 };
 
 /** Runs a named scenario from SCENARIOS, with optional per-field overrides (e.g.
@@ -599,6 +715,13 @@ export function formatReport(report) {
       for (const [path, value] of Object.entries(entry.reads)) {
         lines.push(`    ${path} = ${JSON.stringify(value)}`);
       }
+    }
+    return lines.join('\n');
+  }
+  if (report.kind === 'kickback-sequence') {
+    const lines = [`scenario: ${report.name} (${report.stepsRun} steps)`];
+    for (const entry of report.timeline) {
+      lines.push(`  ${entry.step.type}: ${JSON.stringify(entry.result)}  lit=${entry.lit} usedThisBall=${entry.usedThisBall}`);
     }
     return lines.join('\n');
   }
