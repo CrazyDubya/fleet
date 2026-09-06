@@ -3,16 +3,23 @@ import assert from 'node:assert/strict';
 import { createFlipper, setActive, updateFlipper, flipperEntry, isFlipperMoving, FLIPPER_SUBSTEPS } from '../src/physics/flipper.js';
 import { stepBall } from '../src/physics/solver.js';
 import { length } from '../src/physics/vec2.js';
-import { E_FLIPPER, FLIPPER, MU, K_DRAG, STEP_DT } from '../src/physics/constants.js';
+import { E_FLIPPER, FLIPPER, MU, K_DRAG, STEP_DT, gravityForPitch } from '../src/physics/constants.js';
 
-function makeLowerLeftFlipper(eFlipper = E_FLIPPER) {
+// GRAVITY-ROLL audit (operator, FLIPPER-EXIT-ADDENDUM): this file held its own copy of gravity
+// (`{ x: 0, y: -1.11 }`, the OLD sliding-point-mass value) at three sites instead of importing
+// gravityForPitch — meaning every test below ran pre-GRAVITY-ROLL physics regardless of what
+// shipped in constants.js, and passed anyway, which is how the suite stayed green through a
+// 29% gravity change here specifically. Fixed: one real import, used at all three sites.
+const GRAVITY = gravityForPitch();
+
+function makeLowerLeftFlipper(eFlipper = E_FLIPPER, upMs = FLIPPER.lower.upMs) {
   return createFlipper({
     pivot: { x: -0.078, y: 0.105 },
     length: FLIPPER.lower.length,
     radius: 0.012,
     restAngleDeg: FLIPPER.lower.restAngle,
     activeAngleDeg: FLIPPER.lower.activeAngle,
-    upMs: FLIPPER.lower.upMs,
+    upMs,
     downMs: FLIPPER.lower.downMs,
     restitution: eFlipper,
   });
@@ -47,7 +54,7 @@ function flipAndMeasure(flipper, alongLengthFraction, substepOverride = FLIPPER_
     const subDt = STEP_DT / substeps;
     for (let s = 0; s < substeps; s++) {
       updateFlipper(flipper, subDt);
-      stepBall(ball, { x: 0, y: -1.11 }, [flipperEntry(flipper)], subDt, tuning);
+      stepBall(ball, GRAVITY, [flipperEntry(flipper)], subDt, tuning);
       maxSpeed = Math.max(maxSpeed, length(ball.vel));
     }
   }
@@ -150,14 +157,18 @@ const DOC_EXIT_MAX = 6.0;   // design doc acceptance range, UPPER bound — stil
 // tighter than any real constant change (which moves these by 0.1 or more) and loose enough for
 // float noise.
 test('CHARACTERISATION: flip peak speed at five contact points, single-impact regime (pins current behaviour, decides nothing)', () => {
+  // FLIPPER-EXIT (2026-09-06): re-measured after upMs 14 -> 34 (E_FLIPPER unchanged at 0.85 —
+  // see constants.js's own comment on why restitution wasn't the lever). Historical upMs=14
+  // values (14.1814/12.8506/11.4325/10.0143/8.5962) are preserved in the comment block above,
+  // not deleted — this table pins CURRENT behaviour only.
   const measured = [
-    { frac: 1.0, expected: 14.1814 },
-    { frac: 0.9, expected: 12.8506 },
-    { frac: 0.8, expected: 11.4325 },
-    { frac: 0.7, expected: 10.0143 },
-    { frac: 0.6, expected: 8.5962 },
+    { frac: 1.0, expected: 5.8402 },
+    { frac: 0.9, expected: 5.2855 },
+    { frac: 0.8, expected: 4.7015 },
+    { frac: 0.7, expected: 4.1175 },
+    { frac: 0.6, expected: 3.5336 },
   ];
-  const over = [];
+  const outsideRange = [];
   for (const { frac, expected } of measured) {
     const speed = flipAndMeasure(makeLowerLeftFlipper(), frac);
     assert.ok(Math.abs(speed - expected) < 0.01,
@@ -165,13 +176,17 @@ test('CHARACTERISATION: flip peak speed at five contact points, single-impact re
       'This test pins current behaviour — if you changed E_FLIPPER, upMs, an angle, or ' +
       'FLIPPER_SUBSTEPS on purpose, re-measure and update the table here (and in the comment ' +
       'block above).');
-    if (speed > DOC_EXIT_MAX) over.push(`${frac}x=${speed.toFixed(4)}`);
+    if (speed > DOC_EXIT_MAX || speed < DOC_EXIT_MIN) outsideRange.push(`${frac}x=${speed.toFixed(4)}`);
   }
-  // Not a specification — a standing reminder in the passing suite that the ceiling is still
-  // unmet, at all five points (see the comment block above for why the single-impact regime
-  // makes this WORSE-looking, not a regression this fix introduced).
-  assert.equal(over.length, 5,
-    `expected all five points still over ${DOC_EXIT_MAX} m/s in the single-impact regime; got: ${over.join(', ')}`);
+  // Not a specification — a standing reminder in the passing suite of exactly which contact
+  // points the doc's range now covers. FLIPPER-EXIT brought the two contract points this file
+  // actually tests (1.0x, 0.8x — see the two tests above) inside [4.5, 6.0]; it was never aimed
+  // at covering EVERY contact point along the bat, and 0.6x/0.7x (short, weak strikes) now fall
+  // BELOW the floor rather than above the ceiling — a real, expected consequence of a slower
+  // stroke, not a regression: a player striking closer to the pivot gets less bat speed, always
+  // did, and now that shows up as "under 4.5" instead of "still over 6.0 anyway."
+  assert.deepEqual(outsideRange, ['0.7x=4.1175', '0.6x=3.5336'],
+    `expected exactly 0.6x/0.7x outside [${DOC_EXIT_MIN}, ${DOC_EXIT_MAX}] (below the floor); got: ${outsideRange.join(', ') || 'none'}`);
 });
 
 // The quantity `flipAndMeasure` does NOT report: what the ball actually leaves with, and how
@@ -196,16 +211,17 @@ test('CHARACTERISATION: separation speed and contact count in the single-impact 
     const subDt = STEP_DT / substeps;
     for (let s = 0; s < substeps; s++) {
       updateFlipper(flipper, subDt);
-      const events = stepBall(ball, { x: 0, y: -1.11 }, [flipperEntry(flipper)], subDt, tuning);
+      const events = stepBall(ball, GRAVITY, [flipperEntry(flipper)], subDt, tuning);
       if (events.length > 0) contacts += 1;
       peak = Math.max(peak, length(ball.vel));
     }
   }
   const separation = length(ball.vel);
 
-  assert.ok(Math.abs(peak - 14.1814) < 0.01, `peak changed: expected 14.1814, got ${peak.toFixed(4)}`);
-  assert.ok(Math.abs(separation - 14.0315) < 0.02,
-    `separation speed changed: expected ~14.0315 m/s, got ${separation.toFixed(4)}. This is what ` +
+  // FLIPPER-EXIT (2026-09-06): re-measured after upMs 14 -> 34. Was 14.1814 / ~14.0315.
+  assert.ok(Math.abs(peak - 5.8402) < 0.01, `peak changed: expected 5.8402, got ${peak.toFixed(4)}`);
+  assert.ok(Math.abs(separation - 5.7652) < 0.02,
+    `separation speed changed: expected ~5.7652 m/s, got ${separation.toFixed(4)}. This is what ` +
     'the ball actually leaves with — the number a player feels.');
   assert.equal(contacts, 1,
     `contact count changed: expected exactly 1 distinct substep with a collision (the single-` +
@@ -220,9 +236,17 @@ test('CHARACTERISATION: separation speed and contact count in the single-impact 
 // resolution too coarse to reach a single impact) fails here regardless of which specific
 // constant caused it.
 test('CHARACTERISATION: peak exit speed rises with E_FLIPPER at N=24, and does NOT at the rejected N=4', () => {
+  // FLIPPER-EXIT (2026-09-06) slowed the shipped stroke (upMs 14 -> 34) enough that even N=4
+  // now resolves a single clean impact here — a slower tip travels less per substep, so the
+  // under-resolution N=4 was rejected for no longer shows up at THIS upMs. That does not mean
+  // N=4 is safe in general: it was rejected for being inadequate at a FAST stroke, and remains
+  // so. Pinned at upMs=14 (the historical fast-stroke reference this test has always meant,
+  // now explicit rather than "whatever upMs currently ships") so this demonstration keeps
+  // demonstrating the failure mode it exists to catch, independent of future upMs tuning.
+  const REJECTED_N4_REFERENCE_UPMS = 14;
   const eSweep = [0.70, 0.80, 0.85, 0.88, 0.90, 0.92, 0.96];
   const peaksAtShipped = eSweep.map((e) => flipAndMeasure(makeLowerLeftFlipper(e), 1.0));
-  const peaksAtRejectedN4 = eSweep.map((e) => flipAndMeasure(makeLowerLeftFlipper(e), 1.0, 4));
+  const peaksAtRejectedN4 = eSweep.map((e) => flipAndMeasure(makeLowerLeftFlipper(e, REJECTED_N4_REFERENCE_UPMS), 1.0, 4));
 
   for (let i = 1; i < peaksAtShipped.length; i++) {
     assert.ok(peaksAtShipped[i] > peaksAtShipped[i - 1],
@@ -241,9 +265,11 @@ test('CHARACTERISATION: peak exit speed rises with E_FLIPPER at N=24, and does N
 });
 
 test('CHARACTERISATION: peak exit speed rises with contact radius at N=24, and does NOT at the rejected N=4', () => {
+  // Same reference-speed pinning as the E_FLIPPER version of this test above — see its comment.
+  const REJECTED_N4_REFERENCE_UPMS = 14;
   const fracSweep = [0.6, 0.7, 0.8, 0.9, 1.0];
   const peaksAtShipped = fracSweep.map((f) => flipAndMeasure(makeLowerLeftFlipper(0.85), f));
-  const peaksAtRejectedN4 = fracSweep.map((f) => flipAndMeasure(makeLowerLeftFlipper(0.85), f, 4));
+  const peaksAtRejectedN4 = fracSweep.map((f) => flipAndMeasure(makeLowerLeftFlipper(0.85, REJECTED_N4_REFERENCE_UPMS), f, 4));
 
   for (let i = 1; i < peaksAtShipped.length; i++) {
     assert.ok(peaksAtShipped[i] > peaksAtShipped[i - 1],
@@ -267,17 +293,18 @@ test('CHARACTERISATION: peak exit speed rises with contact radius at N=24, and d
 // `todo` still prints a "failing tests" block, which reads as a broken suite to anyone else
 // working in this repo.
 //
-// TO ENABLE: delete the `{ skip: … }` option. Do that as part of whatever change settles
-// E_FLIPPER / upMs — not before, and not by widening DOC_EXIT_MAX to make it pass.
+// ENABLED (FLIPPER-EXIT, 2026-09-06): upMs 14 -> 34 settles this, per the sweep in
+// constants.js's own FLIPPER comment. E_FLIPPER stayed at 0.85 — it was never the lever (even
+// e=0 at the old upMs=14 still exceeded the ceiling; see the same comment).
 test('a flipped ball leaves within the design doc\'s 4.5-6.0 m/s range (BOTH bounds)',
-  { skip: 'FAILS TODAY (single-impact regime, N=24): 14.1814 m/s at 1.0x and 11.4325 m/s at 0.8x ' +
-          'exceed the doc ceiling of 6.0 — well over the ceiling than under the earlier, rejected ' +
-          'N=4 resolution. E_FLIPPER/upMs are an open decision pending browser play — enable ' +
-          'this when they are settled.' },
   () => {
-    const flipper = makeLowerLeftFlipper();
+    // A fresh flipper per fraction — enabling this surfaced a real bug in this loop shape: a
+    // shared flipper object is already active/at-rest after the first flipAndMeasure() call,
+    // so the second call's setActive() is a no-op and the ball never gets struck (measured:
+    // ~0.05 m/s, gravity alone over the loop). Masked before because both fractions failed the
+    // ceiling anyway; the floor check this enable adds is what caught it.
     for (const frac of [1.0, 0.8]) {
-      const speed = flipAndMeasure(flipper, frac);
+      const speed = flipAndMeasure(makeLowerLeftFlipper(), frac);
       assert.ok(speed >= DOC_EXIT_MIN, `expected >= ${DOC_EXIT_MIN} m/s at ${frac}x length, got ${speed}`);
       assert.ok(speed <= DOC_EXIT_MAX, `expected <= ${DOC_EXIT_MAX} m/s at ${frac}x length, got ${speed}`);
     }
@@ -297,7 +324,7 @@ test('a ball cannot pass through a flipper mid-sweep at high approach speed', ()
   for (let i = 0; i < 60; i++) {
     updateFlipper(flipper, STEP_DT);
     const primitives = [flipperEntry(flipper)];
-    stepBall(ball, { x: 0, y: -1.11 }, primitives, STEP_DT, tuning);
+    stepBall(ball, GRAVITY, primitives, STEP_DT, tuning);
     // The flipper capsule spans from pivot (y=0.105) to at most length above it;
     // the ball should never end up more than a hair below the pivot's y once it has
     // been below the flipper line, i.e. it must have bounced, not tunneled.

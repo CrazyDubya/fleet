@@ -11,25 +11,48 @@ export const E_RUBBER = 0.85;
 // tip (v' = u(1+e)), not the ~5 m/s the doc's own §2.4 example claims. Tuned up to 0.85
 // during the T2 flipper-feel pass so a flip actually snaps the ball away; recorded here
 // per the doc's "adjust and record" note. Exposed live via ?debug=1 (see ui/debug.js).
+//
+// FLIPPER-EXIT (2026-09-06): left at 0.85, unchanged. The dispatch that opened this was aimed
+// at the wrong constant — restitution was never the lever. Swept E_FLIPPER from 0 to 0.85 at
+// the (then-shipped) upMs=14: even e=0, the physical floor, still exits the tip at 7.67 m/s
+// and 0.8x length at 7.90 m/s, both over the 6.0 m/s ceiling. Exit speed here is set by the
+// bat's own surface velocity (upMs, below), which (1+e) only scales by ~1.0-1.85x — nowhere
+// near enough range to close a gap this size. See FLIPPER.lower/upper.upMs's own comment for
+// where the actual fix landed. Restitution stays at its feel-tuned value because there was
+// never a measured reason (for exit speed OR for cradling — see below) to move it.
 export const E_FLIPPER = 0.85;
 export const MU = 0.06;
 export const K_DRAG = 0.12;
 
-// upMs lowered from the doc's 30ms starting value to 14ms during the T3 feel checkpoint:
-// a live-browser measurement showed only ~2.3 m/s off a flip at 30ms, well short of the
-// "shot" feel a real flipper has. At 14ms a resting ball
-// leaves at ~4.9 m/s (verified in flipper.test.mjs), matching the design doc's own target.
-// A 14ms stroke is faster than a real solenoid; that's an accepted simplification of this
-// coarse (240 Hz) discrete-substep model, not a claim about real flipper timing.
-// lower.restAngle widened from the doc's -28 to -50 after the T3b drain-sweep test found a
-// dead pocket: collision treats each flipper as a capsule (segment padded by flipper.radius)
-// against a ball also padded by its own radius, so the tips need a *centreline* gap of
-// 2*(flipper.radius + ball.radius) ≈ 51mm, not just 2*ball.radius, before a centred ball can
-// fall through. At -28 the tip-to-tip gap was only ~24mm (net negative clearance); -34 still
-// left it under half the required width. -50 opens the tip-to-tip span to ~60mm.
+// upMs — FLIPPER-EXIT (2026-09-06), replacing the T3 feel-pass value below. The measured
+// current (post-GRAVITY-ROLL, post-substep-fix) exit speed at upMs=14 was 14.18 m/s at the
+// tip / 11.43 m/s at 0.8x length — the design doc's own true-to-physics standard targets
+// 4.5-6.0 m/s off a resting ball, and this project's standard now treats that ceiling as a
+// physics-correctness requirement, not a feel choice, once nothing else (E_FLIPPER above)
+// can reach it. Swept upMs directly against the real solver (E_FLIPPER held at its shipped
+// 0.85, corrected gravityForPitch, real single-impact N=24 resolution) rather than solving
+// the impulse relation algebraically — a first attempt at (1+e)*omega*r predicted values
+// nothing like the measured 6.31/14.18 history in this file, so the tidy closed form does
+// not match where and when contact actually happens here closely enough to trust without
+// checking every candidate against the real stroke.
+//
+//   LOWER: upMs=30 -> tip 6.62 (over); 33 -> 6.02 (over by 0.02); 34 -> 5.84, 0.8x 4.70 (BOTH
+//          in range, real margin both ends); 36 -> 0.8x drops to 4.44 (under floor). Chosen: 34.
+//   UPPER: (shorter length 0.065 vs 0.075, activeAngle 35 vs 32 — a different sweep, needs its
+//          own value, not the lower flipper's) upMs=21 -> tip 6.00 (right at the ceiling);
+//          22 -> tip 5.72, 0.8x 4.62 (BOTH in range, comfortable margin); 23 -> 0.8x drops to
+//          4.41 (under floor). Chosen: 22.
+//
+// Both land squarely in "tens of milliseconds," the range real solenoid flippers actually
+// operate in (haiku-fs7's real-machine-speeds handoff has no grounded or even ungrounded
+// stroke-time figure to anchor to — checked, not assumed absent) — corroborating, not
+// deciding: the sweep against this table's own geometry is what the value is chosen from.
+// A 14ms stroke was never a considered value; it was the T3 feel pass's fix for an
+// under-resolved (N=1) flipper that has since been properly resolved (N=24), the same shape
+// of unmeasured-cost tune E_FLIPPER 0.85 turned out to be.
 export const FLIPPER = {
-  lower: { length: 0.075, restAngle: -50, activeAngle: 32, upMs: 14, downMs: 45 },
-  upper: { length: 0.065, restAngle: -25, activeAngle: 35, upMs: 14, downMs: 45 },
+  lower: { length: 0.075, restAngle: -50, activeAngle: 32, upMs: 34, downMs: 45 },
+  upper: { length: 0.065, restAngle: -25, activeAngle: 35, upMs: 22, downMs: 45 },
 };
 
 export const POP_BUMPER_KICK = 2.6;
