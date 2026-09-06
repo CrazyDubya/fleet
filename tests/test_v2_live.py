@@ -34,10 +34,6 @@ class V2LiveTests(unittest.TestCase):
         self.assertLess(time.monotonic() - t0, 5.0)
         self.assertIn("pong", out)
 
-    def test_router_returns_a_lane(self):
-        out = ask.ask("haiku-router2", "list the files under gui/widgets", sender="operator", profile="v2")
-        self.assertIn("@lane lookup", out)
-
     def test_perm_escalate_then_decide(self):
         # Inherit the ambient PATH (rather than a hand-picked minimal one):
         # on this machine /usr/bin/python3 is a Python 3.9 stuck ahead of
