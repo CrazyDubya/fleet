@@ -149,15 +149,25 @@ The table above shows a spread of 0.448 — an apparent separation 15× wider th
 
 <!-- PREFIX-FIX-DEADZONE-ANNOTATION:BEGIN -->
 
-> ⚠ **This heatmap's occupancy counts are truncated, not the whole map (PREFIX-FIX, generalising
-> SAMPLECAP-1).** `deadZoneHits` was capped at the first 300 substeps per trial, a prefix ordered
-> by TIME within the trial — and this map's whole subject is where a slow ball ENDS UP, so the
-> cap kept the approach and discarded the settle. Fixed for future runs (the cap is deleted,
-> `instrument.js`); this corpus predates the fix and `deadZoneHits` never reached the shard
-> record, so **no correction is computable from this run** — the true counts are not recoverable
-> without re-simulating. Measured on a fresh 3,200-trial-per-family corpus (same instrument,
-> not this run's own trials): occupancy retained ranges 82-100% by family, worst on P3 (18% of
-> the family's occupancy sits in the truncated tail of its slowest trials), with a directional
-> bias toward the approach and away from the settle position. See
-> `ledger/handoffs/opus2/20260905T230606Z-prefix-sweep.md` §1 for the full measurement.
+> ⚠ **SUPERSEDED (RUN-E3-DEADZONE,
+> `ledger/handoffs/opus2/20260906T004000Z-run-e3-deadzone.md`).** This heatmap's occupancy
+> counts were truncated (PREFIX-FIX, generalising SAMPLECAP-1 — `deadZoneHits` capped at the
+> first 300 substeps per trial, a prefix ordered by TIME within the trial, discarding the
+> settle in favour of the approach). Unlike the other runs carrying this annotation, this run's
+> P3 map **is reproduced bit-exact** by the corrected, uncapped 5,000,000-trial run at
+> `data/e3/deadzone-fix` (handoff §2: 5,788/5,788 P3 bins match exactly under the old cap
+> re-applied in time order). Use that run's numbers for anything beyond a display of the old
+> (truncated) map here:
+>
+> - **P3 (worst affected)**: 26.8% of occupancy was truncated (73.2% retained) — not the
+>   "18% (82% retained)" this annotation previously quoted from a smaller side-corpus estimate,
+>   which misattributed P1's retention figure to P3. The top-5 bin set itself changes (2 of 5
+>   swap, a column-to-row rotation); quote P3's dead zone as a set of bins, never a single
+>   winner — its top-1 was never resolvable in either map (leading-pair CI spans zero both ways).
+> - **P1**: 17.3% truncated, but the top-1/top-5 sets are IDENTICAL to the corrected map — the
+>   cap sharpened the answer here (top-20 mass 61.9% → 67.9%) without changing it.
+> - **P2** (0.3%) and **P4** (0.0%): effectively unaffected.
+> - **P5**: empty in both maps — a real measurement, not truncation.
+>
+> See the handoff above for the full reproduction, null model, and per-family detail.
 <!-- PREFIX-FIX-DEADZONE-ANNOTATION:END -->
