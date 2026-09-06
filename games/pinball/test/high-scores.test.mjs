@@ -1,9 +1,12 @@
-// ui/high-scores.js's pure ranking/formatting logic and its localStorage-shaped persistence —
-// tested against a plain in-memory mock rather than a real browser, per the file's own doc
-// comment on why `storage` is an explicit argument, not a `window.localStorage` default.
+// ui/high-scores.js's pure ranking/formatting logic (unchanged by SAVE-T13) and its
+// persistence, which SAVE-T13 moved onto save/store.js's shared blob — loadHighScores/
+// saveHighScores now take a `createStore` handle rather than a raw Storage object; see
+// save/store.test.mjs for the persistence/migration/quota-fallback behavior itself, this
+// file only checks that high-scores.js reads/writes the right slice of it.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { insertScore, loadHighScores, saveHighScores, highScoreLines, MAX_ENTRIES } from '../src/ui/high-scores.js';
+import { createStore } from '../src/save/store.js';
 
 function mockStorage(initial = {}) {
   const data = { ...initial };
@@ -27,28 +30,29 @@ test('insertScore caps at maxEntries, dropping the lowest', () => {
 });
 
 test('loadHighScores returns an empty table when nothing is persisted yet', () => {
-  assert.deepEqual(loadHighScores(mockStorage()), []);
+  assert.deepEqual(loadHighScores(createStore(mockStorage())), []);
 });
 
 test('a round trip through saveHighScores/loadHighScores preserves the table', () => {
-  const storage = mockStorage();
-  saveHighScores([500000, 300000, 100000], storage);
-  assert.deepEqual(loadHighScores(storage), [500000, 300000, 100000]);
+  const store = createStore(mockStorage());
+  saveHighScores([500000, 300000, 100000], store);
+  assert.deepEqual(loadHighScores(store), [500000, 300000, 100000]);
 });
 
-test('loadHighScores drops corrupt or foreign-origin data rather than trusting it', () => {
-  assert.deepEqual(loadHighScores(mockStorage({ 'recess-pinball-high-scores': 'not json' })), [], 'malformed JSON is dropped, not thrown');
-  assert.deepEqual(loadHighScores(mockStorage({ 'recess-pinball-high-scores': '{"not":"an array"}' })), [], 'a non-array value is dropped');
+test('an existing player\'s legacy high scores (SAVE-T13\'s own migration) are still what loadHighScores reads', () => {
+  const storage = mockStorage({ 'recess-pinball-high-scores': '[500000, -1, "nope", null, 300000]' });
   assert.deepEqual(
-    loadHighScores(mockStorage({ 'recess-pinball-high-scores': '[500000, -1, "nope", null, 300000]' })),
+    loadHighScores(createStore(storage)),
     [500000, 300000],
-    'non-finite, negative, and non-numeric entries are filtered out, valid ones kept',
+    'non-finite, negative, and non-numeric entries are filtered out, valid ones kept — same sanitization, now at the schema level',
   );
 });
 
-test('saveHighScores does not throw when storage.setItem throws (private browsing, quota, disabled storage)', () => {
+test('saveHighScores does not throw when the store cannot persist (private browsing, quota, disabled storage)', () => {
   const brokenStorage = { getItem: () => null, setItem: () => { throw new Error('quota exceeded'); } };
-  assert.doesNotThrow(() => saveHighScores([100], brokenStorage));
+  const store = createStore(brokenStorage);
+  assert.doesNotThrow(() => saveHighScores([100], store));
+  assert.deepEqual(loadHighScores(store), [100], 'the in-memory copy still reflects the save even though it could not persist');
 });
 
 test('HISCORE regression: a zero-score game shows nothing — not a table, not a placeholder', () => {

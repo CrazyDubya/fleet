@@ -1,12 +1,12 @@
 // Local high-score table — HISCORE dispatch, last item in haiku-fs2's backlog: "tracks best
-// scores, displayed after game over." Persists via localStorage (a real browser, a real tab
-// reload); ranking and formatting are pure and take an explicit `storage` argument rather than
-// defaulting to `window.localStorage`, so they're unit-testable under `node --test` with a
-// plain in-memory mock instead of a real browser.
+// scores, displayed after game over." Ranking and formatting (insertScore, highScoreLines)
+// are pure, unchanged by SAVE-T13. Persistence (loadHighScores/saveHighScores) moved onto the
+// shared save/store.js blob — this used to own a private `recess-pinball-high-scores`
+// localStorage key directly; save/store.js's own doc comment covers the one-time migration of
+// whatever an existing player already has under that key.
 //
 // MAX_ENTRIES: the design doc names the feature but not a table size — 5 is the common
 // arcade-cabinet convention, a judgment call stated here rather than presented as spec-derived.
-const STORAGE_KEY = 'recess-pinball-high-scores';
 export const MAX_ENTRIES = 5;
 
 /** Inserts `newScore` into `scores`, re-sorts descending, caps at `maxEntries`. Pure — the
@@ -15,30 +15,20 @@ export function insertScore(scores, newScore, maxEntries = MAX_ENTRIES) {
   return [...scores, newScore].sort((a, b) => b - a).slice(0, maxEntries);
 }
 
-/** Reads the persisted table from `storage` (a Storage-shaped object: `getItem`/`setItem`).
- * Anything malformed (corrupt JSON, a non-array, non-finite/negative entries — a hand-edited
- * or foreign-origin value) is dropped rather than trusted, since this is real external state
- * a player's browser controls, not internal state this codebase itself only ever writes in
- * one valid shape. */
-export function loadHighScores(storage) {
-  try {
-    const raw = storage.getItem(STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed.filter((n) => Number.isFinite(n) && n >= 0) : [];
-  } catch {
-    return [];
-  }
+/** Reads the persisted table from `store` (a save/store.js `createStore` handle, not a raw
+ * Storage object — see that file's own doc comment for why the persistence layer moved
+ * there). Sanitization of malformed entries now happens once, at the schema level
+ * (save/schema.js's `migrate`), rather than per-field here — `store.get()` is already trusted
+ * by the time it reaches this function. */
+export function loadHighScores(store) {
+  return store.get().highScores;
 }
 
-/** Persists `scores` to `storage`. Swallows write failures (private browsing, quota, storage
- * disabled) — the table simply won't persist this session; not worth surfacing to the player
- * over a scoring screen. */
-export function saveHighScores(scores, storage) {
-  try {
-    storage.setItem(STORAGE_KEY, JSON.stringify(scores));
-  } catch {
-    // See doc comment above — deliberately silent.
-  }
+/** Persists `scores` via `store`. Failure handling (private browsing, quota, storage
+ * disabled) lives in save/store.js now — this never throws because `store.update` never does,
+ * see its own doc comment on why the in-memory copy always applies regardless. */
+export function saveHighScores(scores, store) {
+  store.update((data) => ({ ...data, highScores: scores }));
 }
 
 /** Pure content builder for the end-of-game moment. `thisScore` (this game's final score, if

@@ -32,6 +32,7 @@ import { insertScore, loadHighScores, saveHighScores, highScoreLines } from './u
 import { createSynth } from './audio/synth.js';
 import { playMechanismCue, playDisplayCue } from './audio/cues.js';
 import { loadMuted, saveMuted } from './audio/mute.js';
+import { createStore } from './save/store.js';
 
 const canvas = document.getElementById('view');
 const { scene, camera, renderer, tiltGroup, resize } = createScene(canvas);
@@ -250,6 +251,20 @@ let flippersDisabled = false;
 let paused = false;
 const callouts = createCalloutLayer();
 const momentScreen = createMomentScreen();
+// SAVE-T13: one store for the whole page — high scores and mute both read/write through this
+// same handle now (see save/store.js's own doc comment for why a shared handle, not each
+// call creating its own). Constructed here, before either loadMuted or loadHighScores runs,
+// since store creation is also where an existing player's two legacy keys get imported and
+// migrated onto the new schema.
+const saveStore = createStore(window.localStorage);
+/** Surfaces save/store.js's own one-line degradation notice (quota/private-browsing) the
+ * first time a save attempt actually fails — reuses the existing callout layer rather than
+ * inventing a fourth overlay style, consistent with HUD-CHALK's "one visual language" rule.
+ * Called after every store.update() this file makes (both save sites, below). */
+function checkSaveNotice() {
+  const notice = saveStore.takeNotice();
+  if (notice) callouts.show(notice, { durationMs: 3000 });
+}
 // GAME-POLISH: rules/modes.js's own internal names, mapped to what the design doc actually
 // calls each mode (§4.4) — a 'modeStart'/'modeEnd' display event carries the internal name
 // (e.g. 'HIDE_SEEK'), never the player-facing one.
@@ -1085,7 +1100,7 @@ document.body.appendChild(plungerMeterTrack);
 // last told, at creation time, so a muted player's very first sound is already silent rather
 // than playing once before the persisted setting catches up.
 const synth = createSynth();
-let muted = loadMuted(window.localStorage);
+let muted = loadMuted(saveStore);
 synth.setMuted(muted);
 
 // iOS will not start an AudioContext without a real user gesture, and won't retroactively
@@ -1121,7 +1136,8 @@ renderMuteButton();
 muteButton.addEventListener('click', () => {
   muted = !muted;
   synth.setMuted(muted);
-  saveMuted(muted, window.localStorage);
+  saveMuted(muted, saveStore);
+  checkSaveNotice();
   renderMuteButton();
 });
 document.body.appendChild(muteButton);
@@ -1341,8 +1357,9 @@ function applyDisplayEvents(display) {
       const thisScore = d.scores[0] ?? 0;
       let lines;
       if (thisScore > 0) {
-        const scores = insertScore(loadHighScores(window.localStorage), thisScore);
-        saveHighScores(scores, window.localStorage);
+        const scores = insertScore(loadHighScores(saveStore), thisScore);
+        saveHighScores(scores, saveStore);
+        checkSaveNotice();
         lines = highScoreLines(scores, thisScore) ?? ['GAME OVER'];
       } else {
         lines = ['GAME OVER'];

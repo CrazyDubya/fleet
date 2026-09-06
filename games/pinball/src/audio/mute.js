@@ -1,26 +1,17 @@
-// Mute state persistence — AUDIO-T11. Same pattern as ui/high-scores.js: pure functions
-// taking an explicit `storage` argument (not a `window.localStorage` default) so this is
-// unit-testable under `node --test` against a plain mock instead of a real browser.
-const STORAGE_KEY = 'recess-pinball-muted';
+// Mute state persistence — AUDIO-T11, moved onto the shared save/store.js blob by SAVE-T13.
+// This used to own a private `recess-pinball-muted` localStorage key directly; save/store.js's
+// own doc comment covers the one-time migration of whatever an existing player already has
+// under that key.
 
-/** Reads the persisted mute flag. Anything that isn't the literal string this module itself
- * writes is treated as "not muted" — real external state a player's browser controls, not
- * trusted the way internal-only state would be (same reasoning as loadHighScores's own
- * corrupt-data handling). */
-export function loadMuted(storage) {
-  try {
-    return storage.getItem(STORAGE_KEY) === 'true';
-  } catch {
-    return false;
-  }
+/** Reads the persisted mute flag from `store` (a save/store.js `createStore` handle — see
+ * that file's own doc comment for why the persistence layer moved there). */
+export function loadMuted(store) {
+  return store.get().settings.muted;
 }
 
-/** Persists the mute flag. Swallows write failures (private browsing, quota, storage
- * disabled) — muting simply won't persist this session, not worth surfacing over sound. */
-export function saveMuted(muted, storage) {
-  try {
-    storage.setItem(STORAGE_KEY, muted ? 'true' : 'false');
-  } catch {
-    // See doc comment above — deliberately silent.
-  }
+/** Persists the mute flag via `store`. Failure handling (private browsing, quota, storage
+ * disabled) lives in save/store.js now — this never throws because `store.update` never
+ * does. */
+export function saveMuted(muted, store) {
+  store.update((data) => ({ ...data, settings: { ...data.settings, muted } }));
 }
