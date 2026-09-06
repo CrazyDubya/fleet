@@ -76,7 +76,17 @@ def _claude_activity(path: Path) -> Activity | None:
             break
     if not cwd:
         return None
-    return Activity("claude", path.stem, cwd, model, path.stat().st_mtime, path)
+    # FLEET-CODE-REVIEW item 4: guarded like every other filesystem touch in this
+    # module. A transcript can vanish between root.glob() listing it and this stat -
+    # rotated, cleaned up, or owned by a session that just exited. Unguarded, that
+    # OSError propagates scan() -> live_on() -> health() -> rows() and lands in
+    # cli.py's blanket `except Exception: return []`, where a broken health check
+    # becomes indistinguishable from "no projects declared".
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        return None
+    return Activity("claude", path.stem, cwd, model, mtime, path)
 
 
 def _codex_activity(path: Path) -> Activity | None:
