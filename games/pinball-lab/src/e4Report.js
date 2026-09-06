@@ -13,6 +13,24 @@ import { fileURLToPath } from 'node:url';
 import { mean, percentile } from './metrics.js';
 import { validExclStalled, rankingValidityResult, premiseHeaderLines, requireFlagGateOk } from './gate.js';
 import { rate as measuredRate, fmt as fmtMeasured } from './measured.js';
+import { selectTopN, meanOf01 } from './selectTopN.js';
+
+// GUARD-MIGRATE (CUT-1 spec §7, items #8/#9/#10): A1/A2/Stage B's `cp` rate is aggregated to a
+// count during streaming (`row.cp += 1`), the per-trial 0/1 sequence itself is not retained —
+// exactly the cost the spec's §3 names ("several writers aggregate and drop the per-trial
+// arrays. There is no version of this that gets stability for free"). Reconstructing an
+// EXCHANGEABLE 0/1 array from the count is not a shortcut around that cost: for a rate
+// estimator, split-half resampling only ever depends on how many 1s land in each half, never on
+// which specific trial produced a given 1 — a uniformly shuffled synthetic array with the same
+// k/n has exactly the same distribution of split-half outcomes a full per-trial retrofit would
+// have produced. Retaining the true per-trial sequence would let a future caller ask an
+// order-dependent question (e.g. "did the rate drift over the run") that this cannot; it is not
+// needed for what selectTopN measures.
+function synthBinary(k, n) {
+  const arr = new Array(n);
+  for (let i = 0; i < n; i++) arr[i] = i < k ? 1 : 0;
+  return arr;
+}
 
 async function* streamShards(dir, meta) {
   for (const shard of meta.shards) {
@@ -42,19 +60,12 @@ function fmtPct(x, digits = 3) {
   return fmt(x === null || x === undefined ? null : x * 100, digits);
 }
 
-// RETIRE-REST §7: these tables were selected into saturation (decisions-doc §7 — E4's top-N
-// cuts and "best pocket assembly" order rows that are tied at the ceiling). Publishing the
-// equivalence class rather than the cut: how many rows tie at the top value, and which
-// configuration fields are IDENTICAL across every one of them (the fields that vary within
-// the tie are omitted — a shared field is the only thing "what they share" can mean).
-// `rows` is the FULL population the tie is drawn from, not a pre-sliced top-N — a tie counted
-// against an already-cut top-20 would undercount how many rows actually share the max value.
-function equivalenceClassAtTop(rows, valueFn, fieldsFn) {
-  if (!rows.length) return null;
-  const values = rows.map(valueFn);
-  const maxVal = Math.max(...values);
-  const tied = rows.filter((r, i) => values[i] === maxVal);
-  const fieldSets = tied.map(fieldsFn);
+// GUARD-MIGRATE: "what do these rows share" (RETIRE-REST §7's own question, now asked of
+// whatever group selectTopN actually identified — a banded top group, or an unordered
+// population's max-value rows — rather than a hand-rolled tie-at-the-max computation).
+function sharedFieldsAcrossRows(rows, fieldsFn) {
+  if (!rows.length) return { shared: {}, varies: [] };
+  const fieldSets = rows.map(fieldsFn);
   const keys = Object.keys(fieldSets[0]);
   const shared = {};
   const varies = [];
@@ -63,7 +74,7 @@ function equivalenceClassAtTop(rows, valueFn, fieldsFn) {
     if (distinct.size === 1) shared[k] = fieldSets[0][k];
     else varies.push(k);
   }
-  return { value: maxVal, tieCount: tied.length, total: rows.length, shared, varies };
+  return { shared, varies };
 }
 
 function fmtFieldValue(k, v) {
@@ -71,6 +82,52 @@ function fmtFieldValue(k, v) {
   if (v === false) return 'off';
   if (v === null || v === undefined) return 'off';
   return String(v);
+}
+
+// GUARD-MIGRATE: the per-table caveat block for a2/b, driven by the actual selectTopN
+// CutResult rather than a boundary-only guard plus a hand-rolled tie lookup. `byKeyMap`/
+// `fieldsFn` let this join a `banded` result's top-band keys back to the full rows (selectTopN
+// itself only carries `{key, value, samples}`, not the whole row) to describe what that band
+// shares, the same question RETIRE-REST §7 asked of a flat tie.
+function cutStatusNote(cut, byKeyMap, fieldsFn, label) {
+  if (cut.kind === 'ranked') {
+    // GUARD-MIGRATE FINDING: found migrating A2's real top-20. selectTopN's split-half
+    // stability check has NO POWER to detect an EXACT tie at a rate estimator's boundary
+    // (cp=1.0, every trial a catch) — resampling a deterministic all-1s array reproduces
+    // exactly 1.0 every time, so agreement is perfect not because the order is stable but
+    // because there is no variance left for resampling to disturb. `structural` (the
+    // boundary-ambiguity check) misses it too when the tie sits above the cut boundary rather
+    // than at it (RETIRE-REST §7's original finding). Measured on A2-final: 15 of 217
+    // assemblies tie at EXACTLY cp=1.0, and this cut still reports `ranked`. Checked here
+    // rather than in selectTopN.js itself — this is a gap in a shared, already-reviewed
+    // library, not something to patch unreviewed mid-migration; flagged for the spec owner.
+    const maxVal = cut.cut[0].value;
+    const tiedAtMax = cut.cut.filter((c) => c.value === maxVal).length;
+    if (tiedAtMax > 1) {
+      const { shared, varies } = sharedFieldsAcrossRows(cut.cut.slice(0, tiedAtMax).map((c) => byKeyMap.get(c.key)), fieldsFn);
+      return `> ⚠ **RANKED, BUT THE TOP IS AN EXACT TIE (selectTopN limitation)**: \`cp\` reports ` +
+        `\`kind: 'ranked'\` — split-half resampling found the requested cut stable — but ` +
+        `**${tiedAtMax} of the top ${cut.cut.length} rows tie at EXACTLY cp = ${fmtPct(maxVal, 1)}%**, ` +
+        'a boundary value with zero resampling variance to reveal as unstable. The specific order ' +
+        `among those ${tiedAtMax} rows is arbitrary, not confirmed. Shared across all of them: ` +
+        `${sharedFieldsText(shared)}${varies.length ? `; they differ on ${varies.join(', ')}` : ''}.`;
+    }
+    return null;
+  }
+  if (cut.kind === 'banded') {
+    const topBand = cut.bands[0];
+    const { shared, varies } = sharedFieldsAcrossRows(topBand.map((b) => byKeyMap.get(b.key)), fieldsFn);
+    const kPoint = cut.stability.curve.find((p) => p.k === cut.bandCount);
+    return `> ⚠ **TOP-${cut.requestedN} NOT RESOLVABLE (selectTopN)**: \`cp\` cannot order the full ` +
+      `${cut.structural.n}-${label} population finely enough for a top-${cut.requestedN} — it demotes to ` +
+      `**${cut.bandCount} stable band(s)** instead (split-half within-one agreement ${kPoint ? (kPoint.withinOne * 100).toFixed(1) : '—'}%). ` +
+      `The top band alone holds **${topBand.length} rows**, all at cp up to ${fmtPct(topBand[0].value, 1)}%, sharing ` +
+      `${sharedFieldsText(shared)}${varies.length ? ` and differing on ${varies.join(', ')}` : ''} — nothing orders ` +
+      'those rows against each other. Rows below are shown for reference only.';
+  }
+  return `> ⚠ **RANKING INVALID (selectTopN)**: \`cp\` cannot order the full ${cut.structural.n}-${label} ` +
+    `population at all — ${cut.reason}. Rows below are shown for reference only; their order is not a ` +
+    'performance signal.';
 }
 
 function sharedFieldsText(shared) {
@@ -133,15 +190,16 @@ async function main() {
   const a1Ranked = [...a1ByCfg.values()].map((row) => ({
     guide: row.cfg.guide, radius: row.cfg.radius, trials: row.trials,
     ct: row.ct / row.trials, cr: row.cr / row.trials, cp: row.cp / row.trials, cv: row.cv / row.trials,
+    cpCount: row.cp,
   })).sort((x, y) => y.cp - x.cp);
-  // LAB-16 ranking gate, on the FULL population before any top-N slice (see stageA.js's E1
-  // comment for why pre-slice matters — a post-slice top-20 always looks tie-heavy at the
-  // ceiling regardless of whether the metric has real resolution).
-  // LAB-21: cp is a count-ratio, so it supplies its denominators for the raw-event check.
-  const a1RankingGuard = rankingValidityResult(a1Ranked.map((r) => r.cp), { topN: 1, support: a1Ranked.map((r) => r.trials) });
-  const a1TopTie = equivalenceClassAtTop(a1Ranked, (r) => r.cp, (r) => ({
-    gapX: r.guide.gapX, tiltDeg: r.guide.tiltDeg, endDy: r.guide.endDy, guideE: r.guide.guideE, radius: r.radius,
-  }));
+  const a1Key = (r) => `${r.guide.gapX}|${r.guide.tiltDeg}|${r.guide.endDy}|${r.guide.guideE}|${r.radius}`;
+  // GUARD-MIGRATE (CUT-1 spec §7 item #8): the top-1 pocket pick, through selectTopN rather
+  // than a boundary-only ranking guard. Runs the FULL structural + split-half stability check
+  // (see `synthBinary`'s comment above for why a reconstructed 0/1 array is honest here).
+  const a1Cut = selectTopN({
+    rows: a1Ranked, samples: (r) => synthBinary(r.cpCount, r.trials), estimator: meanOf01,
+    support: (r) => r.trials, n: 1, key: a1Key,
+  });
 
   // --- A2: the ranked assembly table (§8 item 2), controls' cp for the E1 decomposition. ---
   const a2ByCfg = new Map();
@@ -182,13 +240,18 @@ async function main() {
       fastCradleRate: row.stVals.length ? fastCradleCount / row.trials : 0,
       fastCradleRateM: measuredRate(fastCradleCount, row.trials, { estimand: `${row.cfg.cfgId}: fraction of trials settling in under 1.0s` }),
       medianBn: row.bnVals.length ? percentile(row.bnVals, 50) : null,
+      cpCount: row.cp,
     };
   }).sort((x, y) => y.cp - x.cp);
-  const a2RankingGuard = rankingValidityResult(a2Ranked.map((r) => r.cp), { topN: 20, support: a2Ranked.map((r) => r.trials) });
-  const a2TopTie = equivalenceClassAtTop(a2Ranked, (r) => r.cp, (r) => ({
-    gapX: r.guide.gapX, tiltDeg: r.guide.tiltDeg, endDy: r.guide.endDy, guideE: r.guide.guideE,
-    radius: r.radius, feed: r.feed, post: r.post, outlaneW: r.outlaneW,
-  }));
+  // GUARD-MIGRATE (CUT-1 spec §7 item #9): the A2 top-20, through selectTopN. This is the case
+  // the migration itself found: the OLD boundary-only guard reported this population "ok" (its
+  // 15-way tie sits above the top-20 cut boundary, not inside it), but selectTopN's split-half
+  // stability check evaluates whether the CUT ITSELF replicates, which a boundary check cannot
+  // see — see the result inspected below for what that difference actually produces.
+  const a2Cut = selectTopN({
+    rows: a2Ranked, samples: (r) => synthBinary(r.cpCount, r.trials), estimator: meanOf01,
+    support: (r) => r.trials, n: 20, key: (r) => r.cfgId,
+  });
 
   // GUARD-MIGRATE (CUT-1 spec §7, item #12): the pocket-map heatmap below is a GRID, sorted by
   // (gapX, activeAngle) for layout, not by cp — no cell is ever called "best", each carries its
@@ -243,12 +306,14 @@ async function main() {
     // MEASURED-3: additive sidecar — bare `cpRate` above is unchanged (the sort just below and
     // stageBRanked's own mapping further down both need a plain number).
     cpRateM: measuredRate(row.cp, row.trials, { estimand: `${row.cfg.cfgId}: fraction of trials catching (cp)` }),
+    cpCount: row.cp,
   })).sort((x, y) => y.cpRate - x.cpRate);
-  const bRankingGuard = rankingValidityResult(bRanked.map((r) => r.cpRate), { topN: 20, support: bRanked.map((r) => r.trials) });
-  const bTopTie = equivalenceClassAtTop(bRanked, (r) => r.cpRate, (r) => ({
-    restAngleDeg: r.cfg.restAngleDeg, activeAngleDeg: r.cfg.activeAngleDeg, restitution: r.cfg.restitution,
-    inj: r.cfg.inj, pol: r.cfg.pol,
-  }));
+  // GUARD-MIGRATE (CUT-1 spec §7 item #10): the Stage B top-20, through selectTopN. Spec's own
+  // prediction: "expected unordered or heavily demoted — 105-way tie at the cut."
+  const bCut = selectTopN({
+    rows: bRanked, samples: (r) => synthBinary(r.cpCount, r.trials), estimator: meanOf01,
+    support: (r) => r.trials, n: 20, key: (r) => r.cfg.cfgId,
+  });
 
   // GUARD-MIGRATE (CUT-1 spec §7, item #11): sorted by `shotRate` for READABILITY — no code
   // path calls its top row "best" (the catch-vs-playability discussion below cites `maxShotRate`,
@@ -288,23 +353,27 @@ async function main() {
   const releaseRankingGuard = rankingValidityResult(releaseTable.map((r) => r.shotRate));
 
   // --- §8 item 3: the E1 decomposition — C0 vs C0b vs best pocket, as three headline numbers. ---
-  // LAB-28 (V5, cross-family review 2026-09-05): `bestCp` is the max of three ALREADY-RANKED
-  // top rows (a1Ranked[0], a2Ranked[0], bRanked[0]) — each fed a ranking guard above, but the
-  // guard was never re-consulted for the max taken across them, so a headline number could ride
-  // on a table whose own guard had already failed with nothing downstream noticing. The winning
-  // candidate's own guard verdict now travels with it.
+  // GUARD-MIGRATE: `bestCp` used to be the max of three tables' rank-1 rows regardless of
+  // whether each table's own guard passed (a warning flag rode alongside the number, but the
+  // number was published either way). Through selectTopN there is no such fallback: a
+  // candidate contributes ONLY if its own cut is `kind === 'ranked'` — a `banded`/`unordered`
+  // result has no `cut` field to read a value from (the anti-V2 mechanism the spec names in
+  // §5), so a table that cannot resolve even its own top-1/top-20 cannot contribute a "best"
+  // figure at all, rather than contributing one with an asterisk.
   const bestCandidates = [
-    { cp: a1Ranked[0]?.cp ?? null, guardOk: a1RankingGuard.ok, table: 'a1', topTie: a1TopTie },
-    { cp: a2Ranked[0]?.cp ?? null, guardOk: a2RankingGuard.ok, table: 'a2', topTie: a2TopTie },
-    { cp: bRanked[0]?.cpRate ?? null, guardOk: bRankingGuard.ok, table: 'b', topTie: bTopTie },
-  ].filter((c) => c.cp !== null);
+    { cut: a1Cut, table: 'a1' },
+    { cut: a2Cut, table: 'a2' },
+    { cut: bCut, table: 'b' },
+  ].filter((c) => c.cut.kind === 'ranked');
   const bestCandidate = bestCandidates.length
-    ? bestCandidates.reduce((best, c) => (c.cp > best.cp ? c : best))
+    ? bestCandidates.reduce((best, c) => (c.cut.cut[0].value > best.cut.cut[0].value ? c : best))
     : null;
-  const bestCp = bestCandidate?.cp ?? null;
-  const bestCpGuardOk = bestCandidate?.guardOk ?? false;
+  const bestCp = bestCandidate?.cut.cut[0].value ?? null;
+  // bestCpGuardOk / bestPocketCpGuardOk: kept as the field names V5's own regression test
+  // checks for (`test/writer-guard-fixes.test.mjs`) — meaning is now "a genuinely resolvable
+  // ranked result was found among the three tables", not "the old boundary-only guard passed".
+  const bestCpGuardOk = bestCandidate !== null;
   const bestCpTable = bestCandidate?.table ?? null;
-  const bestCpTopTie = bestCandidate?.topTie ?? null;
   // LAB-28 (V4): `?? 0` here made "no C0/C0b control data present" read identically to "measured
   // 0% cradle rate" — both an upstream wiring error (empty controls) and a genuinely clean
   // corpus produced the same number with no way for a reader to tell them apart. `null` is the
@@ -342,13 +411,13 @@ async function main() {
     },
     e1Decomposition: {
       c0Cp, c0bCp, bestPocketCp: bestCp, bestPocketCpGuardOk: bestCpGuardOk,
-      bestPocketCpTable: bestCpTable, bestPocketCpTopTie: bestCpTopTie,
+      bestPocketCpTable: bestCpTable,
       // MEASURED-3: C0/C0b are genuine single-population rates (the E1/E4 bare-arena controls)
       // and get sidecars. `bestPocketCp` deliberately does NOT — it is the max taken across
       // three different tables' rank-1 rows (an argmax/selection, same category measured.js's
-      // own docstring excludes: "max/min/argmax/best/knee... belong to selectTopN"), and its
-      // uncertainty is already carried by the equivalence-class tie (`bestPocketCpTopTie`
-      // above, RETIRE-REST §7) rather than a Wilson interval on a selected value.
+      // own docstring excludes: "max/min/argmax/best/knee... belong to selectTopN"). Its
+      // uncertainty is now carried by whichever table won (`summary.cuts[bestPocketCpTable]`)
+      // being a genuine `ranked` CutResult, not a Wilson interval on the selected value itself.
       c0CpM: a2Controls.C0 ? measuredRate(a2Controls.C0.cp, a2Controls.C0.trials, { estimand: 'E1 decomposition, C0 control: fraction of trials catching' }) : null,
       c0bCpM: a2Controls.C0b ? measuredRate(a2Controls.C0b.cp, a2Controls.C0b.trials, { estimand: 'E1 decomposition, C0b control: fraction of trials catching' }) : null,
     },
@@ -360,8 +429,13 @@ async function main() {
       grandTotalTrials: a1.meta.trialCount + a2.meta.trialCount + b.meta.trialCount + c.meta.trialCount,
     },
     pocketMap: heatmap,
-    rankedAssemblies: a2Ranked.slice(0, 20),
-    stageBRanked: bRanked.slice(0, 20).map((r) => ({
+    // GUARD-MIGRATE: these two now carry the FULL sorted POPULATION (CUT-1's own term for
+    // "every row, ranked, no claim of a validated cut"), not a pre-sliced top-20 — a `banded`
+    // result's top band can hold more than 20 rows (the 105-way-tie case does), and the
+    // markdown renderer needs every row a band might reference, joined back by key, not just
+    // the first 20. Display still slices to 15 rows at render time, below.
+    rankedAssemblies: a2Ranked,
+    stageBRanked: bRanked.map((r) => ({
       cfgId: r.cfg.cfgId, restAngleDeg: r.cfg.restAngleDeg, activeAngleDeg: r.cfg.activeAngleDeg,
       restitution: r.cfg.restitution, inj: r.cfg.inj, pol: r.cfg.pol, cpRate: r.cpRate, cpRateM: r.cpRateM, trials: r.trials,
     })),
@@ -377,23 +451,32 @@ async function main() {
     declaredPremise: a1.meta.declaredPremise ?? null,
     declaredPremiseStage: 'A1',
     declaredPremiseGate: { fraction: a1.meta.flaggedFractionExclStalled, ok: requireFlagGateOk(a1.meta.flagGateOk, 'e4Report (--a1 meta.json)') },
-    rankingGuard: { a1: a1RankingGuard, a2: a2RankingGuard, b: bRankingGuard, releaseDispersion: releaseRankingGuard },
-    // RETIRE-REST §7: the equivalence class at the top of each ranking guard's population — how
-    // many rows tie at the max value (out of how many), and which configuration fields are
-    // identical across every one of them. Computed over the full population each table is drawn
-    // from, not the top-N slice published below.
-    equivalenceClasses: { a1: a1TopTie, a2: a2TopTie, b: bTopTie },
+    // GUARD-MIGRATE (CUT-1 spec §7 items #8/#9/#10): the full CutResult for each of A1's top-1,
+    // A2's top-20 and Stage B's top-20 — `kind` is 'ranked'/'banded'/'unordered', `cut` exists
+    // only on 'ranked', `bands` only on 'banded', `population` always. Supersedes the old
+    // boundary-only ranking guard and the RETIRE-REST equivalence-class computation for these
+    // three tables (selectTopN's split-half stability check is strictly more informative: see
+    // `a2Cut`'s own comment above for a case it catches that the boundary check missed).
+    cuts: { a1: a1Cut, a2: a2Cut, b: bCut },
+    // Item #11 (release dispersion) is a display order, not a cut (GUARD-MIGRATE relabelling
+    // above) — its guard is an orthogonal integrity check, kept in its pre-existing shape.
+    rankingGuard: { releaseDispersion: releaseRankingGuard },
   };
 
   const rankingGuardFailures = Object.entries(summary.rankingGuard).filter(([, r]) => !r.ok);
-  if (rankingGuardFailures.length > 0) {
+  // GUARD-MIGRATE: a cut that demoted (banded/unordered) is the selectTopN equivalent of the
+  // old guard failing — checked alongside `rankingGuard` so the same loud-not-silent treatment
+  // covers both the migrated cuts and item #11's still-unmigrated display-order guard.
+  const cutDemotions = Object.entries(summary.cuts).filter(([, c]) => c.kind !== 'ranked');
+  if (rankingGuardFailures.length > 0 || cutDemotions.length > 0) {
     // LAB-16: loud, not silent — a table below whose header carries a ⚠ is degenerate ranking
     // input, reported per-table rather than blocking the whole multi-section report (the other
     // tables/metrics here are independently valid; §7's near-zero shot rate for Stage C is
     // already narrated in prose above the table it now also flags).
     console.error(JSON.stringify({
-      warning: 'LAB-16 ranking gate: one or more E4 tables cannot be trusted as an ordering',
-      failures: rankingGuardFailures.map(([k, r]) => ({ table: k, ...r })),
+      warning: 'LAB-16/CUT-1: one or more E4 tables cannot support the cut/ordering requested of them',
+      rankingGuardFailures: rankingGuardFailures.map(([k, r]) => ({ table: k, ...r })),
+      cutDemotions: cutDemotions.map(([k, c]) => ({ table: k, kind: c.kind, reason: c.reason ?? null, bandCount: c.bandCount ?? null })),
     }));
     // LAB-20: enforced, not merely recorded. This stays a WARNING rather than a block, unlike
     // stageA.js's cradle guard which refuses to write `selected-geometries.json` — the
@@ -430,6 +513,18 @@ function toPocketMapCsv(heatmap) {
   return lines.join('\n') + '\n';
 }
 
+/** GUARD-MIGRATE: reduces a selectTopN CutResult to the `{ok, n, reason}` shape
+ * `guardStatusLines` already renders — a1/a2/b now decide their status via selectTopN rather
+ * than a direct `rankingValidityResult` call, but the STATUS BLOCK'S rendering doesn't need to
+ * change to know that; it only ever needed a verdict and a reason. */
+export function cutAsGuard(cut) {
+  if (cut.kind === 'ranked') return { ok: true, n: cut.structural.n, reason: null };
+  const reason = cut.kind === 'banded'
+    ? `requested top-${cut.requestedN} not resolvable; demoted to ${cut.bandCount} stable band(s) instead (${cut.stability.rule})`
+    : cut.reason;
+  return { ok: false, n: cut.structural.n, reason };
+}
+
 /**
  * LAB-20: the status of every ranking guard, in one block, whatever the verdict.
  *
@@ -457,15 +552,26 @@ export function guardStatusLines(rankingGuard) {
   return lines;
 }
 
+// GUARD-MIGRATE: field extractors for the "what does this band share" question, matched to
+// the (different) shapes `summary.rankedAssemblies` (a2Ranked, nested `.guide`) and
+// `summary.stageBRanked` (already flattened) actually carry.
+const a2FieldsFromSummary = (r) => ({ gapX: r.guide.gapX, tiltDeg: r.guide.tiltDeg, endDy: r.guide.endDy, guideE: r.guide.guideE, radius: r.radius, feed: r.feed, post: r.post, outlaneW: r.outlaneW });
+const bFieldsFromSummary = (r) => ({ restAngleDeg: r.restAngleDeg, activeAngleDeg: r.activeAngleDeg, restitution: r.restitution, inj: r.inj, pol: r.pol });
+
 export function toMarkdown(summary, csvRelPath) {
   const lines = [];
+  const a2ByKey = new Map(summary.rankedAssemblies.map((r) => [r.cfgId, r]));
+  const bByKey = new Map(summary.stageBRanked.map((r) => [r.cfgId, r]));
   lines.push(`# E4 — LAB-6 the pocket (\`${summary.runId}\`)`);
   lines.push('');
   lines.push(`- **instrument commit**: \`${summary.instrumentCommitSha}\`  ·  **generated**: ${summary.generatedAt}`);
   lines.push(`- **grand total trials (A+B+C)**: ${summary.totals.grandTotalTrials}`);
   lines.push('');
 
-  lines.push(...guardStatusLines(summary.rankingGuard));
+  lines.push(...guardStatusLines({
+    a1: cutAsGuard(summary.cuts.a1), a2: cutAsGuard(summary.cuts.a2), b: cutAsGuard(summary.cuts.b),
+    ...summary.rankingGuard,
+  }));
 
   // LAB-22: A1's declared §2.7 premise, echoed where a reader will actually meet it.
   if (summary.declaredPremise) {
@@ -481,28 +587,37 @@ export function toMarkdown(summary, csvRelPath) {
 
   lines.push('## §8 item 3 — the E1 decomposition');
   lines.push('');
+  const bestWinningCut = summary.e1Decomposition.bestPocketCpGuardOk ? summary.cuts[summary.e1Decomposition.bestPocketCpTable] : null;
+  const bestTiedAtMax = bestWinningCut ? bestWinningCut.cut.filter((c) => c.value === bestWinningCut.cut[0].value).length : 0;
   lines.push(`| arm | cp |`);
   lines.push(`|---|---|`);
   lines.push(`| C0 (E1's bare arena, 2.0s window) | ${fmtCpM(summary.e1Decomposition.c0CpM)} |`);
   lines.push(`| C0b (bare arena, E4's 4.0s window) | ${fmtCpM(summary.e1Decomposition.c0bCpM)} |`);
-  lines.push(`| best pocket assembly | ${fmtPct(summary.e1Decomposition.bestPocketCp, 1)}${(summary.e1Decomposition.bestPocketCpGuardOk === false || summary.e1Decomposition.bestPocketCpTopTie?.tieCount > 1) ? ' ⚠' : ''}% |`);
+  lines.push(`| best pocket assembly | ${summary.e1Decomposition.bestPocketCpGuardOk ? `${fmtPct(summary.e1Decomposition.bestPocketCp, 1)}${bestTiedAtMax > 1 ? ' ⚠' : ''}%` : '— (see note below)'} |`);
   lines.push('');
   lines.push(`C0 reproduces LAB-2's near-zero cradle rate. C0b, at E4's longer 4.0s settle window, is ALSO near zero — so E1's null result was a geometry problem, not (primarily) a time-budget problem (§1.2's confound is resolved: geometry dominates).`);
   lines.push('');
-  // RETIRE-REST §7: gated on the tie itself (tieCount > 1), not on `bestPocketCpGuardOk` — that
-  // flag answers "is the top-20 CUT sound", which a plateau sitting strictly above the cut
-  // boundary can dodge while rank 1 is still an N-way tie (measured: A2's July 2026-09 corpus
-  // has its top-20 guard pass with a 15-way tie sitting inside it, untouched by the boundary
-  // check because the boundary itself falls below the plateau).
-  if (summary.e1Decomposition.bestPocketCpTopTie?.tieCount > 1) {
-    const tie = summary.e1Decomposition.bestPocketCpTopTie;
-    lines.push(`> ⚠ **"BEST" IS AN EQUIVALENCE CLASS, NOT A WINNER (LAB-16 gate)**: the ${fmtPct(tie.value, 1)}% ` +
-      `figure above is a **${tie.tieCount}-way tie** among the ${tie.total} rows in Stage \`${summary.e1Decomposition.bestPocketCpTable}\`'s ` +
-      `full population — no test can order these ${tie.tieCount} rows against each other. Shared across all of them: ` +
-      `${sharedFieldsText(tie.shared)}.${tie.varies.length ? ` They differ on: ${tie.varies.join(', ')}.` : ''} ` +
-      'The number is real; the implied "this one is best" is not.');
-    lines.push('');
+  // GUARD-MIGRATE: through selectTopN, a candidate contributes to "best pocket assembly" ONLY
+  // if its own table's cut is `kind === 'ranked'` — there is no `cut` field to read a value
+  // from on a demoted result (the anti-V2 mechanism CUT-1's spec §5 describes), so a genuinely
+  // unresolvable set of three tables now publishes NO figure here at all, rather than the max
+  // of three insertion-order top rows dressed up as a finding.
+  if (summary.e1Decomposition.bestPocketCpGuardOk) {
+    if (bestTiedAtMax > 1) {
+      lines.push(`> ⚠ **THIS FIGURE IS AN EXACT TIE, NOT A CONFIRMED WINNER**: Stage \`${summary.e1Decomposition.bestPocketCpTable}\`'s ` +
+        `cut reports \`ranked\`, but **${bestTiedAtMax} rows tie at exactly this value** — a boundary value split-half ` +
+        'resampling has no power to distinguish (see that table\'s section below for what those rows share).');
+    } else {
+      lines.push(`> This figure is Stage \`${summary.e1Decomposition.bestPocketCpTable}\`'s own top-N cut, which DID resolve (selectTopN, ` +
+        'split-half stability check passed) — see the ranking guard status above and that table\'s section below for the full population.');
+    }
+  } else {
+    lines.push('> ⚠ **NO "BEST" IS PUBLISHABLE (CUT-1)**: none of A1\'s top-1, A2\'s top-20 or Stage B\'s ' +
+      'top-20 resolved a stable cut at this budget (see the ranking guard status above) — a "best pocket ' +
+      'assembly" figure would be insertion order dressed up as a finding. Each table\'s own population/bands ' +
+      'are still published below and in `summary.cuts`.');
   }
+  lines.push('');
 
   lines.push('## §8 item 1 — the pocket map (gapX x activeAngle, Stage B)');
   lines.push('');
@@ -517,15 +632,9 @@ export function toMarkdown(summary, csvRelPath) {
 
   lines.push('## §8 item 2 — ranked assembly table (top rows, Stage A2)');
   lines.push('');
-  if (!summary.rankingGuard.a2.ok) {
-    const tie = summary.equivalenceClasses.a2;
-    lines.push(`> ⚠ **RANKING INVALID (LAB-16 gate)**: \`cp\` cannot rank the full ${summary.rankingGuard.a2.n}-assembly ` +
-      `A2 population — ${summary.rankingGuard.a2.reason}. Rows below are shown for reference only; their order ` +
-      'is not a performance signal.' +
-      (tie ? ` **${tie.tieCount} of ${tie.total} assemblies tie at cp = ${fmtPct(tie.value, 1)}%**, sharing ` +
-        `${sharedFieldsText(tie.shared)}${tie.varies.length ? ` and differing on ${tie.varies.join(', ')}` : ''} — ` +
-        'nothing orders those tied rows relative to each other, including the one shown first below.' : ''));
-    lines.push('');
+  {
+    const note = cutStatusNote(summary.cuts.a2, a2ByKey, a2FieldsFromSummary, 'assembly');
+    if (note) { lines.push(note); lines.push(''); }
   }
   lines.push('| gapX | tilt° | endDy | guideE | radius | feed | post | outlaneW | cp | cr | ct | cv | median st | fastCradle | median bn |');
   lines.push('|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|');
@@ -539,14 +648,9 @@ export function toMarkdown(summary, csvRelPath) {
 
   lines.push('## Stage B — flipper geometry / delivery / policy ranking (top rows)');
   lines.push('');
-  if (!summary.rankingGuard.b.ok) {
-    const tie = summary.equivalenceClasses.b;
-    lines.push(`> ⚠ **RANKING INVALID (LAB-16 gate)**: \`cp\` cannot rank the full ${summary.rankingGuard.b.n}-cfg ` +
-      `Stage B population — ${summary.rankingGuard.b.reason}. Rows below are shown for reference only.` +
-      (tie ? ` **${tie.tieCount} of ${tie.total} cfgs tie at cp = ${fmtPct(tie.value, 1)}%**, sharing ` +
-        `${sharedFieldsText(tie.shared)}${tie.varies.length ? ` and differing on ${tie.varies.join(', ')}` : ''} — ` +
-        'nothing orders those tied rows relative to each other, including the one shown first below.' : ''));
-    lines.push('');
+  {
+    const note = cutStatusNote(summary.cuts.b, bByKey, bFieldsFromSummary, 'cfg');
+    if (note) { lines.push(note); lines.push(''); }
   }
   lines.push('| rest° | active° | e_flip | inj | pol | cp | trials |');
   lines.push('|---|---|---|---|---|---|---|');
@@ -602,20 +706,41 @@ export function toMarkdown(summary, csvRelPath) {
 
   lines.push('## §8 item 7 — recommendation');
   lines.push('');
-  // RETIRE-REST §7: this paragraph used to name `rankedAssemblies[0]`/`stageBRanked[0]` as THE
-  // recommended geometry — one row picked by insertion order out of a tie the ranking guard
-  // above already marked unorderable. Rewritten to recommend the equivalence class instead: the
-  // fields every tied row shares are a real, supportable recommendation; the fields that vary
-  // within the tie are named as arbitrary picks, not preferred settings.
-  const a2Tie = summary.equivalenceClasses.a2;
-  const bTie = summary.equivalenceClasses.b;
-  const top = summary.rankedAssemblies[0];
-  const topB = summary.stageBRanked[0];
-  lines.push(`**Pocket geometry**: \`cp\` is a **${a2Tie ? `${a2Tie.tieCount}-way tie` : 'single value'} at ${fmtPct(a2Tie?.value ?? top?.cp, 1)}%** among Stage A2's ${a2Tie?.total ?? summary.rankedAssemblies.length} assemblies (§8 item 2) — no test orders them against each other. Shared across every tied assembly: ${a2Tie ? sharedFieldsText(a2Tie.shared) : '—'}${a2Tie?.varies.length ? `; they differ on ${a2Tie.varies.join(', ')} — any one row's value there is an arbitrary pick within the tie, not a preferred setting` : ''}. ` +
-    `**Flipper**: \`cp\` is a **${bTie ? `${bTie.tieCount}-way tie` : 'single value'} at ${fmtPct(bTie?.value ?? topB?.cpRate, 1)}%** among Stage B's ${bTie?.total ?? summary.stageBRanked.length} cfgs — shared across every tied cfg: ${bTie ? sharedFieldsText(bTie.shared) : '—'}${bTie?.varies.length ? `; they differ on ${bTie.varies.join(', ')}` : ''}. ` +
-    `**W2 (feed rail)**: earns its place only marginally — every A2 assembly tied at the top landed with feed OFF; inlane delivery mostly failed the §2.5 injection-clearance check against the very guide it needs to feed toward (see Delegation/handoff for the exclusion count), so the honest recommendation is a bare drop delivery, not an inlane rail, until W2's own geometry is re-tuned narrower. **W3 (tip post)**: appears in roughly half the tied-top assemblies without changing cp materially (H9's own prediction — a skitter/dsl effect, not a catch-rate one). **W4 (outlane divider)**: appears in EVERY tied-top assembly at outlaneW=0.030m — the clearest single addition beyond the guide itself. ` +
+  // GUARD-MIGRATE: this paragraph used to name `rankedAssemblies[0]`/`stageBRanked[0]` as THE
+  // recommended geometry (RETIRE-REST §7 already rewrote it once, from a bare insertion-order
+  // pick to a tie description). Now describes whatever selectTopN actually found: a genuine
+  // single winner (`ranked`), the shared fields of a demoted top band (`banded`), or — if
+  // nothing orders at all — that no specific configuration is recommendable from that table.
+  function describeCut(cut, byKeyMap, fieldsFn, label, total) {
+    if (cut.kind === 'ranked') {
+      const maxVal = cut.cut[0].value;
+      const tiedAtMax = cut.cut.filter((c) => c.value === maxVal).length;
+      if (tiedAtMax > 1) {
+        // See cutStatusNote's comment: an exact tie at a rate estimator's boundary passes
+        // split-half stability trivially, because there is no variance for resampling to
+        // disturb — this is a top BAND, not a confirmed single winner, even though the cut
+        // itself reports `ranked`.
+        const { shared, varies } = sharedFieldsAcrossRows(cut.cut.slice(0, tiedAtMax).map((c) => byKeyMap.get(c.key)), fieldsFn);
+        return `\`cp\` reports \`ranked\`, but the top **${tiedAtMax} of ${cut.cut.length} rows tie at EXACTLY ${fmtPct(maxVal, 1)}%** ` +
+          `(a boundary value split-half resampling cannot distinguish, see note above) among ${total} ${label}(s) — shared across all of them: ` +
+          `${sharedFieldsText(shared)}${varies.length ? `; they differ on ${varies.join(', ')} — an arbitrary pick within the tie` : ''}.`;
+      }
+      const row = byKeyMap.get(cut.cut[0].key);
+      const { shared } = sharedFieldsAcrossRows([row], fieldsFn);
+      return `\`cp\` resolves to a **genuine top pick at ${fmtPct(cut.cut[0].value, 1)}%** among ${total} ${label}(s) (selectTopN, stability confirmed) — ${sharedFieldsText(shared)}.`;
+    }
+    if (cut.kind === 'banded') {
+      const topBand = cut.bands[0];
+      const { shared, varies } = sharedFieldsAcrossRows(topBand.map((b) => byKeyMap.get(b.key)), fieldsFn);
+      return `\`cp\` demotes to a **${topBand.length}-row top band at up to ${fmtPct(topBand[0].value, 1)}%** among ${total} ${label}(s) — no test orders those rows against each other. Shared across the whole band: ${sharedFieldsText(shared)}${varies.length ? `; they differ on ${varies.join(', ')} — any one row's value there is an arbitrary pick within the band, not a preferred setting` : ''}.`;
+    }
+    return `\`cp\` cannot order these ${total} ${label}(s) at all (selectTopN: unordered) — no specific configuration is recommendable from this table; see its population above.`;
+  }
+  lines.push(`**Pocket geometry**: ${describeCut(summary.cuts.a2, a2ByKey, a2FieldsFromSummary, 'assembly', summary.cuts.a2.structural.n)} ` +
+    `**Flipper**: ${describeCut(summary.cuts.b, bByKey, bFieldsFromSummary, 'cfg', summary.cuts.b.structural.n)} ` +
+    `**W2 (feed rail)**: earns its place only marginally — the A2 population's top band lands with feed OFF; inlane delivery mostly failed the §2.5 injection-clearance check against the very guide it needs to feed toward (see Delegation/handoff for the exclusion count), so the honest recommendation is a bare drop delivery, not an inlane rail, until W2's own geometry is re-tuned narrower. **W3 (tip post)**: appears in roughly half the top-band assemblies without changing cp materially (H9's own prediction — a skitter/dsl effect, not a catch-rate one). **W4 (outlane divider)**: appears in EVERY top-band assembly at outlaneW=0.030m — the clearest single addition beyond the guide itself. ` +
     `**V-trap caveat**: any machine #2 recommendation at a wide (more upright) rest angle should still pair with a centre post per §1.3/H7 above, even though a real W1 pocket sharply reduces how often the trap is actually reached. ` +
-    `**Catch-vs-playability caveat (§8 item 4)**: the shared configuration above reaches the maximum measured \`cp\`, and Stage C shows the maximum-cp assemblies are near-dead traps (<0.12% shot rate) — if machine #2 wants a LIVE cradle rather than a permanent one, start from §8 item 2's shared configuration but prefer a lower-\`cp\`/higher-\`hsS\` row, not any single row from the tied set as written here.`);
+    `**Catch-vs-playability caveat (§8 item 4)**: the configuration(s) above reach the maximum measured \`cp\`, and Stage C shows the maximum-cp assemblies are near-dead traps (<0.12% shot rate) — if machine #2 wants a LIVE cradle rather than a permanent one, start from §8 item 2's population but prefer a lower-\`cp\`/higher-\`hsS\` row, not any single row from the top group as written here.`);
   lines.push('');
 
   return lines.join('\n');
