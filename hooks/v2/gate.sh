@@ -1,5 +1,12 @@
 #!/usr/bin/env bash
-set -u; source "$(dirname "${BASH_SOURCE[0]}")/_lib.sh"
+set -u
+# FLEET-FIX item 2: this is the one hook that must hard-refuse rather than degrade when jq is
+# missing -- it has no PermissionRequest-style fallthrough to a live human prompt (a PreToolUse
+# hook has ~3s and no operator to wait for, per this file's own comment below), so "no policy
+# decision possible" has to mean "block", not "allow through". See _lib.sh's own comment on
+# HOOK_FAILS_CLOSED for why the other three hooks don't set this.
+HOOK_FAILS_CLOSED=1
+source "$(dirname "${BASH_SOURCE[0]}")/_lib.sh"
 [ -n "$THREAD" ] || exit 0
 TOOL="$(jf .tool_name)"
 block() { ledger gate block "$1"; echo "$1" >&2; exit 2; }
@@ -47,8 +54,21 @@ PY
   # and `rm`/`git push`. PreToolUse does fire on all tiers: ask the same policy
   # (fleet.prompts.decide_auto) here and refuse the deny class. Escalation is
   # deliberately NOT done here - a hook has 3 s and no operator to wait for.
-  if [ -n "$CMD" ] && [ "$("$FLEET" perm-check "$CMD" 2>/dev/null || echo ok)" = "deny" ]; then
-    block "fleet perm policy denies this command; ask the operator instead: $CMD"
+  #
+  # FLEET-FIX item 3: was `"$FLEET" perm-check "$CMD" 2>/dev/null || echo ok` -- a crashed
+  # perm-check (bad python, a broken bin/fleet, anything) silently read as "ok", the ONE path
+  # in this hook set that failed open rather than closed. `perm-check` itself always exits 0
+  # on a real answer (both "deny" and "ok" `return 0` in cmd_perm_check) and prints to
+  # stdout, so a non-zero exit here is unambiguous: perm-check itself broke, not "it
+  # answered ok". Captured separately from the exit check so this can't repeat the same
+  # `$(... || fallback)` shape that caused the original bug.
+  if [ -n "$CMD" ]; then
+    PC_OUT="$("$FLEET" perm-check "$CMD" 2>/dev/null)"; PC_RC=$?
+    if [ "$PC_RC" -ne 0 ]; then
+      block "fleet perm-check failed (exit $PC_RC) - refusing rather than silently allowing: $CMD"
+    elif [ "$PC_OUT" = "deny" ]; then
+      block "fleet perm policy denies this command; ask the operator instead: $CMD"
+    fi
   fi
 fi
 ledger gate allow ok; exit 0

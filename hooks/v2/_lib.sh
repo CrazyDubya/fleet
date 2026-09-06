@@ -3,7 +3,37 @@
 FLEET_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 FLEET="$FLEET_ROOT/bin/fleet"
 export FLEET_PROFILE="${FLEET_PROFILE:-v2}"
-command -v jq >/dev/null 2>&1 || exit 0
+# THREAD/ledger() are defined BEFORE the jq check below on purpose (FLEET-FIX item 2). Every
+# hook used to exit right here, silently, if jq was missing from PATH -- before ledger() even
+# existed to log it. That made a missing jq indistinguishable from a quiet night: all four
+# hooks going dark at once, with zero trace. THREAD is unresolved this early (resolving it
+# needs jq itself, below), so an unavailability event logs against "?" -- still a real ledger
+# line, which is the whole point.
+THREAD=""
+T0=$(python3 -c 'import time;print(int(time.time()*1000))')
+ledger() { # hook decision why...
+  local ms=$(( $(python3 -c 'import time;print(int(time.time()*1000))') - T0 ))
+  "$FLEET" hook-event "$1" "${THREAD:-?}" "$2" "$ms" "${@:3}" >/dev/null 2>&1 || true
+}
+if ! command -v jq >/dev/null 2>&1; then
+  ledger "$(basename "$0" .sh)" unavailable "jq missing from PATH"
+  # HOOK_FAILS_CLOSED=1, set by gate.sh before sourcing this file: a missing jq means no
+  # policy decision is possible, and per the operator's own rule, no decision must not read
+  # as yes -- gate.sh has no PermissionRequest-style fallthrough to a live human prompt (a
+  # PreToolUse hook has ~3s and no operator to wait for, per gate.sh's own comment), so it
+  # hard-blocks instead. Every other hook's own natural "no jq, exit 0" path already fails
+  # toward a real decision rather than a silent yes: perm.sh's exit 0 here means NO
+  # PermissionRequest JSON is emitted, which defers to Claude Code's own interactive
+  # permission prompt (the same place its `escalate-timeout` branch already falls through
+  # to) -- not a silent allow. hold.sh/router.sh degrading to "allow through" here is the
+  # operator's explicit call (workflow hygiene and a cosmetic routing convenience,
+  # respectively) -- logged now, not silent, which is the actual fix for those two.
+  if [ "${HOOK_FAILS_CLOSED:-0}" = "1" ]; then
+    echo "$(basename "$0" .sh): jq unavailable -- refusing rather than silently allowing" >&2
+    exit 2
+  fi
+  exit 0
+fi
 # Claude Code always pipes the hook payload in on stdin, so stdin is never a
 # TTY here. Running one of these scripts by hand from a terminal is the only
 # way it can be, and then `cat` blocks forever waiting for an EOF the operator
@@ -12,7 +42,6 @@ command -v jq >/dev/null 2>&1 || exit 0
 PAYLOAD="$(cat 2>/dev/null || true)"
 jf() { printf '%s' "$PAYLOAD" | jq -r "$1 // empty" 2>/dev/null || true; }
 CWD="$(jf .cwd)"
-THREAD=""
 TRANSCRIPT_PATH="$(jf .transcript_path)"
 # Primary: ask the registry which thread owns this session. session_id is the
 # transcript's basename and is unique per thread, so this is exact and works
@@ -44,8 +73,3 @@ fi
 if [ -z "$THREAD" ]; then
   case "$CWD" in "$FLEET_ROOT"/*) THREAD="${CWD#"$FLEET_ROOT"/}"; THREAD="${THREAD%%/*}";; esac
 fi
-T0=$(python3 -c 'import time;print(int(time.time()*1000))')
-ledger() { # hook decision why...
-  local ms=$(( $(python3 -c 'import time;print(int(time.time()*1000))') - T0 ))
-  "$FLEET" hook-event "$1" "${THREAD:-?}" "$2" "$ms" "${@:3}" >/dev/null 2>&1 || true
-}
