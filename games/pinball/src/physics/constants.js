@@ -71,6 +71,20 @@ export const KICKBACK_SPEED = 3.0;
 // past) — the super skill shot's physical path survives. A full pull, launched perfectly
 // centred, actually landed IN the sandbox in that same test — real evidence the field is
 // reachable with energy to spare, not just barely.
+//
+// PLUNGER-RECHECK (2026-09-06, after GRAVITY-ROLL corrected gravityForPitch to 5/7 of the
+// value this constant was tuned against): re-measured both ends in a headless harness against
+// the real solver, with recess.buildWalls() in play — not by scaling 2.7 by 7/5, since drag is
+// not linear in gravity and the weak-tap floor is a hard threshold, not a formula. Weak tap
+// (0.6 x 2.7 = 1.62 m/s) crosses LANE_TOP_Y at 0.99 m/s, MORE margin than under the old
+// gravity (weaker gravity helps a slow climb, not hurts it) — the constraint this value was
+// solved against only got easier. Full pull now arrives at LANE_TOP_Y at 2.32 m/s (was
+// 2.10 m/s under the old gravity, +10.5%) — more energetic, as expected, since weaker gravity
+// costs the ball less on the way up — but the lane-top deflector caps the ball's vertical
+// excursion at the same ~1.025m regardless (both runs measured maxY 1.0245-1.0246m with real
+// walls in place), so the extra energy becomes a livelier field shot after redirection, not an
+// unbounded "off the top" rocket — nowhere near the original bug's 4.7 m/s. Confirmed: 2.7
+// still satisfies both ends under corrected gravity; not changed.
 export const PLUNGER_MAX_SPEED = 2.7;
 export const NUDGE_IMPULSE = 0.35;
 export const GATE_ONE_WAY_THRESHOLD = 0.2;
