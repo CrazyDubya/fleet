@@ -190,6 +190,9 @@ async function main() {
     radius: r.radius, feed: r.feed, post: r.post, outlaneW: r.outlaneW,
   }));
 
+  // GUARD-MIGRATE (CUT-1 spec §7, item #12): the pocket-map heatmap below is a GRID, sorted by
+  // (gapX, activeAngle) for layout, not by cp — no cell is ever called "best", each carries its
+  // own trials/cpRateM, so this is `population` in CUT-1's terms, never a cut candidate.
   // --- Stage B: the (gapX x activeAngle) pocket-map heatmap, cv-vs-restAngle (§1.3/H7),
   // release-independent ranking by cp. ---
   const heatmapCells = new Map(); // "gapX|activeAngle" -> {trials, cp}
@@ -247,6 +250,12 @@ async function main() {
     inj: r.cfg.inj, pol: r.cfg.pol,
   }));
 
+  // GUARD-MIGRATE (CUT-1 spec §7, item #11): sorted by `shotRate` for READABILITY — no code
+  // path calls its top row "best" (the catch-vs-playability discussion below cites `maxShotRate`,
+  // a separate argmax, deliberately excluded from selectTopN/Measured — see MEASURED-3's own
+  // note at that site). `releaseRankingGuard` stays as an extra integrity check on the whole
+  // population's orderability (not a topN cut), which is compatible with — not a substitute for
+  // — this being a display order rather than a cut.
   // --- Stage C: release dispersion (§5.4) per assembly, rel mix, controls. ---
   const cByAssembly = new Map(); // baseAssemblyId -> {rxaVals, relCounts, trials}
   const cControls = { C0: null, C0b: null, C1: null };

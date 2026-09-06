@@ -665,11 +665,16 @@ function toMarkdown(summary, best) {
 
   lines.push('## Transfer function');
   lines.push('');
+  // GUARD-MIGRATE (CUT-1 spec §7, item #5): sorted by SAMPLE COUNT (`n`), not by an estimated
+  // value — a bin with more trials has no sampling error advantage over one with fewer in the
+  // relevant sense, so this is a display order, not a cut, and does not go through
+  // `selectTopN`. Said plainly rather than left to be inferred from "best-populated".
   lines.push(`Binned \`(hs x phase x vi x ai) -> (vo, ao)\` table (${summary.transferFunction.bins.hs} x ` +
     `${summary.transferFunction.bins.phase.length} x ${summary.transferFunction.bins.vi.count} x ` +
     `${summary.transferFunction.bins.ai.count} bins), ${summary.transferFunction.table.length} populated bins ` +
     `out of a possible ${summary.transferFunction.bins.hs * summary.transferFunction.bins.phase.length * summary.transferFunction.bins.vi.count * summary.transferFunction.bins.ai.count} — ` +
-    `full table in the JSON summary; the ${Math.min(20, summary.transferFunction.table.length)} best-populated bins:`);
+    `full table in the JSON summary; the ${Math.min(20, summary.transferFunction.table.length)} bins with the most ` +
+    `trials (sorted by sample count \`n\`, not a ranking of any estimated value — no cut is being claimed here):`);
   lines.push('');
   lines.push('| hs bin | phase | vi bin (m/s) | ai bin (deg) | n | vo mean±sd | ao mean±sd |');
   lines.push('|---|---|---|---|---|---|---|');

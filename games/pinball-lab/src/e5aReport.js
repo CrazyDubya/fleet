@@ -128,6 +128,10 @@ async function main() {
     retrapRateM: measuredRate(row.retrap, row.trials, { estimand: 'fraction of trials releasing as a retrap' }),
     drainRateM: measuredRate(row.drain, row.trials, { estimand: 'fraction of trials releasing as a drain' }),
     measuredHsSMean: row.measuredHsSVals.length ? mean(row.measuredHsSVals) : null,
+    // GUARD-MIGRATE (CUT-1 spec §7, item #13): sorted by `hsSRaw` below, an ANALYTIC quantity
+    // computed from geometry, not estimated from trials — an axis order for the "deciding
+    // curve" table, never a cut. `samples: ANALYTIC` is the shape this would take if it ever
+    // went through selectTopN, but nothing here claims a top row is "best" on this axis.
   })).sort((a, b) => a.hsSRaw - b.hsSRaw);
 
   // RETIRE-ALL §6 (ledger/handoffs/opus2/20260905T201139Z-decisions.md): `pearsonR` is RETIRED
