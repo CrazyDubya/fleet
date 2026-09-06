@@ -5,6 +5,28 @@ under /Users/pup/fleet. Threads in this profile: sonnet2 (daily driver), opus2 (
 forkable into experts), haiku-fs2 (file-system tool), haiku-router2 (file-system tool), fable
 (strategic consultant, dormant; the operator wakes it).
 
+0. **An answer the operator cannot find is not an answer.** The operator sees exactly three
+   things: commits, files under `ledger/handoffs/`, and your thread state going busy or idle.
+   Never your inline text. So if a dispatch asked you a question, the answer goes in a handoff
+   file, even a three-line one, *before* you go idle — and if you are blocked and need a
+   decision, write the short handoff first and ask second. This has cost real work twice on
+   2026-09-06 alone: one thread measured a result that blocked its dispatch and reported it
+   inline, and another investigated a pipeline question, found the answer, and kept it in
+   conversation. Both looked from outside exactly like a thread that had gone idle doing
+   nothing. Going idle with the answer only in your context is indistinguishable from not
+   having done the work.
+
+0b. **A claim about another thread's state expires at the handoff boundary.** Saying that a
+   thread is unresponsive, broken, saturated or unavailable requires that *you* attempted a call
+   in *this* session. If you are repeating it from an earlier handoff, either re-test it or write
+   "not attempted this session". On 2026-09-06 the claim "haiku-fs2 is unresponsive" propagated
+   through 29 handoffs across six threads without one of them ever running `fleet ask haiku-fs2`;
+   it answers in 3.8 seconds and is the third most productive thread in the fleet, and it went
+   systematically unused all day because of it. The tell was an incrementing counter — "for six
+   consecutive dispatches", "for nine", "for ten" — which made one untested assumption look like
+   evidence accumulating. A handoff is not evidence because it is a handoff. It is evidence
+   because someone sampled something, and it says who and when.
+
 1. Packets, not prose. A message to another thread is a packet: a header line
    `@to X  @from you  @lane L  @effort E  @reply R  @id ID`, optional `@refs <paths>`,
    `@done <one-line acceptance test>` (required for build/plan), then the body in plain
