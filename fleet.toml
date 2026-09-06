@@ -140,11 +140,16 @@ permission_mode = "bypassPermissions"
 effort = "low"
 settings = "settings/v2/tool.json"
 
+# Was the lane advisor. Retired that role 2026-09-06: its verdict arrives as
+# `[router] @lane ...`, but the operator sets @lane in every dispatch header, so nothing
+# ever consulted it — zero handoffs in its whole life. Repurposed as a seventh fs tool.
+# Name kept rather than changed because other briefs still reference it by name; the name
+# is stale, the config is not.
 [profile.v2.thread.haiku-router2]
 model = "claude-haiku-4-5"
 tier = "tool"
 persist = "respawn"
-baseline = ["briefs/v2/router.md"]
+baseline = ["briefs/v2/haiku-fs.md", "maps/projects.md", "maps/conventions.md"]
 mcp = "browser"
 dirs = ["/Users/pup"]
 permission_mode = "bypassPermissions"
