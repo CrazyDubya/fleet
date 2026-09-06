@@ -30,7 +30,21 @@ for proj in pinball pinball-lab pinball-sandbox; do
   out="$(cd "$proj" && node --test 2>&1)"
   rc=$?
   line="$(printf '%s\n' "$out" | grep -E '^. (pass|fail|skipped) ' | tr -d '\n' | tr -s ' ')"
-  if [ "$rc" -eq 0 ]; then
+  # Liveness, not just safety. `node --test` that discovers no files exits 0 and reports
+  # "pass 0 fail 0" — so a renamed directory, a broken glob, or a runner that stopped
+  # finding tests reads exactly like a clean run. Verified 2026-09-06: three empty dirs
+  # through this script printed "VERDICT: all suites passed" and exit 0.
+  #
+  # Every failure condition above is existential ("did anything fail?"), and an empty set
+  # satisfies all of them. This is the one conjunct that requires something to have
+  # happened, so a suite that vanished cannot pass by having nothing to fail on.
+  passed="$(printf '%s\n' "$out" | sed -n 's/^. pass \([0-9][0-9]*\).*/\1/p' | head -1)"
+  if [ "$rc" -eq 0 ] && [ "${passed:-0}" -eq 0 ]; then
+    status=1
+    printf '%-18s FAIL  %s  <- ran zero tests\n' "$proj" "$line"
+    printf '    node --test exited 0 but collected nothing. The suite did not pass; it did\n'
+    printf '    not run. Check the directory, the test glob, and that files still match.\n'
+  elif [ "$rc" -eq 0 ]; then
     printf '%-18s OK    %s\n' "$proj" "$line"
   else
     status=1
