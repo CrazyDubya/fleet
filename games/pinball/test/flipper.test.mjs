@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { createFlipper, setActive, updateFlipper, flipperEntry, isFlipperMoving, FLIPPER_SUBSTEPS } from '../src/physics/flipper.js';
 import { stepBall } from '../src/physics/solver.js';
 import { length } from '../src/physics/vec2.js';
-import { E_FLIPPER, FLIPPER, MU, K_DRAG, STEP_DT, gravityForPitch } from '../src/physics/constants.js';
+import { E_FLIPPER, FLIPPER, MU, K_DRAG, STEP_DT, MAX_IMPACTS, BALL_RADIUS, gravityForPitch } from '../src/physics/constants.js';
+import { LEFT_FLIPPER_PIVOT } from '../src/table/recess.js';
 
 // GRAVITY-ROLL audit (operator, FLIPPER-EXIT-ADDENDUM): this file held its own copy of gravity
 // (`{ x: 0, y: -1.11 }`, the OLD sliding-point-mass value) at three sites instead of importing
@@ -14,7 +15,10 @@ const GRAVITY = gravityForPitch();
 
 function makeLowerLeftFlipper(eFlipper = E_FLIPPER, upMs = FLIPPER.lower.upMs) {
   return createFlipper({
-    pivot: { x: -0.078, y: 0.105 },
+    // CONST-IMPORT: was the literal { x: -0.078, y: 0.105 }, a silent copy of the real
+    // LEFT_FLIPPER_PIVOT — pivot position drives every exit-speed measurement in this file, so
+    // a stale copy here would have quietly kept characterising a flipper that no longer exists.
+    pivot: LEFT_FLIPPER_PIVOT,
     length: FLIPPER.lower.length,
     radius: 0.012,
     restAngleDeg: FLIPPER.lower.restAngle,
@@ -42,10 +46,10 @@ function flipAndMeasure(flipper, alongLengthFraction, substepOverride = FLIPPER_
   // Outward normal at this point on the shaft (perpendicular to the flipper's length).
   const nx = -Math.sin(restRad);
   const ny = Math.cos(restRad);
-  const ballRadius = 0.0135;
+  const ballRadius = BALL_RADIUS; // CONST-IMPORT: was the literal 0.0135
   const clearance = ballRadius + flipper.radius + 0.0005;
   const ball = { pos: { x: contact.x + nx * clearance, y: contact.y + ny * clearance }, vel: { x: 0, y: 0 }, radius: ballRadius };
-  const tuning = { mu: MU, kDrag: K_DRAG, maxImpacts: 8 };
+  const tuning = { mu: MU, kDrag: K_DRAG, maxImpacts: MAX_IMPACTS };
 
   setActive(flipper, true);
   let maxSpeed = 0;
@@ -199,10 +203,10 @@ test('CHARACTERISATION: separation speed and contact count in the single-impact 
   const along = flipper.length;
   const contact = { x: flipper.pivot.x + Math.cos(restRad) * along, y: flipper.pivot.y + Math.sin(restRad) * along };
   const nx = -Math.sin(restRad), ny = Math.cos(restRad);
-  const ballRadius = 0.0135;
+  const ballRadius = BALL_RADIUS; // CONST-IMPORT: was the literal 0.0135
   const clearance = ballRadius + flipper.radius + 0.0005;
   const ball = { pos: { x: contact.x + nx * clearance, y: contact.y + ny * clearance }, vel: { x: 0, y: 0 }, radius: ballRadius };
-  const tuning = { mu: MU, kDrag: K_DRAG, maxImpacts: 8 };
+  const tuning = { mu: MU, kDrag: K_DRAG, maxImpacts: MAX_IMPACTS };
 
   setActive(flipper, true);
   let peak = 0, contacts = 0;
@@ -313,12 +317,12 @@ test('a flipped ball leaves within the design doc\'s 4.5-6.0 m/s range (BOTH bou
 test('a ball cannot pass through a flipper mid-sweep at high approach speed', () => {
   const flipper = makeLowerLeftFlipper();
   setActive(flipper, false);
-  const tuning = { mu: MU, kDrag: 0, maxImpacts: 8 };
+  const tuning = { mu: MU, kDrag: 0, maxImpacts: MAX_IMPACTS };
 
   // Ball fired straight down through where the flipper capsule sits, at high speed,
   // while the flipper is mid-sweep (activating).
   setActive(flipper, true);
-  const ball = { pos: { x: flipper.pivot.x + 0.03, y: flipper.pivot.y + 0.2 }, vel: { x: 0, y: -15 }, radius: 0.0135 };
+  const ball = { pos: { x: flipper.pivot.x + 0.03, y: flipper.pivot.y + 0.2 }, vel: { x: 0, y: -15 }, radius: BALL_RADIUS /* CONST-IMPORT: was 0.0135 */ };
 
   let below = false;
   for (let i = 0; i < 60; i++) {

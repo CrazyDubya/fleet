@@ -6,7 +6,10 @@
 // because the declared success path never checks.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { lineIntersect, offsetPolylineMitered } from '../src/table/recess.js';
+import {
+  lineIntersect, offsetPolylineMitered,
+  HALF_WIDTH, APRON_TOP_Y, APRON_MID_X, APRON_MID_Y, APRON_NECK_X, APRON_NECK_Y, OUTLANE_WIDTH,
+} from '../src/table/recess.js';
 
 test('lineIntersect returns null on collinear input instead of NaN', () => {
   // Two collinear segments on the same line y=0 — denom is exactly 0.
@@ -64,8 +67,17 @@ test('offsetPolylineMitered still mitres normally (no warning) for an ordinary a
   console.warn = (...args) => warnings.push(args.join(' '));
   let result;
   try {
-    // Real apron shape: two angled runs, per recess.js's own APRON_TOP/APRON_MID/APRON_NECK.
-    result = offsetPolylineMitered({ x: -0.257, y: 0.3 }, { x: -0.205, y: 0.12 }, { x: -0.15, y: 0.02 }, 0.0405);
+    // CONST-IMPORT: was the literals -0.257/0.3/-0.205/0.12/-0.15/0.02/0.0405 — a hand-copy of
+    // the real apron shape (per this comment's own original wording) that would have silently
+    // stopped representing the real apron the moment any of those constants moved, defeating
+    // the whole point of testing an "ordinary" joint using the real geometry. Now the real
+    // apron shape: two angled runs, per recess.js's own APRON_TOP/APRON_MID/APRON_NECK.
+    result = offsetPolylineMitered(
+      { x: -HALF_WIDTH, y: APRON_TOP_Y },
+      { x: -APRON_MID_X, y: APRON_MID_Y },
+      { x: -APRON_NECK_X, y: APRON_NECK_Y },
+      OUTLANE_WIDTH,
+    );
   } finally {
     console.warn = originalWarn;
   }

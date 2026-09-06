@@ -20,6 +20,7 @@ set -uo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
 status=0
+ran=0   # how many suites actually executed; see the liveness check at the end
 for proj in pinball pinball-lab pinball-sandbox; do
   if [ ! -d "$proj" ]; then
     printf '%-18s SKIP (not present)\n' "$proj"
@@ -45,8 +46,10 @@ for proj in pinball pinball-lab pinball-sandbox; do
     printf '    node --test exited 0 but collected nothing. The suite did not pass; it did\n'
     printf '    not run. Check the directory, the test glob, and that files still match.\n'
   elif [ "$rc" -eq 0 ]; then
+    ran=$((ran + 1))
     printf '%-18s OK    %s\n' "$proj" "$line"
   else
+    ran=$((ran + 1))
     status=1
     printf '%-18s FAIL  %s\n' "$proj" "$line"
     printf '%s\n' "$out" | sed -n '/failing tests/,$p' | head -30 | sed 's/^/    /'
@@ -62,6 +65,18 @@ fi
 # A verdict line, because the exit status is easy to lose. `./check-suites.sh | grep ...`
 # reports grep's status, not this script's — the operator did exactly that on 2026-09-04 and
 # read a red board as green. Anyone filtering the output still sees this line.
+# The same liveness check as above, one level up. A single absent project is a legitimate
+# SKIP, but every project absent means nothing ran at all — which is what you get from the
+# wrong working directory, a moved games/ tree, or a bad checkout. Without this, that case
+# printed "VERDICT: all suites passed" and exited 0. Verified 2026-09-06, in both states.
+if [ "$ran" -eq 0 ]; then
+  echo
+  echo "VERDICT: NOTHING RAN — every project was absent, so no suite executed."
+  echo "This is not a pass. Check you are in the right tree: expected pinball/,"
+  echo "pinball-lab/ and pinball-sandbox/ beside this script."
+  exit 1
+fi
+
 if [ "$status" -eq 0 ]; then
   echo "VERDICT: all suites passed"
 else

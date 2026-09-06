@@ -17,10 +17,15 @@ import assert from 'node:assert/strict';
 import { createWorld, setLayerPrimitives, addBall, advance } from '../src/physics/world.js';
 import { stepBall } from '../src/physics/solver.js';
 import { Segment } from '../src/physics/shapes.js';
-import { STEP_DT, BALL_RADIUS, MAX_IMPACTS, MU, K_DRAG } from '../src/physics/constants.js';
+import { STEP_DT, BALL_RADIUS, MAX_IMPACTS, MU, K_DRAG, E_WALL } from '../src/physics/constants.js';
 
-const FLOOR = Segment({ x: -0.1, y: 0 }, { x: 0.1, y: 0 }, 0.45, 'floor');
-const WALL = Segment({ x: 0, y: -0.1 }, { x: 0, y: 0.1 }, 0.45, 'wall');
+// CONST-IMPORT: the 0.45 here was a silent copy of E_WALL. Checked, not assumed: every
+// assertion in this file is on `events.length`/`events.remaining` (the zero-t escape backstop
+// resolving an already-overlapping contact), never on a resulting position or velocity, so the
+// exact restitution value was never what these tests depend on — imported anyway since it
+// costs nothing and removes a number that looks exactly like the stale-gravity bug shape.
+const FLOOR = Segment({ x: -0.1, y: 0 }, { x: 0.1, y: 0 }, E_WALL, 'floor');
+const WALL = Segment({ x: 0, y: -0.1 }, { x: 0, y: 0.1 }, E_WALL, 'wall');
 
 /** A ball seeded already overlapping two surfaces — the rest state a pocket produces. */
 function twoSurfaceWorld() {

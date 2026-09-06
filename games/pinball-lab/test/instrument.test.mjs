@@ -2,10 +2,21 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { runTrial, runTrialWithMeta, rngForTrial, contactStats } from '../src/instrument.js';
 import { STEP_DT } from '../../pinball/src/physics/constants.js';
+import { LEFT_FLIPPER_PIVOT, RIGHT_FLIPPER_PIVOT } from '../../pinball/src/table/recess.js';
 import { createPolicy } from '../src/policy.js';
 import { buildE1PilotCfgs, buildE1CradleCfgs } from '../src/sweep.js';
 
 const PILOT = buildE1PilotCfgs();
+// CONST-IMPORT: the flipper mocks below used to repeat the literal pivots { x: -0.078, y:
+// 0.105 } / { x: 0.078, y: 0.105 } four times, and the "proximity" policy test separately
+// hand-derived its expected fire time from the SAME -0.078 literal typed a second time —
+// self-consistent (test passes regardless of what the real pivot is) but silent: a real
+// LEFT_FLIPPER_PIVOT change would never be reflected here. These tests are about the policy's
+// timing relative to a REAL flipper's position, not an arbitrary one, so now import it.
+const MOCK_FLIPPERS = () => ({
+  left: { active: false, pivot: LEFT_FLIPPER_PIVOT },
+  right: { active: false, pivot: RIGHT_FLIPPER_PIVOT },
+});
 const cfgByPol = (pol, extra = {}) => PILOT.find((c) => c.pol === pol && Object.entries(extra).every(([k, v]) => c[k] === v));
 
 test('determinism: the same (cfgId, seed) reproduces a bit-identical record, across every pilot policy', () => {
@@ -43,8 +54,8 @@ test('runTrialWithMeta reports a step count consistent with the record (nonzero,
 test('analytic: the "never" policy never fires a flipper', () => {
   const policy = createPolicy({ pol: 'never' });
   const ball = { pos: { x: 0, y: 0.5 } };
-  const flippers = { left: { active: false, pivot: { x: -0.078, y: 0.105 } }, right: { active: false, pivot: { x: 0.078, y: 0.105 } } };
-  for (let t = 0; t < 2; t += 1 / 240) {
+  const flippers = MOCK_FLIPPERS();
+  for (let t = 0; t < 2; t += STEP_DT) {
     const events = policy.tick(t, ball, flippers);
     assert.deepEqual(events, []);
   }
@@ -55,8 +66,8 @@ test('analytic: the "never" policy never fires a flipper', () => {
 test('analytic: "fixedDelay" fires exactly once, at t >= d/1000, on the side matching ball.pos.x', () => {
   const policy = createPolicy({ pol: 'fixedDelay', d: 50 });
   const ball = { pos: { x: -0.1, y: 0.5 } }; // left of centre -> left flipper
-  const flippers = { left: { active: false, pivot: { x: -0.078, y: 0.105 } }, right: { active: false, pivot: { x: 0.078, y: 0.105 } } };
-  const dt = 1 / 240;
+  const flippers = MOCK_FLIPPERS();
+  const dt = STEP_DT;
   let fireEvents = [];
   for (let t = 0; t < 0.1; t += dt) {
     fireEvents = fireEvents.concat(policy.tick(t, ball, flippers));
@@ -70,8 +81,8 @@ test('analytic: "fixedDelay" fires exactly once, at t >= d/1000, on the side mat
 
 test('analytic: "proximity" arms on entering R, then fires after latency L elapses (not immediately)', () => {
   const policy = createPolicy({ pol: 'proximity', R: 0.1, L: 40 });
-  const flippers = { left: { active: false, pivot: { x: -0.078, y: 0.105 } }, right: { active: false, pivot: { x: 0.078, y: 0.105 } } };
-  const dt = 1 / 240;
+  const flippers = MOCK_FLIPPERS();
+  const dt = STEP_DT;
   let t = 0;
   let ballX = -0.5; // starts well outside R of the left pivot
   let fired = [];
@@ -84,22 +95,23 @@ test('analytic: "proximity" arms on entering R, then fires after latency L elaps
   }
   assert.equal(fired.length, 1);
   assert.equal(fired[0].side, 'left');
-  // Entered R at roughly t = (0.1 - (-0.078 - (-0.5)? )) ... simpler: just assert the fire
-  // time is strictly after the moment it first came within R, by ~L.
-  const enterT = (Math.abs(-0.078 - (-0.5)) - 0.1) / speed; // time to close to within R of -0.078
+  // Entered R at roughly t = (0.1 - (LEFT_FLIPPER_PIVOT.x - (-0.5)? )) ... simpler: just assert
+  // the fire time is strictly after the moment it first came within R, by ~L. Was hand-derived
+  // from a second -0.078 literal (CONST-IMPORT) instead of the real pivot used two lines above.
+  const enterT = (Math.abs(LEFT_FLIPPER_PIVOT.x - (-0.5)) - 0.1) / speed; // time to close to within R
   assert.ok(fired[0].firedAtS >= enterT + 0.04 - dt, 'fired only after the latency elapsed, not on entry');
 });
 
 test('analytic: "heldActive" (§3.5 cradle family) fires both flippers on the very first tick', () => {
   const policy = createPolicy({ pol: 'heldActive' });
-  const flippers = { left: { active: false, pivot: { x: -0.078, y: 0.105 } }, right: { active: false, pivot: { x: 0.078, y: 0.105 } } };
+  const flippers = MOCK_FLIPPERS();
   const ball = { pos: { x: 0, y: 0.5 } };
   const events = policy.tick(0, ball, flippers);
   assert.equal(events.length, 2);
   assert.equal(flippers.left.active, true);
   assert.equal(flippers.right.active, true);
   // Fires exactly once — a second tick must be a no-op.
-  assert.deepEqual(policy.tick(1 / 240, ball, flippers), []);
+  assert.deepEqual(policy.tick(STEP_DT, ball, flippers), []);
 });
 
 // --- LAB-2 cradle family (§3.5): cfg.cradle routes injection through CRADLE_INJECTION and

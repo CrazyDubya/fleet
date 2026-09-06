@@ -105,6 +105,15 @@ test('guideEndpoints mirrors correctly: right-side T/U are the exact x-mirror of
 
 // --- classifySettle: the §5.1 geometric predicates in isolation, no physics involved. ---
 
+// CONST-IMPORT, checked: pivot/length/radius/angle/ballRadius below happen to resemble the real
+// lower flipper and ball, but this is classifySettle's own geometric predicate math in
+// isolation ("no physics involved", per this section's own comment) — not a claim about the
+// real game's current flipper. The sibling test right below this one proves the point by using
+// a totally different, explicitly "contrived" pivot/length pair and the SAME ballRadius, and
+// still exercises the same predicate correctly — so none of these numbers are standing in for
+// a specific real constant, and classifySettle's own correctness here doesn't depend on
+// matching whatever FLIPPER.lower/BALL_RADIUS currently are. Kept as literals on purpose — a
+// real geometry change would not, and should not, need this test to move.
 test('classifySettle: a ball at the flipper capsule surface (not near any guide) is cr but not cp', () => {
   const flippers = {
     left: { pivot: { x: -0.078, y: 0.105 }, angle: (26 * Math.PI) / 180, length: 0.075, radius: 0.012 },

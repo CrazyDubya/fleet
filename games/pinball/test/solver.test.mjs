@@ -4,8 +4,8 @@ import { Segment, Arc, Circle } from '../src/physics/shapes.js';
 import { sweepCircleSegment, sweepCircleCircle, sweepCircleArc, earliestImpact, stepBall } from '../src/physics/solver.js';
 import { makeRng, range } from '../src/physics/rng.js';
 import { createFlipper, flipperEntry } from '../src/physics/flipper.js';
-import { FLIPPER, E_FLIPPER, BALL_RADIUS, MAX_IMPACTS, MU, K_DRAG, gravityForPitch } from '../src/physics/constants.js';
-import { LEFT_FLIPPER_PIVOT, RIGHT_FLIPPER_PIVOT } from '../src/table/recess.js';
+import { FLIPPER, E_FLIPPER, BALL_RADIUS, MAX_IMPACTS, MU, K_DRAG, STEP_DT, gravityForPitch } from '../src/physics/constants.js';
+import { LEFT_FLIPPER_PIVOT, RIGHT_FLIPPER_PIVOT, HALF_WIDTH, HEIGHT } from '../src/table/recess.js';
 
 test('sweepCircleSegment: ball moving straight into a horizontal wall finds exact TOI', () => {
   const seg = Segment({ x: -1, y: 0 }, { x: 1, y: 0 });
@@ -45,12 +45,17 @@ test('sweepCircleSegment: exact corner contact (perpendicular) resolves at the c
 
 test('sweepCircleCircle: post collision at exact TOI', () => {
   const post = Circle({ x: 0, y: 0 }, 0.02);
-  const r = 0.0135;
+  // CONST-IMPORT: was the literal 0.0135, a silent copy of BALL_RADIUS — this is pure sweep
+  // geometry (any radius would exercise the same math) but there's no reason for it to drift
+  // from the real ball's radius when nothing here needs it to, so it now imports the constant
+  // rather than shadowing it. expectedT is derived from `r` itself, not a second copy of the
+  // number, so it re-pins automatically if BALL_RADIUS ever changes.
+  const r = BALL_RADIUS;
   const p0 = { x: -1, y: 0 };
   const v = { x: 1, y: 0 };
   const hit = sweepCircleCircle(p0, v, r, post, 10);
   assert.ok(hit);
-  const expectedT = (1 - (0.02 + 0.0135)) / 1;
+  const expectedT = (1 - (0.02 + r)) / 1;
   assert.ok(Math.abs(hit.t - expectedT) < 1e-6);
 });
 
@@ -84,9 +89,15 @@ test('stepBall: a ball dropped onto a floor settles without tunneling through it
   const floor = Segment({ x: -1, y: 0 }, { x: 1, y: 0 }, 0.3);
   const primitives = [{ shape: floor }];
   const ball = { pos: { x: 0, y: 0.5 }, vel: { x: 0, y: 0 }, radius: 0.02 };
+  // CONST-IMPORT: -9.81 is deliberately NOT gravityForPitch() — this is a generic, unpitched
+  // floor-settling stress test, independent of the table's own tilt, and a bare 1g is a
+  // HARDER fall (more energy into each contact) than the shallow pitched table ever produces,
+  // so it doesn't need to track whatever the real pitched value happens to be. mu/kDrag/
+  // maxImpacts below WERE silent copies of MU/K_DRAG/MAX_IMPACTS with no reason to differ —
+  // those import the real constants now.
   const gravity = { x: 0, y: -9.81 };
-  const dt = 1 / 240;
-  const tuning = { mu: 0.06, kDrag: 0.12, maxImpacts: 8 };
+  const dt = STEP_DT;
+  const tuning = { mu: MU, kDrag: K_DRAG, maxImpacts: MAX_IMPACTS };
 
   for (let i = 0; i < 240 * 5; i++) {
     stepBall(ball, gravity, primitives, dt, tuning);
@@ -96,8 +107,13 @@ test('stepBall: a ball dropped onto a floor settles without tunneling through it
 
 test('anti-tunneling property: a fast ball fired at a wall from many angles never ends up outside', () => {
   const rng = makeRng(42);
-  const halfW = 0.257;
-  const halfH = 0.5335;
+  // CONST-IMPORT: were the literals 0.257 and 0.5335 (= HEIGHT/2) — silent copies of the real
+  // table's own HALF_WIDTH/HEIGHT rather than an arbitrary box. The containment property this
+  // test checks holds at any box size, so a stale copy wouldn't have broken anything silently
+  // — but there's no reason to pretend this box is unrelated to the real table when it isn't,
+  // so it now imports the real dimensions instead of shadowing them.
+  const halfW = HALF_WIDTH;
+  const halfH = HEIGHT / 2;
   const walls = [
     Segment({ x: -halfW, y: 0 }, { x: halfW, y: 0 }),
     Segment({ x: halfW, y: 0 }, { x: halfW, y: halfH * 2 }),
@@ -105,9 +121,14 @@ test('anti-tunneling property: a fast ball fired at a wall from many angles neve
     Segment({ x: -halfW, y: halfH * 2 }, { x: -halfW, y: 0 }),
   ].map((shape) => ({ shape }));
 
-  const r = 0.0135;
-  const tuning = { mu: 0.06, kDrag: 0.0, maxImpacts: 8 };
-  const dt = 1 / 240;
+  const r = BALL_RADIUS;
+  // mu was a silent copy of MU with no reason to differ, now imported. kDrag is deliberately
+  // 0, NOT K_DRAG — this test wants the ball to hold its full 20 m/s stress speed across all 6
+  // fixed substeps of every trial; real drag would bleed speed step over step, quietly
+  // weakening the stress test on later substeps instead of hitting the wall at the same
+  // extreme speed throughout. That's why this one stays a literal.
+  const tuning = { mu: MU, kDrag: 0, maxImpacts: MAX_IMPACTS };
+  const dt = STEP_DT;
 
   for (let trial = 0; trial < 10000; trial++) {
     const angle = range(rng, 0, Math.PI * 2);
@@ -164,7 +185,7 @@ test('stepBall never returns with unconsumed time: held two-raised-flipper doubl
   const { left, primitives } = raisedFlipperPrimitives();
   const gravity = gravityForPitch();
   const tuning = { mu: MU, kDrag: K_DRAG, maxImpacts: MAX_IMPACTS };
-  const dt = 1 / 240;
+  const dt = STEP_DT; // CONST-IMPORT: was the literal 1/240, a silent copy of STEP_DT
 
   // Centred between the two raised tips (y = tip height), falling — the exact wedge opus2
   // measured against the current solver.
@@ -187,7 +208,7 @@ test('stepBall never returns with unconsumed time: held two-raised-flipper doubl
 test('stepBall never returns with unconsumed time: a parameterised set of double-overlap starting offsets in the same wedge', () => {
   const gravity = gravityForPitch();
   const tuning = { mu: MU, kDrag: K_DRAG, maxImpacts: MAX_IMPACTS };
-  const dt = 1 / 240;
+  const dt = STEP_DT; // CONST-IMPORT: was the literal 1/240, a silent copy of STEP_DT
 
   // Small starting offsets and fall speeds around the wedge centre — real variation in where
   // and how fast a ball enters a double-flipper trap, not just the single symmetric case.

@@ -36,11 +36,23 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { stepBall } from '../../pinball/src/physics/solver.js';
 import { Segment } from '../../pinball/src/physics/shapes.js';
-import { STEP_DT, BALL_RADIUS, MAX_IMPACTS, MU, K_DRAG } from '../../pinball/src/physics/constants.js';
+import { STEP_DT, BALL_RADIUS, MAX_IMPACTS, MU, K_DRAG, gravityForPitch } from '../../pinball/src/physics/constants.js';
 import { FLIPPER_SUBSTEPS } from '../../pinball/src/physics/flipper.js';
 
 const TUNING = { mu: MU, kDrag: K_DRAG, maxImpacts: MAX_IMPACTS };
-const GRAVITY = { x: 0, y: -1.11 };
+// CONST-IMPORT: was the literal { x: 0, y: -1.11 } — exactly the OLD (pre-GRAVITY-ROLL)
+// sliding value, the same shape as the flipper.test.mjs bug this dispatch was raised to sweep
+// for. Checked rather than inherited: every test below calls stepBall exactly ONCE (never
+// accumulated across steps, unlike flipper.test.mjs's 600-step loops) and asserts only on
+// `evs.length`/`evs.remaining` — the zero-t escape backstop firing on an already-overlapping
+// contact — never on a resulting position or velocity. One STEP_DT (~4.2ms) of any plausible
+// gravity contributes on the order of 0.003-0.04 m/s, dwarfed by the overlap/velocity this
+// scenario starts from either way, so the exact magnitude genuinely does not drive what's
+// being asserted — confirmed, not assumed. Imported anyway (rather than left a documented
+// literal): the assertions don't need a specific value, so there's no reason to keep a number
+// that looks exactly like the known stale-gravity bug when the real constant costs nothing to
+// use instead.
+const GRAVITY = gravityForPitch();
 
 /** A ball already overlapping `n` surfaces — the rest state a pocket produces by design. */
 function restingOn(n) {
