@@ -222,14 +222,22 @@ export function selectTopN({ rows, samples, estimator, n, key, direction = 'desc
   }
 
   // --- stability: repeated split-half band agreement, for every k in 2..n ---
+  // GUARD-MIGRATE: a bare `k <= n` here leaves `curve` EMPTY whenever a caller requests a
+  // top-1 cut (n=1) against a population with real per-row samples — found migrating the
+  // first n=1 caller (lab2Report.js's best-geometry pick, e4Report.js's A1 top-1), which threw
+  // reading `curve[0]` in the final `unordered` branch below. "Banding" is only meaningful at
+  // k>=2, so a top-1 request still evaluates the coarsest possible diagnostic (k=2, "is even a
+  // top-half/bottom-half split reproducible") rather than skipping stability entirely — the
+  // same k=n-is-the-finest-diagnostic philosophy §CHOICES #2 already uses for n>=2, just
+  // extended to cover n=1 rather than silently omitting it.
   const rule = bandRule ?? defaultBandRule;
   const curve = [];
-  for (let k = 2; k <= n; k++) curve.push(bandAgreement(eligible, estimator, k, resamples, seed));
+  for (let k = 2; k <= Math.max(n, 2); k++) curve.push(bandAgreement(eligible, estimator, k, resamples, seed));
 
   const chosenK = rule(curve, n);
 
   if (chosenK >= n) {
-    const point = curve[curve.length - 1]; // k === n
+    const point = curve[curve.length - 1]; // k === n, or k === 2 when n === 1 (see loop bound above)
     return { ...buildRanked(eligible, population, structural, n, direction), stability: { exactAgreement: point.exactAgreement, withinOne: point.withinOne, repeats: resamples, seed } };
   }
   if (chosenK >= 2) {

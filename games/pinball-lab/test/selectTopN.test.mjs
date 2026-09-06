@@ -235,6 +235,32 @@ test('selectTopN: ranked result is reproducible — same inputs, same seed, same
   assert.deepEqual(r1, r2);
 });
 
+// --- n=1 CUT SIZE (a top-1 request), as distinct from n=1 SAMPLE per row above -----------
+//
+// GUARD-MIGRATE: found migrating the first real top-1 caller (lab2Report.js's best-geometry
+// pick). `for (let k = 2; k <= n; k++)` never executes when the requested cut size n is 1, so
+// `curve` was empty and the final `unordered` branch's `curve[0].withinOne` threw — for EVERY
+// top-1 request against a population with real per-row samples, not an edge case. Fixed by
+// evaluating at least the k=2 diagnostic regardless of n.
+
+test('selectTopN: a top-1 cut (n=1) over a genuinely resolvable population returns ranked, not a crash', () => {
+  const rows = clusteredRows();
+  const r = selectTopN({ rows, samples: (row) => row.s, estimator: median, n: 1, key: (row) => row.id });
+  assert.equal(r.kind, 'ranked');
+  assert.equal(r.cut.length, 1);
+  assert.ok(['A', 'B', 'C', 'E'].includes(r.cut[0].key), 'the single winner must come from the high cluster');
+  assert.ok(r.stability.withinOne >= 0.95, 'a resolvable top-1 must report the k=2 diagnostic it was evaluated against, not a fabricated number');
+});
+
+test('selectTopN: a top-1 cut (n=1) over an unresolvable population demotes to unordered instead of throwing', () => {
+  const rows = [];
+  for (let i = 0; i < 10; i++) rows.push({ id: `R${i}`, s: mkNoisy(5, 40, 40, i * 3 + 1) });
+  const r = selectTopN({ rows, samples: (row) => row.s, estimator: median, n: 1, key: (row) => row.id });
+  assert.equal(r.kind, 'unordered');
+  assert.equal(r.cut, undefined);
+  assert.match(r.reason, /not even a 2-way split survives/);
+});
+
 test('selectTopN: n=1-per-row populations report stability as indeterminate rather than fabricating a resampling result', () => {
   const rows = [
     { id: 'a', s: [5] }, { id: 'b', s: [4] }, { id: 'c', s: [3] }, { id: 'd', s: [2] }, { id: 'e', s: [1] },
