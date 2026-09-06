@@ -231,15 +231,15 @@ function e3ToMarkdown(meta, perCfgRanked, runId, rankingGuard, rankingGuardFallb
   lines.push('');
   lines.push('## Per-family summary (§5.4)');
   lines.push('');
-  // MEASURED-2: returnRate/inBandFraction/stallRate render through their `Measured` sidecars
-  // (rate, event count, and a 95% Wilson interval together) rather than the bare percentage —
-  // same convention as E5a (MEASURED-1). flaggedFraction/IMPACTS_EXHAUSTED are unchanged (not
-  // converted this dispatch).
-  lines.push('| family | trials | flagged% | IMPACTS_EXHAUSTED% | returnRate | inBandFraction | stallRate | variety(entropy) | median timeToReturn(s) |');
+  // MEASURED-2/3: every rate column here renders through its `Measured` sidecar (rate, event
+  // count, and a 95% Wilson interval together) rather than a bare percentage — same convention
+  // as E5a (MEASURED-1). `returnXVariety`/`timeToReturnMedianS` are not proportions (an entropy
+  // and a median), so they stay bare per the Wilson interval being for proportions only.
+  lines.push('| family | trials | flagged | IMPACTS_EXHAUSTED | returnRate | inBandFraction | stallRate | variety(entropy) | median timeToReturn(s) |');
   lines.push('|---|---|---|---|---|---|---|---|---|');
   for (const [f, m] of Object.entries(meta.familyMetrics)) {
     lines.push(
-      `| ${FAMILY_LABEL[f] ?? f} | ${m.trials} | ${(m.flaggedFraction * 100).toFixed(2)} | ${(m.impactsExhaustedFraction * 100).toFixed(2)} | ` +
+      `| ${FAMILY_LABEL[f] ?? f} | ${m.trials} | ${fmtMeasured(m.flaggedFractionM)} | ${fmtMeasured(m.impactsExhaustedFractionM)} | ` +
       `${fmtMeasured(m.returnRateM)} | ${fmtMeasured(m.inBandFractionM)} | ${fmtMeasured(m.stallRateM)} | ` +
       `${m.returnXVariety !== null ? m.returnXVariety.toFixed(3) : '—'} | ${m.timeToReturnMedianS !== null ? m.timeToReturnMedianS.toFixed(2) : '—'} |`
     );
@@ -251,7 +251,7 @@ function e3ToMarkdown(meta, perCfgRanked, runId, rankingGuard, rankingGuardFallb
   lines.push('| family | ' + feedKeys.join(' | ') + ' |');
   lines.push('|---|' + feedKeys.map(() => '---').join('|') + '|');
   for (const [f, m] of Object.entries(meta.familyMetrics)) {
-    lines.push(`| ${f} | ` + feedKeys.map((k) => `${((m.feedFractions[k] ?? 0) * 100).toFixed(1)}%`).join(' | ') + ' |');
+    lines.push(`| ${f} | ` + feedKeys.map((k) => (m.feedFractionsM[k] ? fmtMeasured(m.feedFractionsM[k]) : '—')).join(' | ') + ' |');
   }
   lines.push('');
   lines.push('## Top 10 cfgs per family, ranked by inBandFraction (the trade-off curve, §5.4)');
@@ -287,12 +287,12 @@ function e3ToMarkdown(meta, perCfgRanked, runId, rankingGuard, rankingGuardFallb
           'continuous proxy for the same "landed in the playable band" question that does not ' +
           'saturate the way a bounded fraction can.');
         lines.push('');
-        lines.push('| cfgId | trials | returnRate | inBandFraction | medianXs (m/s) | stallRate | flagged% |');
+        lines.push('| cfgId | trials | returnRate | inBandFraction | medianXs (m/s) | stallRate | flagged |');
         lines.push('|---|---|---|---|---|---|---|');
         const top = perCfgRanked.filter((r) => r.family === family && r.bandCenterCloseness !== null)
           .sort((a, b) => b.bandCenterCloseness - a.bandCenterCloseness).slice(0, 10);
         for (const r of top) {
-          lines.push(`| ${r.cfgId} | ${r.trials} | ${(r.returnRate * 100).toFixed(1)}% | ${(r.inBandFraction * 100).toFixed(1)}% | ${r.medianXs.toFixed(2)} | ${(r.stallRate * 100).toFixed(1)}% | ${(r.flaggedFraction * 100).toFixed(2)} |`);
+          lines.push(`| ${r.cfgId} | ${r.trials} | ${fmtMeasured(r.returnRateM)} | ${fmtMeasured(r.inBandFractionM)} | ${r.medianXs.toFixed(2)} | ${fmtMeasured(r.stallRateM)} | ${fmtMeasured(r.flaggedFractionM)} |`);
         }
         lines.push('');
         continue;
@@ -308,11 +308,11 @@ function e3ToMarkdown(meta, perCfgRanked, runId, rankingGuard, rankingGuardFallb
       lines.push('');
       continue;
     }
-    lines.push('| cfgId | trials | returnRate | inBandFraction | stallRate | flagged% |');
+    lines.push('| cfgId | trials | returnRate | inBandFraction | stallRate | flagged |');
     lines.push('|---|---|---|---|---|---|');
     const top = perCfgRanked.filter((r) => r.family === family).slice(0, 10);
     for (const r of top) {
-      lines.push(`| ${r.cfgId} | ${r.trials} | ${(r.returnRate * 100).toFixed(1)}% | ${(r.inBandFraction * 100).toFixed(1)}% | ${(r.stallRate * 100).toFixed(1)}% | ${(r.flaggedFraction * 100).toFixed(2)} |`);
+      lines.push(`| ${r.cfgId} | ${r.trials} | ${fmtMeasured(r.returnRateM)} | ${fmtMeasured(r.inBandFractionM)} | ${fmtMeasured(r.stallRateM)} | ${fmtMeasured(r.flaggedFractionM)} |`);
     }
     lines.push('');
   }
@@ -466,6 +466,12 @@ async function runE3Stage(args) {
       returnRateM: measuredRate(reached, trials, { estimand: `${family}: fraction of trials returning to a flipper` }),
       inBandFractionM: measuredRate(inBand, reached, { estimand: `${family}: fraction of RETURNS landing in the 1.0-2.5 m/s playable band` }),
       stallRateM: measuredRate(stallCount, trials, { estimand: `${family}: fraction of trials stalling out` }),
+      // MEASURED-3: the remaining family-level rate scalars MEASURED-2 left bare — same
+      // additive convention, bare fields above are unchanged.
+      flaggedFractionM: measuredRate(flagged, trials, { estimand: `${family}: fraction of trials carrying any validity flag` }),
+      impactsExhaustedFractionM: measuredRate(impactsExhausted, trials, { estimand: `${family}: fraction of trials hitting IMPACTS_EXHAUSTED` }),
+      flaggedFractionExclArtifactsM: measuredRate(rows.reduce((a, r) => a + r.flaggedExclArtifacts, 0), trials, { estimand: `${family}: fraction of trials flagged, excluding the known P2 orbit-arc artifact` }),
+      feedFractionsM: Object.fromEntries(Object.entries(feedTotals).map(([k, v]) => [k, measuredRate(v, trials, { estimand: `${family}: fraction of ALL trials feeding ${k}` })])),
     };
   }
 
@@ -479,6 +485,12 @@ async function runE3Stage(args) {
       inBandFraction: r.reachedCount ? r.inBandSpeed / r.reachedCount : 0,
       stallRate: r.trials ? (r.term.stall ?? 0) / r.trials : 0,
       flaggedFraction: r.trials ? r.flagged / r.trials : 0,
+      // MEASURED-3: per-cfg sidecars — MEASURED-2 wired the per-FAMILY table only; these
+      // per-cfg rows (the top-10 tables) were still bare. Bare fields above are unchanged.
+      returnRateM: measuredRate(r.reachedCount, r.trials, { estimand: `${r.family}/${r.cfgId}: fraction of trials returning to a flipper` }),
+      inBandFractionM: measuredRate(r.inBandSpeed, r.reachedCount, { estimand: `${r.family}/${r.cfgId}: fraction of RETURNS landing in the 1.0-2.5 m/s playable band` }),
+      stallRateM: measuredRate(r.term.stall ?? 0, r.trials, { estimand: `${r.family}/${r.cfgId}: fraction of trials stalling out` }),
+      flaggedFractionM: measuredRate(r.flagged, r.trials, { estimand: `${r.family}/${r.cfgId}: fraction of trials carrying any validity flag` }),
       feed: r.feed,
       rmp: r.rmp,
       // LAB-18: a continuous stand-in for `inBandFraction`, for families whose in-band fraction
