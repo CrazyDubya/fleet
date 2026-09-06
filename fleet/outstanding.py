@@ -144,36 +144,107 @@ def _load_dispatches(events_path: Path | None) -> tuple[list[Dispatch], int, int
     return dispatches, no_id, excluded_no_reply
 
 
+# Only ~2% of real handoffs put `@re<id>` on line 1 the way the protocol
+# describes (ledger/handoffs/haiku-fs6/2026-0906T020200Z-handoff-format-census.md,
+# 440 files censused). `_RE_TOKEN` already looks anywhere in the file, which
+# recovers the ~45% that embed `@re` as bold markdown mid-document (the
+# census's Pattern 3/4/5/6/7). It recovers nothing for Pattern 1 (30%: the
+# dispatch id appears - often only in the filename or a title line - but no
+# `@re` was ever written) or Pattern 2 (29%: no id anywhere, no `@from`/`@re`,
+# pure content). Both are common, not edge cases - two real dispatches
+# (IDEA-DECLINE, IDEA-SUPPLY, both to muse2) were reported outstanding despite
+# being answered within minutes, purely because muse2 writes Pattern 2.
+#
+# Three tiers, evidence weakest last, each one only asked once the tier
+# before it found nothing for that id:
+#   1. `@re<id>` anywhere in the file (protocol-shaped, ~45% of the corpus).
+#   2. the raw dispatch id (hex or an UPPER-CASE-HYPHENATED token) appearing
+#      anywhere in the file's name or body, no `@re` required - Pattern 1.
+#   3. thread directory + timing: the earliest handoff filed under the
+#      target thread's own directory after the dispatch was sent, within a
+#      day, that no stronger tier already claimed - Pattern 2, where the
+#      thread wrote a real reply but never mentioned the id in any form.
+# A file is claimed by at most one dispatch, strongest tier first, so tier 3
+# cannot steal a file that already answers a different id, and a thread's
+# unrelated status write-ups are only ever reached once every id-bearing
+# candidate has already been matched.
 _RE_TOKEN = __import__("re").compile(r"@re([0-9A-Za-z._-]+)")
+_ID_TOKEN = __import__("re").compile(r"\b(?:[0-9a-f]{16}|[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+)\b")
+TIER3_WINDOW_S = 86400.0  # a day - generous same-day/next-morning turnaround, not a week-old coincidence
 
 
-def _index_handoff_replies(root: Path) -> dict[str, str]:
-    """{id: path} for every `@re<id>` found in any handoff file under `root`,
-    built once per `outstanding()` call rather than re-scanning every
-    handoff file for every dispatch (O(threads) instead of
-    O(dispatches * handoff files)).
+@dataclass
+class _HandoffIndex:
+    re_idx: dict[str, str] = field(default_factory=dict)          # id -> path (tier 1)
+    id_idx: dict[str, str] = field(default_factory=dict)          # id -> path (tier 2)
+    by_thread: dict[str, list[tuple[float, str]]] = field(default_factory=dict)  # thread -> [(mtime, path), ...]
 
-    Indexed across every thread's directory, not just each dispatch's own
-    target - a reply filed under the wrong thread's directory still counts
-    as an answer, and `evidence` says which directory it actually turned up
-    in so a misfiled handoff is visible rather than silently accepted.
+
+def _build_handoff_index(root: Path) -> _HandoffIndex:
+    """One pass over every handoff file, building all three tiers' evidence
+    at once - re-reading 440+ files per dispatch is what made the naive
+    version of this function slow, and every tier needs the same file text.
     """
-    idx: dict[str, str] = {}
+    idx = _HandoffIndex()
     if not root.is_dir():
         return idx
     for thread_dir in sorted(root.iterdir()):
         if not thread_dir.is_dir():
             continue
+        thread = thread_dir.name
         for f in sorted(thread_dir.iterdir()):
             if not f.is_file():
                 continue
             try:
-                text = packet_mod.norm(f.read_text(errors="replace"))
+                raw = f.read_text(errors="replace")
+                mtime = f.stat().st_mtime
             except OSError:
                 continue
+            text = packet_mod.norm(raw)
             for m in _RE_TOKEN.finditer(text):
-                idx.setdefault(m.group(1), str(f))
+                idx.re_idx.setdefault(m.group(1), str(f))
+            # `raw`, not the whitespace-stripped `text`: norm() exists to
+            # squash markdown/whitespace around a literal `@re` so it reads
+            # as one token, but applied to ordinary prose it glues adjacent
+            # words together ("...retry of a04e13..." -> "...retryofa04e13...")
+            # and kills the \b boundary a hex id needs on its left edge.
+            # Confirmed live: a04e1323330bc8dc appears in a real sonnet2
+            # handoff as "(retry of a04e1323330bc8dc, dropped ...)" and only
+            # matches against the raw text.
+            for m in _ID_TOKEN.finditer(f.name + " " + raw):
+                idx.id_idx.setdefault(m.group(0), str(f))
+            idx.by_thread.setdefault(thread, []).append((mtime, str(f)))
+    for files in idx.by_thread.values():
+        files.sort()
     return idx
+
+
+def _tier3_match(dispatches: list["Dispatch"], idx: _HandoffIndex, claimed: set[str]) -> dict[str, tuple[str, float]]:
+    """{id: (path, mtime)} for dispatches tier 1/2 found nothing for, matched
+    to the earliest not-yet-claimed handoff in their own target thread's
+    directory that was written after the dispatch and within TIER3_WINDOW_S.
+
+    Greedy, in send order, per thread: the thread's own earliest still-open
+    dispatch gets first claim on the thread's earliest still-available
+    handoff. This is deliberately conservative in the direction that matters
+    here - a stray unrelated write-up gets consumed by whichever dispatch
+    was actually open when it landed, rather than left to accidentally
+    answer a later, genuinely-unrelated one.
+    """
+    by_thread: dict[str, list[Dispatch]] = {}
+    for d in dispatches:
+        by_thread.setdefault(d.thread, []).append(d)
+    out: dict[str, tuple[str, float]] = {}
+    for thread, ds in by_thread.items():
+        candidates = [(mt, p) for mt, p in idx.by_thread.get(thread, []) if p not in claimed]
+        for d in sorted(ds, key=lambda d: d.t):
+            for i, (mt, p) in enumerate(candidates):
+                if mt > d.t and mt - d.t <= TIER3_WINDOW_S:
+                    out[d.id] = (p, mt)
+                    claimed.add(p)
+                    del candidates[i]
+                    break
+    return out
 
 
 def _registry_entries(profile: str) -> dict[str, Entry] | None:
@@ -271,8 +342,10 @@ def outstanding(profile: str = "v2", events_path: Path | None = None,
         return Report(ledger_status="empty", ledger_path=str(path), total_sends=0, no_id=0, excluded_no_reply=0)
     _TRANSCRIPT_CACHE.clear()
     entries = None
-    handoff_idx = _index_handoff_replies(handoffs_root)
+    handoff_idx = _build_handoff_index(handoffs_root)
+    claimed: set[str] = set()
     items: list[Item] = []
+    file_lane: list[Dispatch] = []
     for d in dispatches:
         # Route by LANE, not the recorded @reply: `lookup` is synchronous by
         # protocol (briefs/_protocol.md rule 2/3) regardless of what a
@@ -289,12 +362,29 @@ def outstanding(profile: str = "v2", events_path: Path | None = None,
             items.append(Item(d=d, status=status, evidence=evidence, age_s=age))
             continue
         # reply == "file", or unknown (a hand-typed packet with no @reply field).
-        hit = handoff_idx.get(d.id)
+        hit = handoff_idx.re_idx.get(d.id)
         if hit:
-            items.append(Item(d=d, status="answered", evidence=f"handoff: {hit}"))
+            claimed.add(hit)
+            items.append(Item(d=d, status="answered", evidence=f"handoff (@re): {hit}"))
+            continue
+        hit = handoff_idx.id_idx.get(d.id)
+        if hit:
+            claimed.add(hit)
+            items.append(Item(d=d, status="answered", evidence=f"handoff (id mentioned, no @re): {hit}"))
+            continue
+        file_lane.append(d)
+    tier3 = _tier3_match(file_lane, handoff_idx, claimed)
+    for d in file_lane:
+        hit = tier3.get(d.id)
+        if hit:
+            hpath, mt = hit
+            delta_m = (mt - d.t) / 60
+            items.append(Item(d=d, status="answered",
+                               evidence=f"handoff (thread+timing, no id anywhere, {delta_m:.0f}m after send): {hpath}"))
         else:
             items.append(Item(d=d, status="outstanding",
-                               evidence="no handoff anywhere under ledger/handoffs/ names this @id in an @re",
+                               evidence=(f"no @re, no id mention, and no handoff filed under "
+                                          f"ledger/handoffs/{d.thread}/ within {TIER3_WINDOW_S / 3600:.0f}h of the send"),
                                age_s=now - d.t))
     return Report(ledger_status="ok", ledger_path=str(path),
                   total_sends=len(dispatches) + no_id + excluded_no_reply, no_id=no_id,

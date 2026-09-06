@@ -26,14 +26,14 @@ class WatchdogTests(unittest.TestCase):
     # --- the watchdog's own input going away is the exact failure it exists to catch ---
 
     def test_missing_ledger_is_degraded_not_quiet(self):
-        status = watchdog.check(events_path=self.events)
+        status = watchdog.check(events_path=self.events, handoffs_root=self.handoffs)
         self.assertEqual(status.ledger_status, "missing")
         self.assertEqual(status.alert, "degraded")
         self.assertIn("DEGRADED", status.describe())
 
     def test_empty_ledger_is_degraded_not_quiet(self):
         self.events.touch()
-        status = watchdog.check(events_path=self.events)
+        status = watchdog.check(events_path=self.events, handoffs_root=self.handoffs)
         self.assertEqual(status.alert, "degraded")
         self.assertIn("DEGRADED", status.describe())
 
@@ -42,21 +42,21 @@ class WatchdogTests(unittest.TestCase):
         self.events.chmod(0o000)
         try:
             with mock.patch("fleet.ledger.status", return_value="unreadable"):
-                status = watchdog.check(events_path=self.events)
+                status = watchdog.check(events_path=self.events, handoffs_root=self.handoffs)
             self.assertEqual(status.alert, "degraded")
         finally:
             self.events.chmod(0o644)
 
     def test_events_with_no_timestamp_field_is_degraded(self):
         self._write_events({"ev": "send", "thread": "sonnet2"})
-        status = watchdog.check(events_path=self.events)
+        status = watchdog.check(events_path=self.events, handoffs_root=self.handoffs)
         self.assertEqual(status.alert, "degraded")
 
     # --- ordinary timer behaviour ---
 
     def test_recent_event_is_quiet(self):
         self._write_events({"ev": "hook", "t": time.time() - 30, "thread": "sonnet2"})
-        status = watchdog.check(events_path=self.events, threshold_min=10)
+        status = watchdog.check(events_path=self.events, handoffs_root=self.handoffs, threshold_min=10)
         self.assertIsNone(status.alert)
         self.assertIn("quiet", status.describe())
 
@@ -69,7 +69,7 @@ class WatchdogTests(unittest.TestCase):
              "id": "abc123", "lane": "build", "reply": "file", "done": "ship it"},
             {"ev": "hook", "t": now - 900, "thread": "sonnet2"},
         )
-        status = watchdog.check(events_path=self.events, threshold_min=10)
+        status = watchdog.check(events_path=self.events, handoffs_root=self.handoffs, threshold_min=10)
         self.assertEqual(status.alert, "stuck")
         self.assertIn("ALERT (stuck)", status.describe())
         self.assertIn("abc123", status.describe())
@@ -81,7 +81,7 @@ class WatchdogTests(unittest.TestCase):
              "id": "abc123", "lane": "build", "reply": "none"},
             {"ev": "hook", "t": now - 900, "thread": "sonnet2"},
         )
-        status = watchdog.check(events_path=self.events, threshold_min=10)
+        status = watchdog.check(events_path=self.events, handoffs_root=self.handoffs, threshold_min=10)
         self.assertEqual(status.alert, "idle_queue")
         self.assertIn("ALERT (idle queue)", status.describe())
         self.assertIn("waiting on a dispatch from you", status.describe())

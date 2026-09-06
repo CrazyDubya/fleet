@@ -146,6 +146,47 @@ class OutstandingTests(unittest.TestCase):
             transcript.unlink(missing_ok=True)
 
 
+class NoEvidenceIsNeverAnsweredTests(unittest.TestCase):
+    """The invariant the operator restated after catching an overcorrection
+    live: loosening the join is for a handoff that exists but does not cite
+    the id canonically - filename, id-in-body, or thread+timing. It is not
+    license to treat "the thread produced nothing at all" as an answer.
+    A tier-3 leak (scanning the wrong handoffs_root, or a stray unrelated
+    file elsewhere) must never turn zero evidence into "answered"."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.events = self.root / "events.jsonl"
+        self.handoffs = self.root / "handoffs"  # deliberately never created
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_empty_handoffs_dir_leaves_dispatch_outstanding(self):
+        with open(self.events, "w") as f:
+            f.write(json.dumps({"ev": "send", "t": time.time() - 3600, "thread": "sonnet2",
+                                 "from": "operator", "id": "abc123", "lane": "build",
+                                 "reply": "file", "done": "ship it"}) + "\n")
+        report = outstanding.outstanding(events_path=self.events, handoffs_root=self.handoffs)
+        self.assertEqual(report.answered, [])
+        [item] = report.outstanding
+        self.assertEqual(item.d.id, "abc123")
+
+    def test_an_unrelated_handoff_in_a_different_thread_does_not_answer_it(self):
+        with open(self.events, "w") as f:
+            f.write(json.dumps({"ev": "send", "t": time.time() - 3600, "thread": "sonnet2",
+                                 "from": "operator", "id": "abc123", "lane": "build",
+                                 "reply": "file", "done": "ship it"}) + "\n")
+        d = self.handoffs / "muse2"  # a different thread's directory
+        d.mkdir(parents=True)
+        (d / "unrelated.md") .write_text("# Something else entirely\nNo relation to abc123's dispatch.")
+        report = outstanding.outstanding(events_path=self.events, handoffs_root=self.handoffs)
+        self.assertEqual(report.answered, [])
+        [item] = report.outstanding
+        self.assertEqual(item.d.id, "abc123")
+
+
 class CliOutstandingTests(unittest.TestCase):
     """The four ledger-state guards must be reachable from the command line,
     not just from Python - cmd_outstanding used to build its Report against

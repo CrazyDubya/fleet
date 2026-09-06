@@ -85,6 +85,7 @@ def _last_event_t(path: Path, tail: int = 50) -> float | None:
 
 
 def check(profile: str = "v2", events_path: Path | None = None,
+          handoffs_root: Path = outstanding_mod.HANDOFFS,
           threshold_min: float = DEFAULT_MINUTES, now: float | None = None) -> Status:
     now = now if now is not None else time.time()
     path = events_path or ledger.EVENTS
@@ -103,7 +104,8 @@ def check(profile: str = "v2", events_path: Path | None = None,
     threshold_s = threshold_min * 60
     if idle_s < threshold_s:
         return Status(ledger_status="ok", ledger_path=str(path), threshold_min=threshold_min, idle_s=idle_s)
-    report = outstanding_mod.outstanding(profile=profile, events_path=events_path, now=now)
+    report = outstanding_mod.outstanding(profile=profile, events_path=events_path,
+                                         handoffs_root=handoffs_root, now=now)
     open_items = report.outstanding if report.ledger_status == "ok" else []
     alert = "stuck" if open_items else "idle_queue"
     return Status(ledger_status="ok", ledger_path=str(path), threshold_min=threshold_min,
