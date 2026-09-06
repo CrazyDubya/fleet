@@ -28,6 +28,9 @@ import { isDebugEnabled, mountDebugPanel, mountEventLog } from './ui/debug.js';
 import { createCalloutLayer } from './ui/callouts.js';
 import { createMomentScreen, bonusBreakdownLines } from './ui/moment-screen.js';
 import { insertScore, loadHighScores, saveHighScores, highScoreLines } from './ui/high-scores.js';
+import { createSynth } from './audio/synth.js';
+import { playMechanismCue, playDisplayCue } from './audio/cues.js';
+import { loadMuted, saveMuted } from './audio/mute.js';
 
 const canvas = document.getElementById('view');
 const { scene, camera, renderer, tiltGroup, resize } = createScene(canvas);
@@ -1056,6 +1059,53 @@ plungerMeterFill.style.cssText = [
 plungerMeterTrack.appendChild(plungerMeterFill);
 document.body.appendChild(plungerMeterTrack);
 
+// AUDIO-T11: one synth for the whole page. `setMuted` is called with the PERSISTED value
+// before `unlock()` is ever called (and therefore before the AudioContext/master gain even
+// exist) — see synth.js's own `unlock()` doc comment: it reads back the `muted` flag it was
+// last told, at creation time, so a muted player's very first sound is already silent rather
+// than playing once before the persisted setting catches up.
+const synth = createSynth();
+let muted = loadMuted(window.localStorage);
+synth.setMuted(muted);
+
+// iOS will not start an AudioContext without a real user gesture, and won't retroactively
+// unlock one created outside a gesture handler — so this listens for the FIRST of several
+// gesture types (whichever the player's first touch/click/key actually is) and unlocks
+// synchronously inside that same handler. Never calls preventDefault/stopPropagation and is
+// registered on `window` as a SEPARATE listener from ui/input.js's own canvas-scoped
+// handlers — both fire independently on the same physical tap, so the gesture that unlocks
+// audio still reaches the flipper/plunger logic untouched (PLUNGE-TOUCH's own touch path is
+// unaffected by this file existing at all).
+function unlockAudioOnFirstGesture() {
+  synth.unlock();
+  window.removeEventListener('pointerdown', unlockAudioOnFirstGesture);
+  window.removeEventListener('touchstart', unlockAudioOnFirstGesture);
+  window.removeEventListener('keydown', unlockAudioOnFirstGesture);
+}
+window.addEventListener('pointerdown', unlockAudioOnFirstGesture, { passive: true });
+window.addEventListener('touchstart', unlockAudioOnFirstGesture, { passive: true });
+window.addEventListener('keydown', unlockAudioOnFirstGesture);
+
+// Mute toggle — the one piece of UI persisted mute state needs to actually be reachable from
+// (persistence with no control to change it would just be a permanently-on or permanently-off
+// setting). Same right-edge column the plunger meter and HUD already use.
+const muteButton = document.createElement('button');
+muteButton.id = 'mute-button';
+muteButton.style.cssText = [
+  'position:fixed', 'top:36px', 'right:8px', 'z-index:6', 'width:32px', 'height:32px',
+  'border-radius:16px', 'border:1px solid rgba(255,255,255,0.4)', 'background:rgba(0,0,0,0.4)',
+  'color:#fff', 'font:16px sans-serif', 'cursor:pointer',
+].join(';');
+function renderMuteButton() { muteButton.textContent = muted ? '🔇' : '🔊'; }
+renderMuteButton();
+muteButton.addEventListener('click', () => {
+  muted = !muted;
+  synth.setMuted(muted);
+  saveMuted(muted, window.localStorage);
+  renderMuteButton();
+});
+document.body.appendChild(muteButton);
+
 function resizeToWindow() {
   resize(window.innerWidth, window.innerHeight);
 }
@@ -1077,6 +1127,11 @@ let pendingNextFrameTags = [];
  * this file growing a second, parallel copy of that handling. */
 function applyDisplayEvents(display) {
   for (const d of display) {
+    // AUDIO-T11: checked first, unconditionally, against every display kind this loop
+    // switches on — not threaded into each branch below, so a future kind added to one of
+    // those branches without an audio cue is a deliberate, visible choice in cues.js's own
+    // DISPLAY_CUES table, not a silent gap someone has to notice by ear.
+    playDisplayCue(synth, d);
     if (d.kind === 'ballServed' || d.kind === 'ballSaved') serveToChute();
     if (d.kind === 'ballSaved') {
       // PLAYTEST-2: found by actually playing it — a DO-OVER re-serve was completely silent.
@@ -1292,6 +1347,10 @@ function frame(now) {
 
   const events = advance(world, dt);
   const frameMechanismTags = [...pendingNextFrameTags, ...processMechanismEvents(events)];
+  // AUDIO-T11: physical-contact sounds, tied to the raw tag itself — the thing that just
+  // happened, not what it scored (that's playDisplayCue's job, in applyDisplayEvents below,
+  // on rules/game.js's own display events for the SAME tags once they're scored).
+  for (const tag of frameMechanismTags) playMechanismCue(synth, tag);
   pendingNextFrameTags = [];
   // SEAM-1 (2026-09-05): this frame's real physical collisions (frameMechanismTags — a MONKEY
   // BARS exit switch, say) are processed and scored NOW, before the tilt check below, rather than
@@ -1365,6 +1424,7 @@ function frame(now) {
     // dispatch fixes; left as-is rather than invented here.
     scoreTags.push(sandbox.eject.tag);
     if (eventLog) eventLog.log(sandbox.eject.tag);
+    playMechanismCue(synth, sandbox.eject.tag);
   }
 
   // T8's staggered multiball release (400ms apart, per §4.4/§9's T8 row) — scheduled by the
@@ -1524,5 +1584,5 @@ window.__pinball = {
   // frame() uses — for debug scripts driving a specific rules-layer scenario (e.g. forcing a
   // FIELD DAY start) without waiting on the physical shot that would ordinarily produce the tag.
   injectTags: (tags) => applyDisplayEvents(processRules(rulesState, tags, elapsedS)),
-  callouts,
+  callouts, synth, get muted() { return muted; },
 };
