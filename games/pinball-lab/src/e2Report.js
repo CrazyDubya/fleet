@@ -11,6 +11,7 @@ import readline from 'node:readline';
 import path from 'node:path';
 import { mean, sd, percentile, histogram, entropyBits, medianAbsDelta, fractionExceeding } from './metrics.js';
 import { flagGateResult } from './gate.js';
+import { rate as measuredRate, fmt as fmtMeasured } from './measured.js';
 
 const EXIT_HIST_BINS = 32; // §4.4: "32-bin exit-x histogram"
 const DIVERGENCE_THRESHOLD_M = 0.05; // §4.4: "fraction exceeding 5cm"
@@ -59,18 +60,26 @@ function addRecordToAgg(agg, r) {
   }
 }
 
-function summariseAgg(agg, fieldWidth) {
+function summariseAgg(agg, fieldWidth, label) {
   const exitHist = histogram(agg.exitXVals, EXIT_HIST_BINS, -fieldWidth / 2, fieldWidth / 2);
   const exitEntropyBits = entropyBits(exitHist, { normalise: true });
   return {
     trials: agg.trials,
     // LAB-28 (V4): `agg.trials ? x / agg.trials : 0` made an empty N-group (zero streamed
     // records — an empty shard, a wiring error) read as a measured, clean 0% — identical to a
-    // genuinely flag-free group. `null` is the sentinel; render sites must not multiply it by
-    // 100 without checking first (see `fmtPct` below).
+    // genuinely flag-free group. `null` is the sentinel; a bare-field render site must not
+    // multiply it by 100 without checking first (MEASURED-3: markdown now renders the `*M`
+    // sidecars below instead, which carry their own zero-trials-vs-zero-events distinction).
     flaggedFraction: agg.trials ? agg.flagged / agg.trials : null,
     flagFractions: Object.fromEntries(Object.entries(agg.flagCounts).map(([k, v]) => [k, agg.trials ? v / agg.trials : null])),
     contactRate: agg.trials ? agg.contacted / agg.trials : null,
+    // MEASURED-3: additive sidecars — every bare field above/below is unchanged. `agg.trials`
+    // is an integer count either way (0 included), so `measuredRate` handles the empty-group
+    // case itself (n=0 -> `unmeasured`, never a silent 0%).
+    flaggedFractionM: measuredRate(agg.flagged, agg.trials, { estimand: `${label}: fraction of trials carrying any validity flag` }),
+    flagFractionsM: Object.fromEntries(Object.entries(agg.flagCounts).map(([k, v]) => [k, measuredRate(v, agg.trials, { estimand: `${label}: fraction of trials flagged ${k}` })])),
+    contactRateM: measuredRate(agg.contacted, agg.trials, { estimand: `${label}: fraction of trials reaching flipper contact` }),
+    exitRateM: measuredRate(agg.exitXVals.length, agg.trials, { estimand: `${label}: fraction of trials exiting the field (reaching the open edge)` }),
     termCounts: Object.fromEntries(agg.termCounts),
     h1DevMean: agg.h1DevVals.length ? mean(agg.h1DevVals) : null,
     h1DevSd: agg.h1DevVals.length ? sd(agg.h1DevVals) : null,
@@ -139,7 +148,7 @@ export function seriesFlagTotals(byN) {
   return { trials, flagged };
 }
 
-async function processSeries(seriesDir, { withDivergence, divergenceMeta } = {}) {
+async function processSeries(seriesDir, seriesLabel, { withDivergence, divergenceMeta } = {}) {
   const meta = JSON.parse(readFileSync(path.join(seriesDir, 'meta.json'), 'utf8'));
 
   // Group cfgs by N -> { N, areaFraction, fieldWidth, byVariant: [...], pooled: agg }
@@ -174,7 +183,7 @@ async function processSeries(seriesDir, { withDivergence, divergenceMeta } = {})
     }
     n.byVariant.push({
       layoutVariant: cfg.layoutVariant, cfgId: cfg.cfgId,
-      ...summariseAgg(variantAgg, cfg.fieldWidth),
+      ...summariseAgg(variantAgg, cfg.fieldWidth, `${seriesLabel} N=${cfg.N} variant=${cfg.layoutVariant}`),
     });
   }
 
@@ -185,7 +194,7 @@ async function processSeries(seriesDir, { withDivergence, divergenceMeta } = {})
   const byNResults = [...byN.values()].map((n) => ({
     N: n.N, areaFraction: n.areaFraction, fieldWidth: n.fieldWidth, fieldHeight: n.fieldHeight,
     byVariant: n.byVariant,
-    ...summariseAgg(n.pooled, n.fieldWidth),
+    ...summariseAgg(n.pooled, n.fieldWidth, `${seriesLabel} N=${n.N}`),
   })).sort((a, b) => a.areaFraction - b.areaFraction);
 
   // LAB-28 (V1, cross-family review 2026-09-05): e2Report imported zero gate functions — every
@@ -227,6 +236,12 @@ async function processDivergence(divergenceDir, seriesABaseXxByCfg) {
     N, pairs: deltas.length,
     divergenceMedianDeltaM: medianAbsDelta(deltas),
     divergenceFractionOver5cm: fractionExceeding(deltas, DIVERGENCE_THRESHOLD_M),
+    // MEASURED-3: additive sidecar. Denominator is `pairs` (valid paired deltas), not trials —
+    // this is a proportion of PAIRS, matching what `divergenceFractionOver5cm` itself divides by.
+    divergenceFractionOver5cmM: measuredRate(
+      deltas.filter((d) => Math.abs(d) > DIVERGENCE_THRESHOLD_M).length, deltas.length,
+      { estimand: `Series A N=${N}: fraction of divergence pairs whose exit-x delta exceeds ${DIVERGENCE_THRESHOLD_M}m` }
+    ),
   }));
   return { meta: { trialCount: meta.trialCount, secs: meta.secs }, totalTrials, totalPairs, byN };
 }
@@ -250,8 +265,8 @@ async function main() {
 
   const divergenceMeta = JSON.parse(readFileSync(path.join(divergenceDir, 'meta.json'), 'utf8'));
 
-  const seriesA = await processSeries(seriesADir, { withDivergence: true, divergenceMeta });
-  const seriesB = await processSeries(seriesBDir, {});
+  const seriesA = await processSeries(seriesADir, 'Series A', { withDivergence: true, divergenceMeta });
+  const seriesB = await processSeries(seriesBDir, 'Series B', {});
   const divergence = await processDivergence(divergenceDir, seriesA.baseXxBySeedByCfg);
 
   const divergenceByN = new Map(divergence.byN.map((d) => [d.N, d]));
@@ -259,6 +274,8 @@ async function main() {
     const d = divergenceByN.get(n.N);
     n.divergenceMedianDeltaM = d?.divergenceMedianDeltaM ?? null;
     n.divergenceFractionOver5cm = d?.divergenceFractionOver5cm ?? null;
+    // MEASURED-3: additive sidecar, carried over from processDivergence unchanged.
+    n.divergenceFractionOver5cmM = d?.divergenceFractionOver5cmM ?? null;
     n.divergencePairs = d?.pairs ?? 0;
   }
 
@@ -314,13 +331,6 @@ function fmt(x, digits = 3) {
   return x.toFixed(digits);
 }
 
-// LAB-28 (V4): a caller multiplying a possibly-null fraction by 100 before handing it to fmt()
-// turns "not measured" back into the number 0 (`null * 100 === 0`) — this scales through fmt
-// only after checking for null, so an unmeasured N-group renders as `—`, not `0.00`.
-function fmtPct(x, digits = 1) {
-  return fmt(x === null || x === undefined ? null : x * 100, digits);
-}
-
 function toMarkdown(summary) {
   const lines = [];
   lines.push(`# E2 — LAB-3 bumper field (\`${summary.runId}\`)`);
@@ -348,14 +358,29 @@ function toMarkdown(summary) {
 
   lines.push('## Series A (mandated: fixed field, skirt radius forced down at high N)');
   lines.push('');
-  lines.push('| N | area frac | trials | flagged% | IMPACTS_EXH% | contact% | h1.dev° | h1.vo m/s | chain mean/p50 | dwell mean s | E[eg] | ecum mean | entropy(bits) | div. median Δx m | div. frac>5cm |');
-  lines.push('|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|');
+  lines.push('| N | area frac | trials | h1.dev° | h1.vo m/s | chain mean/p50 | dwell mean s | E[eg] | ecum mean | entropy(bits) | div. median Δx m |');
+  lines.push('|---|---|---|---|---|---|---|---|---|---|---|');
   for (const n of summary.seriesA.byN) {
     lines.push(
-      `| ${n.N} | ${fmt(n.areaFraction)} | ${n.trials} | ${fmtPct(n.flaggedFraction, 2)} | ${fmtPct(n.flagFractions.IMPACTS_EXHAUSTED, 2)} | ` +
-      `${fmtPct(n.contactRate, 1)} | ${fmt(n.h1DevMean, 1)} | ${fmt(n.h1VoMean, 2)} | ${fmt(n.chainMean, 2)}/${fmt(n.chainP50, 0)} | ` +
+      `| ${n.N} | ${fmt(n.areaFraction)} | ${n.trials} | ${fmt(n.h1DevMean, 1)} | ${fmt(n.h1VoMean, 2)} | ${fmt(n.chainMean, 2)}/${fmt(n.chainP50, 0)} | ` +
       `${fmt(n.dwellMeanS, 3)} | ${fmt(n.perHitEnergyRatioMean, 3)} | ${fmt(n.ecumMean, 3)} | ${fmt(n.exitEntropyBits, 3)} | ` +
-      `${n.divergenceMedianDeltaM !== null ? n.divergenceMedianDeltaM.toExponential(2) : '—'} | ${fmt(n.divergenceFractionOver5cm, 3)} |`
+      `${n.divergenceMedianDeltaM !== null ? n.divergenceMedianDeltaM.toExponential(2) : '—'} |`
+    );
+  }
+  lines.push('');
+  // MEASURED-3: the four rate scalars pulled out of the wide table above into their own table —
+  // a Measured string ("k events / n, 95% CI ...") per cell in the packed table made rows
+  // unreadable; the same convention as this file's non-rate table (unchanged above), just split
+  // by kind rather than crammed into one row.
+  lines.push('### Series A rates (with interval)');
+  lines.push('');
+  lines.push('| N | flagged | IMPACTS_EXHAUSTED | contact | exit | div. frac>5cm |');
+  lines.push('|---|---|---|---|---|---|');
+  for (const n of summary.seriesA.byN) {
+    lines.push(
+      `| ${n.N} | ${fmtMeasured(n.flaggedFractionM)} | ${fmtMeasured(n.flagFractionsM.IMPACTS_EXHAUSTED)} | ` +
+      `${fmtMeasured(n.contactRateM)} | ${fmtMeasured(n.exitRateM)} | ` +
+      `${n.divergenceFractionOver5cmM ? fmtMeasured(n.divergenceFractionOver5cmM) : '—'} |`
     );
   }
   lines.push('');
@@ -383,14 +408,22 @@ function toMarkdown(summary) {
 
   lines.push('## Series B (opus2 extension: field grows with N, area fraction fixed at 0.15)');
   lines.push('');
-  lines.push('| N | field w×h (m) | trials | flagged% | contact% | h1.dev° | h1.vo m/s | chain mean/p50 | dwell mean s | E[eg] | ecum mean | entropy(bits) |');
-  lines.push('|---|---|---|---|---|---|---|---|---|---|---|---|');
+  lines.push('| N | field w×h (m) | trials | h1.dev° | h1.vo m/s | chain mean/p50 | dwell mean s | E[eg] | ecum mean | entropy(bits) |');
+  lines.push('|---|---|---|---|---|---|---|---|---|---|');
   for (const n of summary.seriesB.byN) {
     lines.push(
       `| ${n.N} | ${fmt(n.fieldWidth, 2)}×${fmt(n.fieldHeight, 2)} | ${n.trials} | ` +
-      `${fmtPct(n.flaggedFraction, 2)} | ${fmtPct(n.contactRate, 1)} | ${fmt(n.h1DevMean, 1)} | ${fmt(n.h1VoMean, 2)} | ` +
+      `${fmt(n.h1DevMean, 1)} | ${fmt(n.h1VoMean, 2)} | ` +
       `${fmt(n.chainMean, 2)}/${fmt(n.chainP50, 0)} | ${fmt(n.dwellMeanS, 3)} | ${fmt(n.perHitEnergyRatioMean, 3)} | ${fmt(n.ecumMean, 3)} | ${fmt(n.exitEntropyBits, 3)} |`
     );
+  }
+  lines.push('');
+  lines.push('### Series B rates (with interval)');
+  lines.push('');
+  lines.push('| N | flagged | contact | exit |');
+  lines.push('|---|---|---|---|');
+  for (const n of summary.seriesB.byN) {
+    lines.push(`| ${n.N} | ${fmtMeasured(n.flaggedFractionM)} | ${fmtMeasured(n.contactRateM)} | ${fmtMeasured(n.exitRateM)} |`);
   }
   lines.push('');
 

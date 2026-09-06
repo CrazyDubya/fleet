@@ -335,6 +335,11 @@ async function main() {
       geometryKey: g.geometryKey, geometry: g.geometry, label: geomLabel(g.geometry),
       trials: g.trials, flaggedFraction: g.trials > 0 ? g.flagged / g.trials : 0,
       contactRate: g.trials > 0 ? g.contacted / g.trials : 0,
+      // MEASURED-3: additive sidecars — the bare fields above are unchanged (this file's own
+      // sort/JSON consumers keep reading them as plain numbers). Not rendered as their own
+      // markdown columns (neither ever was), so JSON is where these are published.
+      flaggedFractionM: measuredRate(g.flagged, g.trials, { estimand: `${g.geometryKey}: fraction of trials carrying any validity flag` }),
+      contactRateM: measuredRate(g.contacted, g.trials, { estimand: `${g.geometryKey}: fraction of trials reaching flipper contact` }),
       fanWidthXaDeg: fanWidthXa,
       voViGradientPerHs: gradient, delayPoints,
     });
@@ -357,6 +362,11 @@ async function main() {
   for (const g of geometryResults) {
     const c = cradleByGeom.get(g.geometryKey);
     g.cradleRate = c?.cradleRate ?? null;
+    // MEASURED-3: additive sidecar. `c` is null for a geometry with zero cradle trials, which
+    // predates this dispatch and is a wiring condition, not a zero-events measurement — kept as
+    // `null` (unmeasured has no zero-trial case to construct from) rather than forced through
+    // `measuredRate`, which would throw on n=0 anyway.
+    g.cradleRateM = c ? measuredRate(c.settled, c.trials, { estimand: `${g.geometryKey}: fraction of cradle-family trials settling within ${CRADLE_SETTLE_WINDOW_S}s` }) : null;
     g.cradleSettledEvents = c?.settled ?? null;
     g.cradleSettleTimeMeanS = c?.settleTimeMeanS ?? null;
     g.cradleBouncesMean = c?.bouncesMean ?? null;
@@ -412,6 +422,8 @@ async function main() {
       // MEASURED-2: additive sidecar — `contactRate` above is unchanged, this is the one
       // headline scalar in this file's summary line converted this dispatch.
       contactRateM: measuredRate(totalContacted, totalTrials, { estimand: 'fraction of Stage B trials reaching flipper contact' }),
+      // MEASURED-3: same treatment for the other totals-level rate published alongside it.
+      flaggedFractionM: measuredRate(totalFlagged, totalTrials, { estimand: 'fraction of Stage B trials carrying any validity flag' }),
       shotline: totalShotline, flagCounts,
     },
     geometryCount: geometryResults.length,
@@ -511,14 +523,20 @@ function toMarkdown(summary, best) {
     '(no guard tests the full population\'s ordering; `fanWidthRankingGuard` below tests only the ' +
     'top-1 cut, a narrower question).');
   lines.push('');
-  lines.push('| geom | rest° | active° | upMs | ω | r | e | fan(xa)° | cradle% | cradle events | minCs(m/s) | vo/vi grad | dominated |');
-  lines.push('|---|---|---|---|---|---|---|---|---|---|---|---|---|');
+  // MEASURED-3: `cradle%`'s own event count used to need its own column (RETIRE-ALL §5) — the
+  // Measured rendering carries it inline now (`k events / n`), so the separate `cradle events`
+  // column is folded into this one rather than duplicated. `cradleRateM` is `null` only when a
+  // cradle cfg produced zero shard rows at all (a wiring gap, not a zero-events measurement,
+  // per the field's own comment above) — rendered as `—`, the pre-existing convention for a
+  // genuinely absent value.
+  lines.push('| geom | rest° | active° | upMs | ω | r | e | fan(xa)° | cradle% | minCs(m/s) | vo/vi grad | dominated |');
+  lines.push('|---|---|---|---|---|---|---|---|---|---|---|---|');
   const excludedSet = new Set(summary.dominanceExclusion.excluded);
   for (const g of summary.geometries) {
     lines.push(
       `| ${g.geometryKey} | ${g.geometry.restAngleDeg} | ${g.geometry.activeAngleDeg} | ${g.geometry.upMs} | ` +
       `${g.geometry.omegaProfile} | ${g.geometry.radius} | ${g.geometry.restitution} | ` +
-      `${fmt(g.fanWidthXaDeg, 1)} | ${fmtPct(g.cradleRate, 1)} | ${g.cradleSettledEvents ?? 0} | ` +
+      `${fmt(g.fanWidthXaDeg, 1)} | ${g.cradleRateM ? fmtMeasured(g.cradleRateM) : '—'} | ` +
       `${fmt(g.cradleMinContactSpeedMedianMps, 3)} | ${fmt(g.voViGradientPerHs, 3)} | ${excludedSet.has(g.geometryKey) ? '✓' : ''} |`
     );
   }
@@ -529,8 +547,8 @@ function toMarkdown(summary, best) {
   // JSON summary) are means over as few as 1 event for nine geometries and over ZERO for the
   // other fifteen. Kept, per RETIRE-ALL §5's own instruction ("keep, annotate the forty-six-
   // event support") — not withdrawn, but never readable without the count beside it.
-  lines.push('> `cradle events`: the settled-event COUNT `cradle%` is computed from — 46 total ' +
-    'across all 24 geometries (10,9,7,6,5,4,3,1,1,0×15). `cradleSettleTimeMeanS`/' +
+  lines.push('> `cradle%`\'s event count (MEASURED-3: now rendered inline, `k events / n`) — 46 ' +
+    'settled events total across all 24 geometries (10,9,7,6,5,4,3,1,1,0×15). `cradleSettleTimeMeanS`/' +
     '`cradleBouncesMean` (JSON summary only, not a column here) are means over these same few-or-' +
     'zero events per geometry and are not a trustworthy per-geometry comparison at this budget — ' +
     'shown in the JSON for completeness, not promoted to a table column. `minCs(m/s)`: median of ' +
@@ -622,9 +640,9 @@ function toMarkdown(summary, best) {
       `Justification: of the ${summary.geometryCount} geometries characterised, this one has the widest ` +
       `measured shot fan (P95−P5 of shot-line angle over the full timing sweep) at **${fmt(best.fanWidthXaDeg, 1)}°** ` +
       `— the recommendation rests on fan width alone (timing sensitivity is retired, see RETIRE-ALL §4 above; ` +
-      `no replacement timing rationale is substituted for it). Alongside: a cradle rate of **${fmtPct(best.cradleRate, 1)}%** ` +
-      `over ${best.cradleSettledEvents ?? 0} settled event(s) (fraction of held-active trials settling within 1.5s — ` +
-      `the "feels heavy" number, thin at this event count), and a vo/vi-vs-hs gradient of ` +
+      `no replacement timing rationale is substituted for it). Alongside: a cradle rate of ` +
+      `**${best.cradleRateM ? fmtMeasured(best.cradleRateM) : '—'}** (fraction of held-active trials settling ` +
+      `within 1.5s — the "feels heavy" number, thin at this event count), and a vo/vi-vs-hs gradient of ` +
       `**${fmt(best.voViGradientPerHs, 3)} per unit hs** (positive means tip contact returns more energy than base ` +
       `contact, i.e. the ball rewards a good hit rather than saturating everywhere).`
     );

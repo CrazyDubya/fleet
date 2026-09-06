@@ -160,9 +160,24 @@ for (const [file, patterns] of [
   });
 }
 
-test('V4: e2Report.js and lab2Report.js scale a possibly-null rate through a null-safe helper before formatting, not a bare "* 100"', () => {
-  for (const file of ['e2Report.js', 'lab2Report.js', 'e4Report.js']) {
+test('V4: lab2Report.js and e4Report.js scale a possibly-null rate through a null-safe helper before formatting, not a bare "* 100"', () => {
+  for (const file of ['lab2Report.js', 'e4Report.js']) {
     const text = src(file);
     assert.match(text, /function fmtPct\(/, `expected a null-safe percent helper in ${file}`);
   }
+});
+
+// MEASURED-3: e2Report.js no longer has a bare-percent render path for its by-N rate scalars at
+// all — every one of them (flagged/IMPACTS_EXHAUSTED/contact/exit/divergence fraction) now
+// renders through the `Measured` wall, which throws on anything that isn't a `Measured` value
+// (a bare `null` included) rather than silently scaling it. `fmtPct` was removed from this file
+// because nothing calls it any more, not because the null-safety property it guarded was
+// dropped — this test re-states that property against its new mechanism.
+test('V4 (MEASURED-3): e2Report.js renders its by-N rate scalars through fmtMeasured, not a bare "* 100"', () => {
+  const text = src('e2Report.js');
+  assert.doesNotMatch(text, /function fmtPct\(/, 'fmtPct should be gone from e2Report.js — nothing calls it any more');
+  for (const field of ['flaggedFractionM', 'contactRateM', 'exitRateM']) {
+    assert.match(text, new RegExp(`fmtMeasured\\(n\\.${field}\\)`), `expected n.${field} to render through fmtMeasured`);
+  }
+  assert.match(text, /fmtMeasured\(n\.flagFractionsM\.IMPACTS_EXHAUSTED\)/, 'expected flagFractionsM.IMPACTS_EXHAUSTED to render through fmtMeasured');
 });
