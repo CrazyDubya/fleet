@@ -168,6 +168,33 @@ permission_mode = "bypassPermissions"
 effort = "low"
 settings = "settings/v2/tool.json"
 
+[profile.v2.thread.haiku-agy2]
+model = "claude-haiku-4-5"
+tier = "tool"
+persist = "respawn"
+baseline = ["briefs/v2/_protocol.md", "briefs/v2/haiku-agy.md"]
+mcp = "browser"
+dirs = ["/Users/pup"]
+permission_mode = "bypassPermissions"
+effort = "low"
+settings = "settings/v2/tool.json"
+
+# grok bills per call — a trivial prompt measured $0.0067, because every invocation
+# carries ~18-24k input tokens before the prompt. Its brief makes cost the first line of
+# every reply for that reason. It is also the only harness here with no resume-by-id:
+# --continue takes the most recent session in the cwd, so two conversations in one
+# directory cross silently.
+[profile.v2.thread.haiku-grok2]
+model = "claude-haiku-4-5"
+tier = "tool"
+persist = "respawn"
+baseline = ["briefs/v2/_protocol.md", "briefs/v2/haiku-grok.md"]
+mcp = "browser"
+dirs = ["/Users/pup"]
+permission_mode = "bypassPermissions"
+effort = "low"
+settings = "settings/v2/tool.json"
+
 [profile.v2.thread.haiku-opencode2]
 model = "claude-haiku-4-5"
 tier = "tool"
