@@ -26,7 +26,8 @@ import * as tilt from './rules/tilt.js';
 import { wireInput } from './ui/input.js';
 import { isDebugEnabled, mountDebugPanel, mountEventLog } from './ui/debug.js';
 import { createCalloutLayer } from './ui/callouts.js';
-import { createMomentScreen } from './ui/moment-screen.js';
+import { createMomentScreen, bonusBreakdownLines } from './ui/moment-screen.js';
+import { insertScore, loadHighScores, saveHighScores, highScoreLines } from './ui/high-scores.js';
 
 const canvas = document.getElementById('view');
 const { scene, camera, renderer, tiltGroup, resize } = createScene(canvas);
@@ -196,18 +197,39 @@ const MODE_DISPLAY_NAMES = { KICKBALL: 'KICKBALL', HIDE_SEEK: 'HIDE & SEEK', DOD
 // something that ALREADY HAPPENED (an award, a game-over) — true forever, so those stay
 // unscoped, same as before this fix. See ui/callouts.js's own doc comment for the general rule.
 let ballGeneration = 0;
+// MOMENT-SCOPE (haiku-opencode2's review, 20260905-moment-screen-review.md): the bonus
+// moment screen for ball G is shown in the SAME synchronous display batch as the turnChange
+// that serves ball G+1 (endOfBall pushes 'bonus' near the top of its return array, 'turnChange'
+// at the end — both processed in one applyDisplayEvents pass, no frame in between). Clearing
+// scope `ballGeneration` in onNewBall, the way callouts.endScope does, would therefore clear
+// the moment that was JUST shown a few lines earlier in this same call, before a single frame
+// ever paints it. `previousBallGeneration` lags one ball behind on purpose: onNewBall clears
+// the ball BEFORE the one that just ended, never the one that just ended — so ball G's bonus
+// screen survives ball G+1's entire play (or its own timer, whichever is shorter) and is only
+// force-cleared once ball G+2 begins, if nothing ever replaced it (ball G+1 scored zero).
+let previousBallGeneration = -1;
+// MOMENT-SCOPE: a separate counter for game-scoped moments (the high-score table), never the
+// same numeric space as ballGeneration — see moment-screen.js's own doc comment on why a
+// bare integer would risk an accidental cross-scope match. No new-game flow exists yet to
+// increment this (T12); declared now so the high-score screen's scope is correctly shaped
+// while there's only one caller, per the dispatch.
+let gameGeneration = 0;
 
 /** Everything that resets on a genuinely new ball (design §4.4's "resets each ball" for tilt,
  * plus the kickback's once-per-ball rearm and CALLOUT-1's own ball-generation scope) —
  * factored out since it's needed at both 'ballServed' sites below (a direct serve, and the one
  * inside a turnChange's own launchBall call). `callouts.endScope` runs BEFORE the generation
  * bumps, ending whatever the ball that just finished was showing (see ui/callouts.js's own doc
- * comment on why only the warning callout is scoped this way). */
+ * comment on why only the warning callout is scoped this way). `momentScreen.endScope` uses
+ * the LAGGED generation — see this file's own doc comment above on why it can't use the same
+ * one callouts does. */
 function onNewBall() {
   game.resetKickbackForNewBall(kickbackState);
   tilt.resetTiltBob(tiltBob);
   flippersDisabled = false;
   callouts.endScope(ballGeneration);
+  momentScreen.endScope(`ball:${previousBallGeneration}`);
+  previousBallGeneration = ballGeneration;
   ballGeneration += 1;
 }
 // T8: which physical ball each SW_MERRY_GO_ROUND capture event this frame belongs to,
@@ -863,12 +885,29 @@ let chuteBall = null;
 const troughState = game.createTrough();
 
 function serveToChute() {
+  // TROUGH-1 (false-coverage audit, haiku-fs2 20260905T225000Z): this used to read
+  // `if (served === null) { warn }` immediately followed by an UNCONDITIONAL spawn below —
+  // structured like a guard that protects the spawn, when the spawn never actually depended
+  // on `served` at all. A reader checking "what happens on an empty trough?" found the warn
+  // and reasonably assumed the empty case was handled; it wasn't.
+  //
+  // Not fixed by making the spawn conditional: this game has no fixed total-ball pool (see
+  // createTrough's own doc comment) — every serve is a freshly spawned object, never drawn
+  // from a finite stock the trough actually limits. "Return without spawning" has no defined
+  // recipient: the player would simply have no ball, with nothing in this codebase (no
+  // game-over path, no retry, no alternate source) to do about it. Inventing that recovery
+  // behavior is a real design question — what SHOULD happen if drain/serve genuinely
+  // desyncs, a case that would itself be a bug elsewhere, not a normal trough state — and
+  // isn't answered here.
+  //
+  // So: the trough's serve-side count is diagnostic bookkeeping (verified by
+  // test/trough.test.mjs's own balance assertions), not a supply gate. Kept honestly
+  // separate below — a warning that reports an anomaly, not a check that pretends to act on
+  // one — rather than removing the trough call outright, since the balance signal itself is
+  // real and worth keeping even though it doesn't block anything.
   const served = game.serveFromTrough(troughState);
   if (served === null) {
-    // See serveFromTrough's own doc comment: this should never happen in ordinary play (every
-    // serve is preceded by a matching drain, and the trough starts pre-loaded) — loud, not
-    // silent, if it ever does, rather than quietly masking a real drain/serve imbalance.
-    console.warn('serveToChute: trough reported empty on an ordinary serve — drain/serve count has drifted out of balance.');
+    console.warn('serveToChute: trough reported empty on an ordinary serve — drain/serve count has drifted out of balance (diagnostic only; a ball is served regardless).');
   }
   chuteBall = spawnBall(recess.LAUNCH_POSITION, { x: 0, y: 0 });
 }
@@ -1012,6 +1051,17 @@ function applyDisplayEvents(display) {
     } else if (d.kind === 'special') {
       callouts.show('SPECIAL!', { durationMs: 2200 });
     } else if (d.kind === 'score' && d.tag === 'multiball_jackpot') {
+      // SIGNAL-LOST (display-event transit audit, haiku-fs2 20260905T215000Z): 'score' fires
+      // for every scorable shot on the table — bumpers, slings, ramps, mode shots, skill
+      // shots — and only 'multiball_jackpot' (below) gets a callout. Deliberate, not an
+      // oversight left over from an incomplete wiring pass: the HUD already shows the running
+      // total every frame, and a distinct popup for every single shot would be exactly the
+      // "announces everything" failure mode this table has already drawn the opposite line
+      // against twice today (LIT-WIRE's "do not light everything," this same dispatch's own
+      // "do not add seven callouts"). The tags that DO get their own announcement
+      // (multiball_jackpot here, plus lock/jackpotValue/bonusX/lockNotLit elsewhere in this
+      // same loop) are the ones large or rare enough that a player needs the specific number
+      // or reason, not just a bigger HUD total.
       // CALLOUT-2: the largest scoring event on the table (500,000-16,000,000, per
       // multiball.js's JACKPOT_MAX_VALUE) had no announcement at all. Says the value —
       // a flat "JACKPOT!" would say the same thing for a 500,000 collection and a
@@ -1022,22 +1072,50 @@ function applyDisplayEvents(display) {
       // ×bonusX) and nothing ever showed it — haiku-fs2's HUD inventory. A moment screen
       // (ui/moment-screen.js), not the one-line callout layer: this is several lines of "what
       // this ball was made of," not a transient announcement, and it needs to hold long
-      // enough to actually read, not flash by like TILT's own warnings do.
-      //
-      // A zero bonus (an instant drain — 0 playtime, 0 shots, 0 modes) does not get a
-      // breakdown of zeros: per the dispatch, an itemization of nothing looks like something
-      // happened when nothing did. Simplest reading of "say so or say nothing" — say nothing;
-      // a silent HUD score that visibly didn't move already says it for a ball that earned
-      // nothing, and a fresh line of zeros would just be noise on top of that.
-      if (d.amount > 0) {
-        momentScreen.show([
-          'BALL BONUS',
-          `PLAYTIME     ${d.playtimePoints.toLocaleString()}`,
-          `SHOTS        ${d.shotsPoints.toLocaleString()}`,
-          `MODES        ${d.modesPoints.toLocaleString()}`,
-          `BONUS X${d.bonusX}`,
-          `TOTAL        ${d.amount.toLocaleString()}`,
-        ], { durationMs: 4200 });
+      // enough to actually read, not flash by like TILT's own warnings do. bonusBreakdownLines
+      // returns null for a zero bonus (see its own doc comment) — nothing shows in that case.
+      const lines = bonusBreakdownLines(d);
+      // MOMENT-SCOPE: scoped to the CURRENT (not yet incremented) ballGeneration — the ball
+      // this bonus describes — so onNewBall's lagged clear (see its own doc comment) can find
+      // and end it exactly two balls later if nothing ever replaced it.
+      if (lines) momentScreen.show(lines, { durationMs: 4200, scope: `ball:${ballGeneration}` });
+    } else if (d.kind === 'lockNotLit') {
+      // HISCORE (situational-events sweep): an unlit lock attempt looked identical, from the
+      // player's side, to a shot that simply missed. Says explicitly why nothing locked.
+      callouts.show('LOCK NOT LIT', { durationMs: 1400 });
+    } else if (d.kind === 'jackpotValue') {
+      // HISCORE: a relock during active multiball silently doubled the jackpot — the same
+      // "say the value" convention CALLOUT-2/JACKPOT-1 already established for jackpot-sized
+      // numbers, applied to the one jackpot-value change that had never gotten it.
+      callouts.show(`JACKPOT RAISED TO ${d.value.toLocaleString()}`, { durationMs: 2000 });
+    } else if (d.kind === 'bonusX') {
+      // SIGNAL-LOST (display-event transit audit, haiku-fs2 20260905T215000Z): rules pushed
+      // 'bonusX' from four call sites — F-U-N completion, a HANG TIME reward, FIELD DAY's own
+      // lock/unlock — with clear intent to tell the player their multiplier changed, and
+      // nothing ever matched the kind. The multiplier is the thing a player tracks most
+      // closely (the audit's own words); this is the one addition in that sweep, alongside
+      // the jackpot-relock announcement above — everything else the sweep found is either
+      // already covered or deliberately left silent (see the comments at each of those sites).
+      callouts.show(`BONUS X${d.value}`, { durationMs: 1600 });
+    } else if (d.kind === 'gameOver') {
+      // HISCORE: last item in the HUD backlog. Same moment-screen surface the bonus
+      // breakdown uses, per haiku-fs2's own recommendation to share it rather than each
+      // screen inventing its own. thisScore <= 0 shows nothing — same "say nothing" rule the
+      // bonus screen uses, and for the same reason: an empty/placeholder table for a
+      // 0-point game reads as an achievement it isn't. A scoreless game also isn't inserted
+      // into the persisted table at all (nothing worth remembering).
+      const thisScore = d.scores[0] ?? 0;
+      if (thisScore > 0) {
+        const scores = insertScore(loadHighScores(window.localStorage), thisScore);
+        saveHighScores(scores, window.localStorage);
+        const lines = highScoreLines(scores, thisScore);
+        // MOMENT-SCOPE: game-scoped, not ball-scoped — namespaced `game:` so this can never
+        // collide with a `ball:`-scoped bonus screen reaching the same integer by
+        // coincidence. Nothing clears this scope today (no new-game flow exists yet — see
+        // PLAYTEST-2's own finding that gameOver is a dead end until page reload), so in
+        // practice this lives out its own 6s timer uncontested; the shape is still correct
+        // now, while there's only one caller, for whenever a restart flow (T12) exists.
+        if (lines) momentScreen.show(lines, { durationMs: 6000, scope: `game:${gameGeneration}` });
       }
     }
 

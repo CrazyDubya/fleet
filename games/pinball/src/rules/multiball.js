@@ -97,7 +97,17 @@ export function startFieldDay(m, atS) {
 
 /** TREEHOUSE hit: lights lock, if it isn't already lit, there's a slot free, and multiball
  * isn't already running. Returns a lamp display event, or null if this hit didn't change
- * anything (already lit, already at 3 locks, or mid-multiball). */
+ * anything (already lit, already at 3 locks, or mid-multiball).
+ *
+ * SIGNAL-LOST (display-event transit audit, haiku-fs2 20260905T215000Z): this 'lamp' event
+ * has no handler in main.js's display loop, and deliberately so, not by oversight — main.js
+ * already reads `multiball.lockLit` directly, every frame, to color the merry-go-round roof
+ * (yellow when lit, green when unlit). That direct-state read can never go stale the way a
+ * one-shot display event could (miss a frame, and the event is gone forever with no way to
+ * re-derive "is it still lit"); the event fires here only because rules/game.js's own test
+ * suite asserts on it (test/multiball.test.mjs) as a way to verify THIS function's own state
+ * transition without reaching into the renderer. Left in for that reason, not consumed for
+ * this one. */
 export function onTreehouseHit(m) {
   if (m.active || m.locks >= LOCK_MAX || m.lockLit) return null;
   m.lockLit = true;

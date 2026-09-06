@@ -137,6 +137,16 @@ function endOfBall(state, atS, { skipBonus = false } = {}) {
 
   // RECESS METER's EXTRA BALL: the same player takes another ball at the same ball number
   // rather than the turn passing on — the classic pinball meaning of "extra ball".
+  //
+  // SIGNAL-LOST (display-event transit audit, haiku-fs2 20260905T215000Z): 'extraBallGranted'
+  // has no main.js handler. This is a genuinely different moment from 'extraBall' (the METER
+  // fill itself, which DOES get "EXTRA BALL!" — the entitlement being EARNED), not a
+  // duplicate of it as the sweep first read it — this one fires when that already-announced
+  // entitlement is SPENT, at end-of-ball. Left unconsumed on purpose: the player already
+  // knows they banked an extra ball from the earlier callout, and what they see here is
+  // their ball simply continuing (no turn/ball-number change on the HUD) instead of passing
+  // on — a second announcement for the same entitlement would be telling them something
+  // they were just told, not new information.
   if (p.extraBallsPending > 0) {
     p.extraBallsPending -= 1;
     display.push({ kind: 'extraBallGranted', player: playerIndex });
@@ -360,6 +370,13 @@ function scoreSwitchTag(state, p, tag, atS) {
     const result = multiball.onMerryGoRoundEntry(p.multiball, atS);
     if (result.action === 'eject') {
       display.push({ kind: 'merryGoRoundEject' });
+      // HISCORE (situational-events sweep, haiku-fs2 20260905T210000Z): an unlit lock
+      // attempt looked, from the player's side, identical to a shot that simply missed —
+      // no distinct signal from an ordinary bounce. Refusing an action is exactly the
+      // moment a player needs it explained, so this gets its own kind rather than reusing
+      // 'merryGoRoundEject' (which also fires on a successful relock, below, where nothing
+      // was refused).
+      display.push({ kind: 'lockNotLit' });
     } else if (result.action === 'relock') {
       display.push({ kind: 'merryGoRoundEject' });
       display.push({ kind: 'jackpotValue', value: result.jackpotValue });
@@ -458,6 +475,19 @@ function scoreSwitchTag(state, p, tag, atS) {
         } else if (hangTime.reward === 'ballSave') {
           p.ballSaveUntilS = Math.max(p.ballSaveUntilS ?? atS, atS) + DO_OVER_S;
         }
+        // SIGNAL-LOST (display-event transit audit, haiku-fs2 20260905T215000Z): main.js has
+        // no handler for 'hangTime' itself, deliberately — each of the three rewards already
+        // has its own, more specific signal: 'points' scores through the ordinary 'score'
+        // event (silent like every other shot's points, a separate, already-stated policy —
+        // see the display-loop's own comment on why most score tags don't get a callout);
+        // 'bonusX' now gets the new BONUS X_ callout above, same as every other bonusX change;
+        // 'ballSave' extends ballSaveUntilS with nothing shown at the moment it's earned, and
+        // that specific silence is a deliberate choice, not a gap — the save only matters if
+        // the ball actually drains within the window, and that moment already announces
+        // itself ("BALL SAVED", PLAYTEST-2's own fix). Announcing the award AND the save
+        // would be the same fact twice for the two rewards that already speak for themselves;
+        // this event exists so a test can assert which reward a given hit produced
+        // (test/modes.test.mjs) without threading that through score/bonusX's own shapes.
         display.push({ kind: 'hangTime', reward: hangTime.reward });
       }
     } else if (tag === SW_TUNNEL_EXIT) {
