@@ -120,7 +120,22 @@ def _pending_lock(path: Path, timeout: float | None = None, sleep=time.sleep):
 def _read_pending(path: Path) -> list[dict]:
     try:
         return json.loads(path.read_text())
-    except (FileNotFoundError, json.JSONDecodeError):
+    except FileNotFoundError:
+        return []
+    except json.JSONDecodeError:
+        # REVIEW-REMAINDER: a missing file legitimately means "no pending entries".
+        # A file that exists but will not parse is a different fact, and collapsing
+        # the two is destructive here rather than merely misleading: _add_pending and
+        # clear_pending both read through this call and write back what it returns,
+        # under the same lock. Returning [] on a corrupt file means the next write
+        # permanently erases every real entry that file still held. Same shape as the
+        # bug hold.sh had, except this one lands on disk. Preserve the file first so
+        # the loss is recoverable, and leave a ledger event so it is not silent.
+        try:
+            path.replace(path.with_name(path.name + f".corrupt-{int(time.time())}"))
+        except OSError:
+            pass
+        ledger.event("pending_corrupt", pending_path=str(path))
         return []
 
 
