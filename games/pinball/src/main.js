@@ -967,6 +967,13 @@ let pendingNextFrameTags = [];
 function applyDisplayEvents(display) {
   for (const d of display) {
     if (d.kind === 'ballServed' || d.kind === 'ballSaved') serveToChute();
+    if (d.kind === 'ballSaved') {
+      // PLAYTEST-2: found by actually playing it — a DO-OVER re-serve was completely silent.
+      // The ball vanishes from wherever it drained and reappears sitting in the chute, same
+      // score, same ball number, needing a fresh plunge nothing prompts for. Without this, it
+      // reads as the game having glitched, not as a save.
+      callouts.show('BALL SAVED', { durationMs: 1800 });
+    }
     // A genuinely NEW ball (not a DO-OVER 'ballSaved' — see game/mechanisms.js's
     // resetKickbackForNewBall doc comment for why the two are treated differently) re-arms
     // the kickback's once-per-ball use, and — TILT (design §4.4: "resets each ball") — the
