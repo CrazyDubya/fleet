@@ -14,6 +14,7 @@ import { mean, sd, percentile } from './metrics.js';
 import { cfgId as hashCfg } from './sweep.js';
 import { rankingValidityResult, premiseHeaderLines, requireFlagGateOk } from './gate.js';
 import { rate as measuredRate, fmt as fmtMeasured } from './measured.js';
+import { selectTopN, p95Minusp5 } from './selectTopN.js';
 
 const GEOMETRY_KEYS = ['restAngleDeg', 'activeAngleDeg', 'upMs', 'omegaProfile', 'radius', 'restitution'];
 const HS_BINS = 10;
@@ -389,8 +390,19 @@ async function main() {
   // measures noise, so removing it changes the population `best` is drawn from not at all in
   // practice — `withFanWidth` below is numerically identical to the old `rankedUnderCeiling`).
   const withFanWidth = geometryResults.filter((g) => g.fanWidthXaDeg !== null).sort((a, b) => b.fanWidthXaDeg - a.fanWidthXaDeg);
-  const fanWidthRankingGuard = rankingValidityResult(withFanWidth.map((g) => g.fanWidthXaDeg), { topN: 1 });
-  const best = fanWidthRankingGuard.ok ? (withFanWidth[0] ?? null) : null;
+  // GUARD-MIGRATE-2 (CUT-1 spec §7 item #4): the top-1 fan-width pick, through selectTopN
+  // rather than a boundary-only guard — real per-trial samples exist here (`geoms`'s own
+  // `xaVals`, never discarded to a count the way E4's cp rates were), so this is a genuine
+  // `samples: g => xaVals` call, not a reconstruction. `selectTopN` throws on an empty `rows`
+  // array, unlike the old guard (which returned a clean `ok:false, n:0`) — guarded explicitly
+  // so a corpus with no valid fan-width measurement still reports that, not a crash.
+  const fanWidthCut = withFanWidth.length > 0
+    ? selectTopN({
+      rows: withFanWidth, samples: (g) => geoms.get(g.geometryKey).xaVals, estimator: p95Minusp5,
+      n: 1, key: (g) => g.geometryKey,
+    })
+    : null;
+  const best = fanWidthCut?.kind === 'ranked' ? withFanWidth.find((g) => g.geometryKey === fanWidthCut.cut[0].key) : null;
 
   // --- Binned transfer function, flattened ---
   const transferTable = [...transferBins.entries()].map(([key, b]) => {
@@ -435,7 +447,9 @@ async function main() {
     bestGeometryKey: best?.geometryKey ?? null,
     // RETIRE-ALL §2: null unless --geometryOrigin was supplied (see main()'s own doc comment).
     bestGeometryOrigin: best ? originOf(best.geometryKey) : null,
-    fanWidthRankingGuard,
+    // GUARD-MIGRATE-2: the full CutResult (`kind: 'ranked'/'banded'/'unordered'`, or `null` if
+    // no geometry had a valid fan-width measurement at all) — supersedes `fanWidthRankingGuard`.
+    fanWidthCut,
     transferFunction: {
       bins: { hs: HS_BINS, phase: PHASES, vi: { count: VI_BINS, max: VI_MAX }, ai: { count: AI_BINS, max: AI_MAX } },
       table: transferTable,
@@ -448,8 +462,8 @@ async function main() {
   writeFileSync(jsonOut, JSON.stringify(summary, null, 2));
   writeFileSync(mdOut, toMarkdown(summary, best));
 
-  if (!fanWidthRankingGuard.ok) {
-    console.error(JSON.stringify({ warning: 'LAB-16 ranking gate: fanWidthXaDeg cannot rank these geometries — no best geometry named', fanWidthRankingGuard }));
+  if (fanWidthCut?.kind !== 'ranked') {
+    console.error(JSON.stringify({ warning: 'CUT-1: fanWidthXaDeg cannot rank these geometries — no best geometry named', fanWidthCut }));
   }
 
   console.log(JSON.stringify({
@@ -471,7 +485,30 @@ function fmtPct(x, digits = 1) {
   return fmt(x === null || x === undefined ? null : x * 100, digits);
 }
 
-function toMarkdown(summary, best) {
+// GUARD-MIGRATE-2: e4Report.js's own `sharedFieldsAcrossRows`/`sharedFieldsText`, ported here
+// rather than imported — e4Report's version takes a `fieldsFn` because it joins two different
+// row shapes (a2 assemblies vs. b cfgs) back to their config fields; lab2Report has exactly one
+// row shape (`geometryResults`, each carrying a nested `.geometry` keyed by GEOMETRY_KEYS), so
+// there is nothing for a `fieldsFn` parameter to select between.
+function sharedFieldsAcrossRowsForLab2(rows) {
+  if (!rows.length) return { shared: {}, varies: [] };
+  const shared = {};
+  const varies = [];
+  for (const k of GEOMETRY_KEYS) {
+    const distinct = new Set(rows.map((r) => JSON.stringify(r.geometry[k])));
+    if (distinct.size === 1) shared[k] = rows[0].geometry[k];
+    else varies.push(k);
+  }
+  return { shared, varies };
+}
+
+function sharedFieldsTextForLab2(shared) {
+  const entries = Object.entries(shared);
+  if (!entries.length) return 'nothing — even the geometry fields differ across the tied rows';
+  return entries.map(([k, v]) => `${k}=${v}`).join(', ');
+}
+
+export function toMarkdown(summary, best) {
   const lines = [];
   lines.push(`# E1 — LAB-2 flipper transfer function (\`${summary.runId}\`)`);
   lines.push('');
@@ -515,13 +552,11 @@ function toMarkdown(summary, best) {
     'measurable dependence of exit angle on release delay at this budget — which supports ' +
     '"timing is not the binding constraint" more firmly than the retired figure did.');
   lines.push('');
-  // LAB-28 (V2), still true after retirement: sorted by fanWidthXaDeg for readability only — no
-  // guard covers this full-population ordering (`fanWidthRankingGuard` below answers a
-  // narrower question: whether the top-1 cut is unambiguous, not whether this whole table's
-  // order is meaningful).
+  // LAB-28 (V2), still true after migration: sorted by fanWidthXaDeg for readability only — the
+  // fan-width CUT below answers a narrower question (is the top-1 pick itself resolvable), not
+  // whether this whole table's order is meaningful.
   lines.push('> Sorted by `fanWidthXaDeg` for readability only — this is not a validated ranking ' +
-    '(no guard tests the full population\'s ordering; `fanWidthRankingGuard` below tests only the ' +
-    'top-1 cut, a narrower question).');
+    '(the fan-width cut below tests only the top-1 pick, a narrower question).');
   lines.push('');
   // MEASURED-3: `cradle%`'s own event count used to need its own column (RETIRE-ALL §5) — the
   // Measured rendering carries it inline now (`k events / n`), so the separate `cradle events`
@@ -590,9 +625,10 @@ function toMarkdown(summary, best) {
     // FAILURE branch (below) used to narrate the guard at all. A verdict shown only on failure
     // is indistinguishable from a guard that never ran.
     lines.push(
-      `> **LAB-16 ranking gate: PASSED** — \`fanWidthXaDeg\` cleared the top-1 cut over all ` +
-      `${summary.geometryCount} characterised geometries (${summary.fanWidthRankingGuard.distinctCount} ` +
-      `distinct values, boundary ambiguity ${fmt(summary.fanWidthRankingGuard.boundaryAmbiguity, 2)}x). The ` +
+      `> **selectTopN: RANKED** — \`fanWidthXaDeg\` cleared the top-1 cut over all ` +
+      `${summary.geometryCount} characterised geometries (${summary.fanWidthCut.structural.distinctCount} ` +
+      `distinct values, boundary ambiguity ${fmt(summary.fanWidthCut.structural.boundaryAmbiguity, 2)}x, ` +
+      `split-half within-one agreement ${summary.fanWidthCut.stability.withinOne !== undefined ? `${(summary.fanWidthCut.stability.withinOne * 100).toFixed(1)}%` : summary.fanWidthCut.stability.why}). The ` +
       'recommendation below is a validated top-1, not an arbitrary array position.'
     );
     lines.push('');
@@ -647,13 +683,35 @@ function toMarkdown(summary, best) {
       `contact, i.e. the ball rewards a good hit rather than saturating everywhere).`
     );
     lines.push('');
-  } else if (!summary.fanWidthRankingGuard.ok) {
+  } else if (summary.fanWidthCut?.kind === 'banded') {
+    // GUARD-MIGRATE-2: a demotion the old boundary-only guard had no way to express — the
+    // top-1 pick isn't resolvable, but a coarser band still is. Recommend from the top band's
+    // shared configuration rather than naming nothing at all.
+    const topBand = summary.fanWidthCut.bands[0];
+    // `toMarkdown` is a top-level function, not nested in `main()` — `withFanWidth` (main()'s
+    // local, fanWidthXaDeg-filtered list) is out of scope here. `summary.geometries` is a
+    // strict superset (every geometry, not just those with a fan-width measurement) already
+    // published on the JSON summary, which is all a keyed lookup needs.
+    const byKey = new Map(summary.geometries.map((g) => [g.geometryKey, g]));
+    const { shared, varies } = sharedFieldsAcrossRowsForLab2(topBand.map((b) => byKey.get(b.key)));
     lines.push('## Recommendation');
     lines.push('');
     lines.push(
-      `> ⚠ **LAB-16 ranking gate: FAILED** — \`fanWidthXaDeg\` cannot rank the ${summary.fanWidthRankingGuard.n} ` +
-      `characterised geometries — ${summary.fanWidthRankingGuard.reason}. No "best" geometry is named; picking ` +
-      'array position 0 of an unordered tie would be exactly LAB-16\'s E3-P1 mistake repeated here.'
+      `> ⚠ **selectTopN: DEMOTED TO BANDED** — \`fanWidthXaDeg\` cannot resolve a single top-1 pick over the ` +
+      `${summary.geometryCount} characterised geometries; it demotes to **${summary.fanWidthCut.bandCount} stable band(s)** ` +
+      `instead. The top band holds **${topBand.length} geometries**, fan width up to ${fmt(topBand[0].value, 1)}°, ` +
+      `sharing ${sharedFieldsTextForLab2(shared)}${varies.length ? `; they differ on ${varies.join(', ')}` : ''}. ` +
+      'No single geometry is confirmed best; any one from the top band is an arbitrary pick within it.'
+    );
+    lines.push('');
+  } else if (summary.fanWidthCut?.kind === 'unordered' || summary.fanWidthCut?.kind === 'saturated') {
+    lines.push('## Recommendation');
+    lines.push('');
+    lines.push(
+      `> ⚠ **selectTopN: ${summary.fanWidthCut.kind.toUpperCase()}** — \`fanWidthXaDeg\` cannot rank the ` +
+      `${summary.fanWidthCut.structural.n} characterised geometries — ${summary.fanWidthCut.reason}. No "best" ` +
+      'geometry is named; picking array position 0 of an unresolvable ordering would be exactly LAB-16\'s ' +
+      'E3-P1 mistake repeated here.'
     );
     lines.push('');
   } else {
