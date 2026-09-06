@@ -6,7 +6,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from . import ledger, launcher, telemetry, tmux
+from . import ledger, launcher, outstanding as outstanding_mod, telemetry, tmux
 from . import packet as packet_mod
 from . import registry as registry_mod
 from . import send as send_mod
@@ -188,6 +188,12 @@ def cmd_report(args):
     print(telemetry.report()); return 0
 
 
+def cmd_outstanding(args):
+    report = outstanding_mod.outstanding(profile=current_profile())
+    print(report.describe())
+    return 1 if report.outstanding else 0
+
+
 def cmd_decide(args):
     from . import prompts as prompts_mod
     try:
@@ -317,6 +323,7 @@ def _build_parser():
     pj.set_defaults(fn=cmd_projects)
     t = sub.add_parser("telemetry"); t.add_argument("--day"); t.set_defaults(fn=cmd_telemetry)
     sub.add_parser("report").set_defaults(fn=cmd_report)
+    sub.add_parser("outstanding").set_defaults(fn=cmd_outstanding)
     a = sub.add_parser("ask"); a.add_argument("thread"); a.add_argument("text", nargs="+")
     a.add_argument("--from", dest="sender", default="operator")
     a.add_argument("--timeout", type=float, default=30.0)

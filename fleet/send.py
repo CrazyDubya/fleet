@@ -28,8 +28,16 @@ def send(thread: str, text: str, sender: str = "operator", events_path: Path | N
     # Log a digest of the exact bytes delivered so a disputed instruction can
     # be matched against what was actually sent, without copying the message
     # itself into the ledger.
+    #
+    # `text` may itself be a hand-typed packet (a sender composed the
+    # `@to ... @id ...` header directly instead of going through
+    # send_packet's --lane/--effort/--reply flags). Recover those fields on a
+    # best-effort basis so a hand-typed dispatch still joins with its reply -
+    # `fleet outstanding` otherwise has no way to tell such a send apart from
+    # an unrelated chat message with the same shape as bytes+hash.
     ledger.event("send", path=events_path, thread=thread, **{"from": sender}, bytes=n,
-                 sha256=hashlib.sha256(body.encode()).hexdigest())
+                 sha256=hashlib.sha256(body.encode()).hexdigest(),
+                 **packet_mod.extract_ledger_fields(text))
     return n
 
 
@@ -59,7 +67,7 @@ def send_packet(p: packet_mod.Packet, profile: str, events_path: Path | None = N
     if p.reply == "inline":
         _add_pending(p.sender, p.id, p.to, profile_state(profile))
     ledger.event("send", path=events_path, thread=p.to, id=p.id, lane=p.lane, effort=p.effort,
-                 reply=p.reply, bytes=len(text.encode()), sha256=hashlib.sha256(text.encode()).hexdigest(),
+                 reply=p.reply, done=p.done, bytes=len(text.encode()), sha256=hashlib.sha256(text.encode()).hexdigest(),
                  **{"from": p.sender})
     return p.id
 

@@ -130,6 +130,35 @@ def parse(text: str):
                   refs=refs, done=done, id=head.get("id"), body=body)
 
 
+LEDGER_FIELDS = ("id", "lane", "effort", "reply", "done")
+
+
+def extract_ledger_fields(text: str) -> dict[str, str]:
+    """Best-effort @id/@lane/@effort/@reply/@done extraction for ledger logging,
+    tolerant of headers `parse()` would reject (unknown lane, non-hex id, a
+    freeform @reply value like "handoff").
+
+    Only a packet built by `send_packet()` was logged with these fields -
+    `send()` pastes raw text as-is, including a hand-typed packet a sender
+    composed themselves rather than going through --lane/--effort/--reply.
+    That left the ledger with bytes and a hash and no id at all for such a
+    dispatch, breaking the send/reply join for exactly the packets a human
+    is most likely to have typed carelessly.
+    """
+    lines = text.split("\n")
+    if not lines or not lines[0].startswith("@"):
+        return {}
+    out: dict[str, str] = {}
+    i = 0
+    while i < len(lines) and lines[i].startswith("@"):
+        f = _fields(lines[i])
+        for k in LEDGER_FIELDS:
+            if k in f and k not in out:
+                out[k] = f[k]
+        i += 1
+    return out
+
+
 def format_packet(p: Packet) -> str:
     head = f"@to {p.to}  @from {p.sender}  @lane {p.lane}  @effort {p.effort}  @reply {p.reply}"
     if p.id:

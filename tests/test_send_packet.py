@@ -73,6 +73,12 @@ class SendPacketTests(unittest.TestCase):
         ev = json.loads(self.events.read_text().splitlines()[-1])
         self.assertEqual((ev["ev"], ev["id"], ev["lane"], ev["thread"]), ("send", pid, "lookup", "haiku-fs2"))
 
+    def test_ledger_has_done(self):
+        self.p.done = "gui serves /w/status/"
+        self._send(self.p)
+        ev = json.loads(self.events.read_text().splitlines()[-1])
+        self.assertEqual(ev["done"], "gui serves /w/status/")
+
 
 class PendingLockTests(unittest.TestCase):
     """_add_pending is a read-modify-write: two senders in it at once used to

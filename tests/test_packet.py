@@ -73,3 +73,13 @@ class PacketTests(unittest.TestCase):
             packet.normalize_effort("max")
         self.assertIsNone(cm.exception.__cause__)
         self.assertTrue(cm.exception.__suppress_context__)
+
+
+    def test_extract_ledger_fields_recovers_hand_typed_packet(self):
+        text = "@to sonnet4  @from operator  @lane build  @effort medium  @reply handoff  @id DISPATCH-LEDGER\n@done fleet outstanding exists\nbody"
+        self.assertEqual(packet.extract_ledger_fields(text),
+                          {"id": "DISPATCH-LEDGER", "lane": "build", "effort": "medium",
+                           "reply": "handoff", "done": "fleet outstanding exists"})
+
+    def test_extract_ledger_fields_on_plain_text_is_empty(self):
+        self.assertEqual(packet.extract_ledger_fields("just a message"), {})
