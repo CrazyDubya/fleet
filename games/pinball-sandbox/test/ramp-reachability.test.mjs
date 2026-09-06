@@ -7,9 +7,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { runScenario, formatReport } from '../src/scenarios.js';
 
-test('orbit-reachability-right: THE ORBIT exit reaches the right flipper in 81/81 samples, 46/81 mid-bat', () => {
+test('orbit-reachability-right: THE ORBIT exit reaches the right flipper in 81/81 samples, 45/81 mid-bat', () => {
   // Reproduces games/pinball/test/orbit-reachability.test.mjs's own pinned figure (81/81
-  // contact) and table/ramps.js's buildOrbitRamp doc comment ("81/81 contact, 46/81 mid-bat").
+  // contact) and table/ramps.js's buildOrbitRamp doc comment ("81/81 contact, 45/81 mid-bat").
+  //
+  // GRAVITY-ROLL (2026-09-06): mid-bat was 46/81 under the old, too-fast sliding-point-mass
+  // gravity; re-measured at 45/81 under the corrected (5/7) rolling-sphere term — one sampled
+  // condition moved off the bat body under the slower ball. Contact is unaffected (81/81,
+  // unchanged) — the reachability guarantee this test exists to pin is intact; only the
+  // finer-grained mid-bat count shifted. See ramps.js's buildOrbitRamp doc comment for the
+  // re-measurement note.
   const r = runScenario('orbit-reachability-right');
   assert.equal(r.total, 81, 'the sweep must run the full 3x3x3x3 = 81 samples');
   assert.equal(
@@ -18,7 +25,7 @@ test('orbit-reachability-right: THE ORBIT exit reaches the right flipper in 81/8
     "this must agree with games/pinball/test/orbit-reachability.test.mjs's own pinned figure — " +
     'if it does not, one of the two measurements is wrong, not this assertion.'
   );
-  assert.equal(r.midBat, 46, `mid-bat regressed from the published 46/81 — got ${r.midBat}/${r.total}`);
+  assert.equal(r.midBat, 45, `mid-bat regressed from the published 45/81 — got ${r.midBat}/${r.total}`);
 });
 
 test("monkeybars-reachability-upperLeft: MONKEY BARS' exit reaches the upper-left flipper in 81/81, mid-bat in all 81", () => {
