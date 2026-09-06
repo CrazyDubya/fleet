@@ -26,6 +26,21 @@ import { buildE1StageACfgs, cfgId as hashCfg, buildE3AllCfgs } from './sweep.js'
 import { flagGateResult, FLAG_GATE_FRACTION, rankingValidityResult, parseCfgSet } from './gate.js';
 import { rate as measuredRate, fmt as fmtMeasured } from './measured.js';
 import { mergeReservoirs, seedFromString, E3_FAMILY_SAMPLE_CAP as FAMILY_SAMPLE_CAP } from './reservoir.js';
+import { selectTopN, median, p95Minusp5 } from './selectTopN.js';
+
+// GUARD-MIGRATE-3: LAB-18's continuous band-centre proxy, as a selectTopN estimator over real
+// per-trial return speeds (`xsVals`) rather than the pre-computed `bandCenterCloseness` scalar
+// — selectTopN needs the samples themselves to measure split-half stability, not a value already
+// reduced to one number per cfg. Same statistic as the `bandCenterCloseness` field above
+// (median distance from the 1.75 m/s band centre, larger is closer); minSamples:1 matches that
+// field's own guard (`r.xsVals.length` truthy), which never enforced a floor of its own.
+function bandCloseness(xs) {
+  const v = -Math.abs(percentile(xs, 50) - 1.75);
+  if (!Number.isFinite(v)) throw new Error(`bandCloseness: produced a non-finite value (${v}) from ${xs.length} sample(s)`);
+  return v;
+}
+bandCloseness.minSamples = 1;
+bandCloseness.estimatorName = 'bandCloseness';
 
 const DEFAULT_TOTAL_TRIALS = 400000; // §3.3 Stage A budget; --trials overrides for smoke tests
 const INBOUND_SD_FLOOR_FRACTION = 0.5;
@@ -276,7 +291,12 @@ function e3ToMarkdown(meta, perCfgRanked, runId, rankingGuard, rankingGuardFallb
     const g = rankingGuard[family];
     if (!g.ok) {
       const fallback = rankingGuardFallback[family];
-      if (fallback?.ok) {
+      // GUARD-MIGRATE-3: `fallback` is now a selectTopN CutResult, not a boolean guard —
+      // `ranked` is the old `.ok === true` case; `banded` is a demotion selectTopN can express
+      // that the old guard couldn't (a coarser split still orders cleanly even though the full
+      // top-10 doesn't), shown labelled rather than folded into either "orders cleanly" or "no
+      // table at all".
+      if (fallback?.kind === 'ranked' || fallback?.kind === 'banded') {
         // LAB-18: `inBandFraction` saturates at its ceiling for this family (a WINDOW function
         // of return speed, not a monotonic one — see the `bandCenterCloseness` comment above)
         // but the continuous `bandCenterCloseness` proxy still orders cleanly. Shown labelled,
@@ -285,7 +305,10 @@ function e3ToMarkdown(meta, perCfgRanked, runId, rankingGuard, rankingGuardFallb
           `${g.n} cfgs — ${g.reason}. Ranked below by **distance from the band centre** ` +
           '(median return speed vs. the 1.75 m/s midpoint of the 1.0-2.5 m/s band) instead — a ' +
           'continuous proxy for the same "landed in the playable band" question that does not ' +
-          'saturate the way a bounded fraction can.');
+          'saturate the way a bounded fraction can.' +
+          (fallback.kind === 'banded'
+            ? ` (selectTopN: this proxy itself only resolves to ${fallback.bandCount} stable band(s), not a full top-10 — the rows below are the top band, not a confirmed order within it.)`
+            : ''));
         lines.push('');
         lines.push('| cfgId | trials | returnRate | inBandFraction | medianXs (m/s) | stallRate | flagged |');
         lines.push('|---|---|---|---|---|---|---|');
@@ -537,15 +560,27 @@ async function runE3Stage(args) {
       topN: 10, support: rows.map((r) => r.reachedCount),
     });
     if (!rankingGuard[family].ok) {
+      // GUARD-MIGRATE-3 (CUT-1 spec §7): through selectTopN — `inBandFraction` above has real
+      // per-trial samples too, but that migration is deferred (see the audit note above
+      // `rankingGuard`'s own assignment: it's only ever checked with support supplied and
+      // `inBandFraction` here is itself a ratio of two already-summed counters, `inBandSpeed`
+      // and `reachedCount`, not a retained per-trial 0/1 array — GUARD-MIGRATE-3's dispatch
+      // notes cover why). `bandCenterCloseness`'s fallback DOES have real samples (`xsVals`,
+      // pushed per-trial, never collapsed), so it migrates cleanly here.
       const withCloseness = rows.filter((r) => r.bandCenterCloseness !== null);
-      rankingGuardFallback[family] = rankingValidityResult(withCloseness.map((r) => r.bandCenterCloseness), { topN: 10 });
+      rankingGuardFallback[family] = withCloseness.length > 0
+        ? selectTopN({
+          rows: withCloseness, samples: (r) => perCfgByIndex.get(r.cfgId).xsVals, estimator: bandCloseness,
+          n: Math.min(10, withCloseness.length), key: (r) => r.cfgId,
+        })
+        : null;
     }
   }
   // A family only truly fails (no top-10 shown at all) if `inBandFraction` fails AND either
   // there's no fallback or the fallback fails too — a family the fallback rescues isn't a
   // failure for reporting purposes, it's a substitution (e3ToMarkdown renders it, labelled).
   const rankingGuardFailures = Object.entries(rankingGuard)
-    .filter(([f, r]) => !r.ok && !(rankingGuardFallback[f]?.ok))
+    .filter(([f, r]) => !r.ok && !['ranked', 'banded'].includes(rankingGuardFallback[f]?.kind))
     .map(([f, r]) => ({ family: f, ...r }));
 
   // RETIRE-REST §8: `returnRate` and `stallRate` are displayed per-cfg in every family's top-10
@@ -749,31 +784,63 @@ async function main() {
   // same mistake as E3 P1's top-10, but with a worse consequence — it silently narrows which
   // geometries ever get looked at again. So this one blocks, matching §2.7's own precedent for a
   // gate that invalidates a downstream artifact rather than just a display table.
-  const fanWidthGuard = rankingValidityResult(geometries.filter((g) => g.fanWidthXa !== null).map((g) => g.fanWidthXa), { topN: TOP_N });
+  // GUARD-MIGRATE-3 (CUT-1 spec §7): through selectTopN — `geomStats` (still in scope) retains
+  // each geometry's real per-trial `xaVals`, never collapsed to `fanWidthXa` alone, so this is a
+  // genuine `samples` call, not a reconstruction. `p95Minusp5` is the SAME statistic `fanWidthXa`
+  // above was computed with, so its minSamples:20 floor (CUT-1B Part A2) is the one substantive
+  // behaviour change from the old guard, which only required `xaVals.length >= 2` — a geometry
+  // with 2-19 shots now counts as refused rather than eligible.
+  //
+  // Found on the first real-data run (a smoke corpus where a geometry's 9 cfgs were all
+  // `pol: 'never'`, line 761 above): selectTopN's empty-array contract check (CUT-1B — a row
+  // with no samples is not a value of zero, it throws) is a per-row check, not a floor, so
+  // passing the full unfiltered `geometries` array crashes instead of refusing that row.
+  // `withFanWidth` restores the old guard's own pre-filter for exactly this case.
+  const withFanWidth = geometries.filter((g) => geomStats.get(g.geometryKey).xaVals.length > 0);
+  const fanWidthCut = withFanWidth.length > 0
+    ? selectTopN({
+      rows: withFanWidth, samples: (g) => geomStats.get(g.geometryKey).xaVals, estimator: p95Minusp5,
+      n: Math.min(TOP_N, withFanWidth.length), key: (g) => g.geometryKey,
+    })
+    : null;
   // LAB-21: `cradleProxy` is stallWithContact/trials, so it can hand the guard its denominators
   // and get the raw-event check. `fanWidthXa` above is a P95-P5 percentile difference — there is
   // no k behind it, so it supplies no `support` and keeps exactly its pre-LAB-21 behaviour.
+  //
+  // GUARD-MIGRATE-3 audit: DEFERRED, not migrated. `cradleProxy` is `stallWithContact / trials`
+  // — both scalar counters accumulated with `+=` across shards (never a retained per-trial
+  // stall/contact array) — so there is no `samples` callback selectTopN could be given without
+  // fabricating one from the rate itself, exactly the reconstruction CUT-1's `samples: ANALYTIC`
+  // sentinel exists to name explicitly rather than allow silently. Left on the old guard.
   const cradleGuard = rankingValidityResult(geometries.map((g) => g.cradleProxy), {
     topN: TOP_N, support: geometries.map((g) => g.trials),
   });
   // GEO-2: the proposed cradleProxy replacement, guarded on the FULL population before anything
   // is ranked on it. Reported, not yet blocking — cradleGuard above is still the gate, because
   // swapping which metric selects geometries is the operator's call, not this runner's.
-  const withCs = geometries.filter((g) => g.minContactSpeed !== null);
-  // No `support`, deliberately, for the same reason fanWidthXa supplies none: LAB-21's
-  // raw-event check computes k = round(value * support), which is only meaningful when the
-  // value IS a rate. minContactSpeed is a median speed in m/s — round(0.73 * 500) is not an
-  // event count, it is nonsense. The distinct-value floor and tie ceiling still apply.
-  const minContactSpeedGuard = withCs.length
-    ? rankingValidityResult(withCs.map((g) => g.minContactSpeed), { topN: TOP_N })
+  //
+  // GUARD-MIGRATE-3: through selectTopN — `csVals` (GEO-2's own comment above: pooled across
+  // ALL policies, unlike xaVals) is a retained per-trial array too, so this migrates the same
+  // way fanWidthCut does. `median`'s minSamples:1 matches the old guard's own floor exactly
+  // (`g.csVals.length` truthy), so this one has no equivalent floor-change to report. Filtered
+  // to rows with at least one sample for the same empty-array contract reason as `withFanWidth`
+  // above — csVals is pushed unconditionally per cfg (line 760), but a geometry can still end
+  // up with none if every trial never contacted a flipper.
+  const withMinContactSpeed = geometries.filter((g) => geomStats.get(g.geometryKey).csVals.length > 0);
+  const minContactSpeedCut = withMinContactSpeed.length > 0
+    ? selectTopN({
+      rows: withMinContactSpeed, samples: (g) => geomStats.get(g.geometryKey).csVals, estimator: median,
+      n: Math.min(TOP_N, withMinContactSpeed.length), key: (g) => g.geometryKey,
+    })
     : null;
-  if (!fanWidthGuard.ok || !cradleGuard.ok) {
+  const fanWidthCutOk = fanWidthCut !== null && ['ranked', 'banded'].includes(fanWidthCut.kind);
+  if (!fanWidthCutOk || !cradleGuard.ok) {
     console.error(JSON.stringify({
       ok: false,
       error: 'LAB-16 ranking gate: a geometry-selection metric cannot support "top N" selection',
-      fanWidthGuard: fanWidthGuard.ok ? undefined : fanWidthGuard,
+      fanWidthCut: fanWidthCutOk ? undefined : fanWidthCut,
       cradleGuard: cradleGuard.ok ? undefined : cradleGuard,
-      minContactSpeedGuard,
+      minContactSpeedCut,
       note: 'selected-geometries.json was NOT written. See ledger/handoffs for the corpus audit that found this.',
     }));
     process.exitCode = 1;
@@ -804,14 +871,15 @@ async function main() {
     topByFanWidth: byFanWidth.map((g) => g.geometryKey),
     topByCradle: byCradle.map((g) => g.geometryKey),
     // GEO-2: reported alongside, not used to select. `topByMinContactSpeed` is what the cradle
-    // half WOULD be if the selection swapped metrics; `minContactSpeedGuard` is that metric's
+    // half WOULD be if the selection swapped metrics; `minContactSpeedCut` is that metric's
     // verdict on the full population, so a reader can see whether it could carry the choice.
     topByMinContactSpeed: [...geometries]
       .filter((g) => g.minContactSpeed !== null)
       .sort((a, b) => b.minContactSpeed - a.minContactSpeed)
       .slice(0, TOP_N)
       .map((g) => g.geometryKey),
-    minContactSpeedGuard,
+    minContactSpeedCut,
+    fanWidthCut,
     selectedCount: selected.length,
     geometries: [...geometries].sort((a, b) => (b.fanWidthXa ?? -1) - (a.fanWidthXa ?? -1)),
     selected,
