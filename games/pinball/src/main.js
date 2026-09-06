@@ -118,9 +118,51 @@ for (const seg of wallSegments) {
   tiltGroup.add(mesh);
 }
 
-// Seesaw flippers: a plank pivoting on a fulcrum, per the design doc's literal
-// playground mapping (§4.2). The fulcrum is a fixed cone at the pivot; the plank is the
-// physics capsule's visual stand-in, painted playground-red/yellow.
+// Seesaw flippers: real tapered bats — wider at the pivot, narrowing to a rounded tip, with
+// thickness and a visible edge — rather than a uniform rectangular plank (FLIPPER-MODEL,
+// 2026-09-06). The physics collides against a UNIFORM-radius capsule (physics/flipper.js's
+// own header comment: the design doc's distinct r_base/r_tip is simplified to one physics
+// radius, "taper only the rendered mesh" was the recorded plan, never built until now). No
+// sourced r_base/r_tip figures exist anywhere (sonnet2's own 2026-08-30 T1-T3 handoff: "the
+// tuning table doesn't specify base/tip radii anyway") — FLIPPER_BASE_RADIUS_MULT/
+// FLIPPER_TIP_RADIUS_MULT below are a stated judgment call scaled off the one real number
+// that exists, `flipper.radius` (the actual collision radius, unchanged by this dispatch),
+// not an estimate read off the background texture's own painted flippers — that art is
+// AI-generated and not a reference for anything; a visual read of its flippers produced a
+// ~9-ball-diameter tip gap that would drain almost every ball, against the real physics gap
+// of ~2.4 ball diameters this dispatch leaves untouched. The fulcrum is a fixed cone at the
+// pivot, unchanged.
+const FLIPPER_BASE_RADIUS_MULT = 1.4;
+const FLIPPER_TIP_RADIUS_MULT = 0.55;
+const FLIPPER_THICKNESS = 0.014;
+
+/** Builds a tapered-capsule bat outline (a wide rounded semicircle at the base/pivot end,
+ * straight tapered rails, a narrower rounded semicircle at the tip) in the local X
+ * (length, 0 at the pivot)/Y (width) plane, extrudes it to `thickness`, then reorients so X
+ * stays the length axis and Y becomes the (small) vertical thickness — the exact axis layout
+ * the old BoxGeometry plank used (pivot at local origin, bat extending toward +X, swept by
+ * `mesh.rotation.y = flipper.angle` every frame in updateFlipperMesh), so nothing about how
+ * the mesh is positioned or rotated per frame needs to change here. */
+function buildFlipperBatGeometry(length, baseRadius, tipRadius, thickness) {
+  const shape = new THREE.Shape();
+  const segs = 16;
+  shape.moveTo(0, baseRadius);
+  for (let i = 1; i <= segs; i++) { // base semicircle, bulging toward -X (behind the pivot)
+    const a = Math.PI / 2 + (Math.PI * i) / segs;
+    shape.lineTo(Math.cos(a) * baseRadius, Math.sin(a) * baseRadius);
+  }
+  shape.lineTo(length, -tipRadius); // bottom taper rail
+  for (let i = 1; i <= segs; i++) { // tip semicircle, bulging toward +X
+    const a = -Math.PI / 2 + (Math.PI * i) / segs;
+    shape.lineTo(length + Math.cos(a) * tipRadius, Math.sin(a) * tipRadius);
+  }
+  shape.lineTo(0, baseRadius); // top taper rail, closing the outline
+  const geo = new THREE.ExtrudeGeometry(shape, { depth: thickness, bevelEnabled: false, curveSegments: segs });
+  geo.translate(0, 0, -thickness / 2); // centre the thickness on the pivot plane, like the old box
+  geo.rotateX(-Math.PI / 2); // shape's Y (width) -> scene Z; extrude depth -> scene Y (up)
+  return geo;
+}
+
 const flipperConfigs = recess.buildFlipperConfigs();
 const flippers = {};
 const plankMat = new THREE.MeshLambertMaterial({ color: 0xcc3333 }); // red bat body
@@ -132,17 +174,21 @@ for (const cfg of flipperConfigs) {
   addFlipper(world, flipper);
   flippers[cfg.name] = flipper;
 
-  const geo = new THREE.BoxGeometry(flipper.length, 0.012, flipper.radius * 2);
-  geo.translate(flipper.length / 2, 0, 0); // pivot end at local origin, plank extends +x
+  const baseRadius = flipper.radius * FLIPPER_BASE_RADIUS_MULT;
+  const tipRadius = flipper.radius * FLIPPER_TIP_RADIUS_MULT;
+  const geo = buildFlipperBatGeometry(flipper.length, baseRadius, tipRadius, FLIPPER_THICKNESS);
   const mesh = new THREE.Mesh(geo, plankMat);
   mesh.userData.flipper = flipper;
   tiltGroup.add(mesh);
   flipper._mesh = mesh;
 
-  const tipLen = flipper.length * 0.22;
-  const tip = new THREE.Mesh(new THREE.BoxGeometry(tipLen, 0.0122, flipper.radius * 2.02), tipMat);
-  tip.position.x = flipper.length - tipLen / 2;
-  mesh.add(tip); // rides the flipper mesh's own rotation, no separate update needed
+  // White tip cap, riding the bat's own rotation (added as a child, no separate per-frame
+  // update needed) — a flattened disc centred on the tip's own rounded end, sitting just
+  // proud of the bat's top surface so it doesn't z-fight.
+  const tip = new THREE.Mesh(new THREE.CircleGeometry(tipRadius * 0.95, 12), tipMat);
+  tip.rotation.x = -Math.PI / 2;
+  tip.position.set(flipper.length, FLIPPER_THICKNESS / 2 + 0.0005, 0);
+  mesh.add(tip);
 
   const fulcrum = new THREE.Mesh(fulcrumGeo, fulcrumMat);
   const fp = toSceneVec(flipper.pivot.x, flipper.pivot.y, 0.005);
