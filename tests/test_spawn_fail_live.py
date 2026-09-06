@@ -52,10 +52,29 @@ class SpawnFailureTests(unittest.TestCase):
         self.assertFalse(tmux.window_exists(NAME))
 
     def test_nothing_is_written_to_the_production_ledger(self):
-        before = len(ledger.read_events())
+        # Counts the PRODUCTION ledger on purpose: the hazard this test exists to
+        # catch is a failed spawn writing into it. But every other thread in the
+        # fleet appends to that same file - measured median 7 events/min while the
+        # fleet is active, p90 21, peak 80 - so comparing a global before/after made
+        # the assertion depend on whether anyone else happened to write during this
+        # test's own body. Roughly a 25% flake with the fleet busy (opus2,
+        # 20260906T063000Z-live-test-correlation.md §1), and it fails toward red,
+        # which trains people to ignore a red board.
+        #
+        # Fixed by comparing this file's own bytes rather than a line count of a file
+        # everyone shares: an unrelated append from another thread moves the length
+        # but not our claim, while a spawn writing here still moves both.
+        prod = ledger.EVENTS
+        before = prod.read_bytes() if prod.exists() else b""
         with self.assertRaises(launcher.LaunchError):
             self._fail()
-        self.assertEqual(len(ledger.read_events()), before)
+        after = prod.read_bytes() if prod.exists() else b""
+        # Our own failed spawn must not have appended. Another thread's concurrent
+        # append is allowed to extend the tail; what is forbidden is any line
+        # mentioning this test's throwaway thread name.
+        added = after[len(before):] if after.startswith(before) else after
+        self.assertNotIn(NAME.encode(), added,
+                         f"failed spawn wrote to the production ledger: {added!r}")
 
     def test_a_healthy_spawn_leaves_no_remain_on_exit_behind(self):
         # remain-on-exit is switched on only to keep the dead pane readable;
