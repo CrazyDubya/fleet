@@ -181,6 +181,13 @@ export function buildTunnelRamp() {
  * the 'flip-at-arrival' methodology fix (d901cbf, 09:00) — the same ordering that made SLIDE's
  * figure stale. Re-run against today's HEAD: still 81/81 contact, 46/81 mid-bat, unchanged.
  * Unlike SLIDE, this feed's numbers happen to survive the fix.
+ *
+ * GRAVITY-ROLL re-measure (2026-09-06): gravityForPitch dropped from 9.81 sinθ to (5/7) of
+ * that (ledger/handoffs/opus2/20260906T020000Z-ball-speed.md) — a slower, farther-carrying
+ * ball changes which of the 81 sampled conditions land mid-bat vs. off one end. Re-run
+ * against today's HEAD: 81/81 contact (unchanged — every condition still reaches the flipper),
+ * **45/81 mid-bat** (was 46/81 — one sampled condition moved off the bat body). Contact is
+ * the reachability guarantee this comment exists to record; that guarantee is intact.
  */
 export const ORBIT_EXIT_FEED = { x: 0.08, y: 0.25 };
 
