@@ -167,14 +167,23 @@ async function main() {
     if (r.st !== null) row.stVals.push(r.st);
     if (r.bn !== null) row.bnVals.push(r.bn);
   }
-  const a2Ranked = [...a2ByCfg.values()].map((row) => ({
-    cfgId: row.cfg.cfgId, guide: row.cfg.guide, feed: row.cfg.feed, post: row.cfg.post, outlaneW: row.cfg.outlaneW,
-    radius: row.cfg.radius, trials: row.trials,
-    ct: row.ct / row.trials, cr: row.cr / row.trials, cp: row.cp / row.trials, cv: row.cv / row.trials,
-    medianSt: row.stVals.length ? percentile(row.stVals, 50) : null,
-    fastCradleRate: row.stVals.length ? row.stVals.filter((s) => s < 1.0).length / row.trials : 0,
-    medianBn: row.bnVals.length ? percentile(row.bnVals, 50) : null,
-  })).sort((x, y) => y.cp - x.cp);
+  const a2Ranked = [...a2ByCfg.values()].map((row) => {
+    const fastCradleCount = row.stVals.filter((s) => s < 1.0).length;
+    return {
+      cfgId: row.cfg.cfgId, guide: row.cfg.guide, feed: row.cfg.feed, post: row.cfg.post, outlaneW: row.cfg.outlaneW,
+      radius: row.cfg.radius, trials: row.trials,
+      ct: row.ct / row.trials, cr: row.cr / row.trials, cp: row.cp / row.trials, cv: row.cv / row.trials,
+      // MEASURED-3: additive sidecars — bare fields above are unchanged.
+      ctM: measuredRate(row.ct, row.trials, { estimand: `${row.cfg.cfgId}: fraction of trials clearing the ct check` }),
+      crM: measuredRate(row.cr, row.trials, { estimand: `${row.cfg.cfgId}: fraction of trials that catch (cr)` }),
+      cpM: measuredRate(row.cp, row.trials, { estimand: `${row.cfg.cfgId}: fraction of trials clearing the catch/playability tradeoff (cp)` }),
+      cvM: measuredRate(row.cv, row.trials, { estimand: `${row.cfg.cfgId}: fraction of trials landing in the closed-V trap (cv)` }),
+      medianSt: row.stVals.length ? percentile(row.stVals, 50) : null,
+      fastCradleRate: row.stVals.length ? fastCradleCount / row.trials : 0,
+      fastCradleRateM: measuredRate(fastCradleCount, row.trials, { estimand: `${row.cfg.cfgId}: fraction of trials settling in under 1.0s` }),
+      medianBn: row.bnVals.length ? percentile(row.bnVals, 50) : null,
+    };
+  }).sort((x, y) => y.cp - x.cp);
   const a2RankingGuard = rankingValidityResult(a2Ranked.map((r) => r.cp), { topN: 20, support: a2Ranked.map((r) => r.trials) });
   const a2TopTie = equivalenceClassAtTop(a2Ranked, (r) => r.cp, (r) => ({
     gapX: r.guide.gapX, tiltDeg: r.guide.tiltDeg, endDy: r.guide.endDy, guideE: r.guide.guideE,
@@ -216,9 +225,22 @@ async function main() {
     row.trials += 1;
     if (r.cp) row.cp += 1;
   }
-  const heatmap = [...heatmapCells.values()].map((h) => ({ ...h, cpRate: h.cp / h.trials }));
-  const cvTable = [...cvByRest.entries()].map(([restAngleDeg, v]) => ({ restAngleDeg: Number(restAngleDeg), trials: v.trials, cvRate: v.cv / v.trials })).sort((x, y) => x.restAngleDeg - y.restAngleDeg);
-  const bRanked = [...bByCfg.values()].map((row) => ({ cfg: row.cfg, cpRate: row.cp / row.trials, trials: row.trials })).sort((x, y) => y.cpRate - x.cpRate);
+  const heatmap = [...heatmapCells.values()].map((h) => ({
+    ...h, cpRate: h.cp / h.trials,
+    // MEASURED-3: additive sidecar — bare `cpRate` above is unchanged (the CSV writer and sort
+    // below both need a plain number).
+    cpRateM: measuredRate(h.cp, h.trials, { estimand: `pocket map gapX=${h.gapX} active=${h.activeAngleDeg}: fraction of trials catching (cp)` }),
+  }));
+  const cvTable = [...cvByRest.entries()].map(([restAngleDeg, v]) => ({
+    restAngleDeg: Number(restAngleDeg), trials: v.trials, cvRate: v.cv / v.trials,
+    cvRateM: measuredRate(v.cv, v.trials, { estimand: `rest angle ${restAngleDeg}°: fraction of trials landing in the closed-V trap (cv)` }),
+  })).sort((x, y) => x.restAngleDeg - y.restAngleDeg);
+  const bRanked = [...bByCfg.values()].map((row) => ({
+    cfg: row.cfg, cpRate: row.cp / row.trials, trials: row.trials,
+    // MEASURED-3: additive sidecar — bare `cpRate` above is unchanged (the sort just below and
+    // stageBRanked's own mapping further down both need a plain number).
+    cpRateM: measuredRate(row.cp, row.trials, { estimand: `${row.cfg.cfgId}: fraction of trials catching (cp)` }),
+  })).sort((x, y) => y.cpRate - x.cpRate);
   const bRankingGuard = rankingValidityResult(bRanked.map((r) => r.cpRate), { topN: 20, support: bRanked.map((r) => r.trials) });
   const bTopTie = equivalenceClassAtTop(bRanked, (r) => r.cpRate, (r) => ({
     restAngleDeg: r.cfg.restAngleDeg, activeAngleDeg: r.cfg.activeAngleDeg, restitution: r.cfg.restitution,
@@ -304,10 +326,22 @@ async function main() {
       sliceW1Cp: sliceArms.w1 ? sliceArms.w1.cp / sliceArms.w1.trials : null,
       sliceC0Cp: sliceArms.c0 ? sliceArms.c0.cp / sliceArms.c0.trials : null,
       sliceC0bCp: sliceArms.c0b ? sliceArms.c0b.cp / sliceArms.c0b.trials : null,
+      // MEASURED-3: additive sidecars — bare fields above are unchanged.
+      sliceW1CpM: sliceArms.w1 ? measuredRate(sliceArms.w1.cp, sliceArms.w1.trials, { estimand: 'H6 slice, W1 arm: fraction of trials catching' }) : null,
+      sliceC0CpM: sliceArms.c0 ? measuredRate(sliceArms.c0.cp, sliceArms.c0.trials, { estimand: 'H6 slice, C0 arm: fraction of trials catching' }) : null,
+      sliceC0bCpM: sliceArms.c0b ? measuredRate(sliceArms.c0b.cp, sliceArms.c0b.trials, { estimand: 'H6 slice, C0b arm: fraction of trials catching' }) : null,
     },
     e1Decomposition: {
       c0Cp, c0bCp, bestPocketCp: bestCp, bestPocketCpGuardOk: bestCpGuardOk,
       bestPocketCpTable: bestCpTable, bestPocketCpTopTie: bestCpTopTie,
+      // MEASURED-3: C0/C0b are genuine single-population rates (the E1/E4 bare-arena controls)
+      // and get sidecars. `bestPocketCp` deliberately does NOT — it is the max taken across
+      // three different tables' rank-1 rows (an argmax/selection, same category measured.js's
+      // own docstring excludes: "max/min/argmax/best/knee... belong to selectTopN"), and its
+      // uncertainty is already carried by the equivalence-class tie (`bestPocketCpTopTie`
+      // above, RETIRE-REST §7) rather than a Wilson interval on a selected value.
+      c0CpM: a2Controls.C0 ? measuredRate(a2Controls.C0.cp, a2Controls.C0.trials, { estimand: 'E1 decomposition, C0 control: fraction of trials catching' }) : null,
+      c0bCpM: a2Controls.C0b ? measuredRate(a2Controls.C0b.cp, a2Controls.C0b.trials, { estimand: 'E1 decomposition, C0b control: fraction of trials catching' }) : null,
     },
     totals: {
       a1: { trials: a1.meta.trialCount, secs: a1.meta.secs, flaggedExclStalled: a1.meta.flaggedFractionExclStalled, creep: a1.meta.creep },
@@ -320,7 +354,7 @@ async function main() {
     rankedAssemblies: a2Ranked.slice(0, 20),
     stageBRanked: bRanked.slice(0, 20).map((r) => ({
       cfgId: r.cfg.cfgId, restAngleDeg: r.cfg.restAngleDeg, activeAngleDeg: r.cfg.activeAngleDeg,
-      restitution: r.cfg.restitution, inj: r.cfg.inj, pol: r.cfg.pol, cpRate: r.cpRate, trials: r.trials,
+      restitution: r.cfg.restitution, inj: r.cfg.inj, pol: r.cfg.pol, cpRate: r.cpRate, cpRateM: r.cpRateM, trials: r.trials,
     })),
     releaseDispersion: releaseTable,
     theoryVsMeasurement: {
@@ -432,15 +466,16 @@ export function toMarkdown(summary, csvRelPath) {
 
   lines.push('## §9 slice verdict — H6');
   lines.push('');
-  lines.push(`**H6 ${summary.h6.survived ? 'SURVIVED' : 'WAS REFUTED'}.** W1 slice cp = ${fmt(summary.h6.sliceW1Cp * 100, 1)}% vs C0 cp = ${fmt(summary.h6.sliceC0Cp * 100, 2)}% and C0b cp = ${fmt(summary.h6.sliceC0bCp * 100, 2)}% — the pocket assembly is far above both no-wall controls, confirming the two-contact equilibrium in §1.1 is real and reachable by the solver, not just an arithmetic prediction.`);
+  const fmtCpM = (m) => (m ? fmtMeasured(m) : '—');
+  lines.push(`**H6 ${summary.h6.survived ? 'SURVIVED' : 'WAS REFUTED'}.** W1 slice cp = ${fmtCpM(summary.h6.sliceW1CpM)} vs C0 cp = ${fmtCpM(summary.h6.sliceC0CpM)} and C0b cp = ${fmtCpM(summary.h6.sliceC0bCpM)} — the pocket assembly is far above both no-wall controls, confirming the two-contact equilibrium in §1.1 is real and reachable by the solver, not just an arithmetic prediction.`);
   lines.push('');
 
   lines.push('## §8 item 3 — the E1 decomposition');
   lines.push('');
   lines.push(`| arm | cp |`);
   lines.push(`|---|---|`);
-  lines.push(`| C0 (E1's bare arena, 2.0s window) | ${fmtPct(summary.e1Decomposition.c0Cp, 2)}% |`);
-  lines.push(`| C0b (bare arena, E4's 4.0s window) | ${fmtPct(summary.e1Decomposition.c0bCp, 2)}% |`);
+  lines.push(`| C0 (E1's bare arena, 2.0s window) | ${fmtCpM(summary.e1Decomposition.c0CpM)} |`);
+  lines.push(`| C0b (bare arena, E4's 4.0s window) | ${fmtCpM(summary.e1Decomposition.c0bCpM)} |`);
   lines.push(`| best pocket assembly | ${fmtPct(summary.e1Decomposition.bestPocketCp, 1)}${(summary.e1Decomposition.bestPocketCpGuardOk === false || summary.e1Decomposition.bestPocketCpTopTie?.tieCount > 1) ? ' ⚠' : ''}% |`);
   lines.push('');
   lines.push(`C0 reproduces LAB-2's near-zero cradle rate. C0b, at E4's longer 4.0s settle window, is ALSO near zero — so E1's null result was a geometry problem, not (primarily) a time-budget problem (§1.2's confound is resolved: geometry dominates).`);
@@ -464,10 +499,10 @@ export function toMarkdown(summary, csvRelPath) {
   lines.push('');
   lines.push(`Full long-format CSV: \`${csvRelPath}\`. ${summary.pocketMap.length} cells.`);
   lines.push('');
-  lines.push('| gapX (m) | active° | trials | cp% |');
+  lines.push('| gapX (m) | active° | trials | cp |');
   lines.push('|---|---|---|---|');
   for (const h of [...summary.pocketMap].sort((a, b) => a.gapX - b.gapX || a.activeAngleDeg - b.activeAngleDeg)) {
-    lines.push(`| ${h.gapX} | ${h.activeAngleDeg} | ${h.trials} | ${fmt(h.cpRate * 100, 1)} |`);
+    lines.push(`| ${h.gapX} | ${h.activeAngleDeg} | ${h.trials} | ${fmtMeasured(h.cpRateM)} |`);
   }
   lines.push('');
 
@@ -483,12 +518,12 @@ export function toMarkdown(summary, csvRelPath) {
         'nothing orders those tied rows relative to each other, including the one shown first below.' : ''));
     lines.push('');
   }
-  lines.push('| gapX | tilt° | endDy | guideE | radius | feed | post | outlaneW | cp% | cr% | ct% | cv% | median st | fastCradle% | median bn |');
+  lines.push('| gapX | tilt° | endDy | guideE | radius | feed | post | outlaneW | cp | cr | ct | cv | median st | fastCradle | median bn |');
   lines.push('|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|');
   for (const a of summary.rankedAssemblies.slice(0, 15)) {
     lines.push(
       `| ${a.guide.gapX} | ${a.guide.tiltDeg} | ${a.guide.endDy} | ${a.guide.guideE} | ${a.radius} | ${a.feed ? 'on' : 'off'} | ${a.post ? 'on' : 'off'} | ${a.outlaneW ?? 'off'} | ` +
-      `${fmt(a.cp * 100, 1)} | ${fmt(a.cr * 100, 1)} | ${fmt(a.ct * 100, 1)} | ${fmt(a.cv * 100, 2)} | ${fmt(a.medianSt, 2)} | ${fmt(a.fastCradleRate * 100, 1)} | ${fmt(a.medianBn, 0)} |`
+      `${fmtMeasured(a.cpM)} | ${fmtMeasured(a.crM)} | ${fmtMeasured(a.ctM)} | ${fmtMeasured(a.cvM)} | ${fmt(a.medianSt, 2)} | ${fmtMeasured(a.fastCradleRateM)} | ${fmt(a.medianBn, 0)} |`
     );
   }
   lines.push('');
@@ -504,10 +539,10 @@ export function toMarkdown(summary, csvRelPath) {
         'nothing orders those tied rows relative to each other, including the one shown first below.' : ''));
     lines.push('');
   }
-  lines.push('| rest° | active° | e_flip | inj | pol | cp% | trials |');
+  lines.push('| rest° | active° | e_flip | inj | pol | cp | trials |');
   lines.push('|---|---|---|---|---|---|---|');
   for (const r of summary.stageBRanked.slice(0, 15)) {
-    lines.push(`| ${r.restAngleDeg} | ${r.activeAngleDeg} | ${r.restitution} | ${r.inj} | ${r.pol} | ${fmt(r.cpRate * 100, 1)} | ${r.trials} |`);
+    lines.push(`| ${r.restAngleDeg} | ${r.activeAngleDeg} | ${r.restitution} | ${r.inj} | ${r.pol} | ${fmtMeasured(r.cpRateM)} | ${r.trials} |`);
   }
   lines.push('');
 
@@ -548,12 +583,12 @@ export function toMarkdown(summary, csvRelPath) {
 
   lines.push('## §8 item 6 — V-trap incidence vs rest angle (§1.3/H7)');
   lines.push('');
-  lines.push('| restAngleDeg | trials | cv% |');
+  lines.push('| restAngleDeg | trials | cv |');
   lines.push('|---|---|---|');
-  for (const r of summary.vTrapByRestAngle) lines.push(`| ${r.restAngleDeg} | ${r.trials} | ${fmt(r.cvRate * 100, 2)} |`);
+  for (const r of summary.vTrapByRestAngle) lines.push(`| ${r.restAngleDeg} | ${r.trials} | ${fmtMeasured(r.cvRateM)} |`);
   lines.push('');
   const worstV = summary.vTrapByRestAngle.reduce((a, b) => (b.cvRate > (a?.cvRate ?? -1) ? b : a), null);
-  lines.push(`**H7**: cv is low but non-zero across the grid (worst: rest ${worstV?.restAngleDeg}°, ${fmt(worstV?.cvRate * 100, 2)}%) — the closed-V trap §1.3 predicted is measurable, not the dominant outcome once a real W1 pocket is present (a pocket resolves most trials into \`cp\` before the ball can migrate into the centre V). Confirms §1.3's structural point (a −32° rest angle still needs a centre-post caveat for machine #2) without it being the majority finding once E4's own geometry is added.`);
+  lines.push(`**H7**: cv is low but non-zero across the grid (worst: rest ${worstV?.restAngleDeg}°, ${worstV ? fmtMeasured(worstV.cvRateM) : '—'}) — the closed-V trap §1.3 predicted is measurable, not the dominant outcome once a real W1 pocket is present (a pocket resolves most trials into \`cp\` before the ball can migrate into the centre V). Confirms §1.3's structural point (a −32° rest angle still needs a centre-post caveat for machine #2) without it being the majority finding once E4's own geometry is added.`);
   lines.push('');
 
   lines.push('## §8 item 7 — recommendation');
