@@ -83,10 +83,34 @@ def paste_argv(name: str, buffer: str = "fleet-paste") -> list[str]:
 
 
 PROMPT_MARK = "\u276f"  # the TUI's input-box caret
+# Claude Code's permission/confirmation dialogs render their HIGHLIGHTED OPTION behind
+# this same caret, so parse_input_box cannot tell a dialog's selection cursor from a
+# real draft - "\u276f 1. Yes" is the identical line shape either way. This marker is the
+# dialog's own chrome and never appears in a draft, so it is a positive signal rather
+# than an absence-based guess.
+DIALOG_MARKER = "Esc to cancel"
 
 
 class DirtyInputBox(RuntimeError):
     """The pane's input box holds text that could not be cleared."""
+
+
+class DialogPending(DirtyInputBox):
+    """A live permission dialog is on screen - NOT unsent draft text.
+
+    Found live 2026-09-06: three threads reported "unsent text that will not clear"
+    holding exactly "1. Yes". Nobody typed it. It is dialog option 1's own label,
+    misread because the dialog renders its highlighted option behind the same caret
+    a draft uses. C-u is kill-line for a text field and does nothing to a modal
+    dialog, so clear_input's six retries were always going to fail, and the error
+    message was actively wrong about what was on screen.
+
+    A respawn appeared to fix it only because killing the pane also killed the
+    dialog - an expensive way to send one Escape. One of those respawns discarded
+    217 minutes of a thread's context that was never actually lost.
+
+    Subclasses DirtyInputBox so existing catch sites keep working unchanged.
+    """
 
 
 DIM = "\x1b[2m"
@@ -134,6 +158,15 @@ CLEAR_ATTEMPTS = 6
 CLEAR_BACKOFF_S = 0.5
 
 
+def dialog_pending(name: str) -> bool:
+    """Is a Claude Code permission dialog on screen right now?
+
+    Positive signal: DIALOG_MARKER is chrome unique to that dialog and every
+    instance renders it. Never inferred from the absence of something else.
+    """
+    return any(DIALOG_MARKER in line for line in capture(name, lines=15).splitlines())
+
+
 def clear_input(name: str, attempts: int = CLEAR_ATTEMPTS, sleep=time.sleep) -> str:
     """Empty the input box. Returns whatever text refused to clear ("" on success).
 
@@ -149,6 +182,12 @@ def clear_input(name: str, attempts: int = CLEAR_ATTEMPTS, sleep=time.sleep) -> 
     """
     for i in range(attempts):
         cur = input_box(name)
+        if cur and dialog_pending(name):
+            raise DialogPending(
+                f"{name} has a live permission dialog on screen, not unsent text. "
+                f"`tmux send-keys -t fleet2:={name} Escape` dismisses it without a "
+                f"respawn and keeps the thread's context; only do that deliberately."
+            )
         if not cur:  # "" (empty box) or None (no box: dialog, non-TUI)
             return ""
         _run("send-keys", "-t", _target(name), "C-u")
