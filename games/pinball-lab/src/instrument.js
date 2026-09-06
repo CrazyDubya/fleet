@@ -700,6 +700,28 @@ function runE4Trial(cfg, seed, opts) {
     }
 
     if (elapsedS >= restitutionCap) {
+      // A release-family trial (holdThenRelease, policy.js) that never sets
+      // settleState.settledAtS never arms its release: the flippers hold forever and
+      // the trial runs out the clock looking like an ordinary physical timeout. Under
+      // an absolute STALL_SPEED that a slower ball legitimately never reaches, EVERY
+      // such trial looks like this - so a silent 'timeout' here is indistinguishable
+      // from a real one, and the release-dispersion numbers built from it would be
+      // measuring the detector rather than the table. Refuse rather than publish.
+      //
+      // Deliberately throws on the first affected trial instead of letting a sweep of
+      // thousands complete: a Stage C run under corrected gravity should stop, not
+      // finish and be believed. Accepted by the operator as a behaviour change.
+      // A release trial that settles, releases and only then times out still has
+      // settledAtS set and is unaffected.
+      if (cfg.release && settleState.settledAtS === null) {
+        throw new Error(
+          `runE4Trial ${cfg.cfgId}/seed ${seed}: cfg.release timed out at ` +
+          `${restitutionCap}s without settleState.settledAtS ever being set - the ` +
+          `STALL_SPEED (${STALL_SPEED} m/s) detector never fired, so holdThenRelease ` +
+          `never armed. This is a detector failure, not a physical result. See ` +
+          `ledger/handoffs/opus2/20260906T055000Z-sweep-verdict.md`
+        );
+      }
       flags |= FLAGS.TIMEOUT;
       term = 'timeout';
       break;
@@ -735,6 +757,20 @@ function runE4Trial(cfg, seed, opts) {
     vo: firstContact?.vo ?? null,
     ao: firstContact?.ao ?? null,
     n: contacts,
+    // The settle DETECTOR's own flag (speed < STALL_SPEED for >= STALL_DURATION_S),
+    // not an independent measurement of whether the pocket caught the ball. cr/cp/cv
+    // below share this exact gate: all three are settleClass?.field ?? 0, and
+    // settleClass is only ever assigned inside the branch this flag guards, so it
+    // stays null for the whole trial whenever the detector does not fire.
+    //
+    // This is load-bearing, not cosmetic. e4Report.js sorts a1Ranked/a2Ranked by cp
+    // and a1Cut ranks on synthBinary(cpCount, trials) - so if the detector stops
+    // firing, cp goes to ~0 for every candidate geometry at once and the top-N pick
+    // ties across all of them or selects whatever noise survives a near-zero-variance
+    // column. NULL-SWEEP recorded ct as having 0 minority events across 22,355 trials
+    // and called it "a constant"; the real reason is that every trial crossed an
+    // absolute speed threshold under the physics of the time.
+    // See ledger/handoffs/opus2/20260906T055000Z-sweep-verdict.md §2.
     ct: settleCaptured ? 1 : 0,
     cr: settleClass?.cr ?? 0,
     cp: settleClass?.cp ?? 0,
