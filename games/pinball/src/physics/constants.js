@@ -80,8 +80,20 @@ export const GATE_ONE_WAY_THRESHOLD = 0.2;
 // geometry of the gate itself, not this threshold, is what makes a shot hard or easy.
 export const RAMP_ENTRY_MIN_SPEED = 0.5;
 
+// GRAVITY-ROLL: 9.81*sinθ is the sliding acceleration of a point mass. The ball in this sim
+// has no rotational state anywhere (no angular velocity, no moment of inertia — see
+// ledger/handoffs/opus2/20260906T020000Z-ball-speed.md §1) but it visually rolls, and a solid
+// sphere rolling without slipping on an incline puts 2/7 of gravity's work into spin, leaving
+// only 5/7 to accelerate its centre: a = (5/7) g sinθ. Measured against the shipped solver:
+// the old term reproduced sliding-with-drag to 0.08%; this one reproduces rolling-with-drag to
+// 0.02% (same handoff §2). Not a tuning choice — the solid-sphere factor is exact, and nothing
+// else in the solver (impulses, kicks, restitution) is a function of gravity, so this is the
+// whole correction. Downstream timing windows tuned against the old (too-fast) ball are
+// retuned per-window in the GRAVITY-ROLL dispatch, not by scaling this constant back.
+const ROLLING_SPHERE_FACTOR = 5 / 7;
+
 export function gravityForPitch(pitchDeg = PITCH_DEG) {
-  const g = 9.81 * Math.sin((pitchDeg * Math.PI) / 180);
+  const g = 9.81 * Math.sin((pitchDeg * Math.PI) / 180) * ROLLING_SPHERE_FACTOR;
   return { x: 0, y: -g };
 }
 

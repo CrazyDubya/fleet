@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createWorld, setLayerPrimitives, setLayerZones, addBall, advance } from '../src/physics/world.js';
-import { BALL_RADIUS, STEP_DT, POP_BUMPER_KICK, SLINGSHOT_KICK } from '../src/physics/constants.js';
+import { BALL_RADIUS, STEP_DT, POP_BUMPER_KICK, SLINGSHOT_KICK, K_DRAG } from '../src/physics/constants.js';
 import { length } from '../src/physics/vec2.js';
 import * as mech from '../src/table/mechanisms.js';
 import * as ramps from '../src/table/ramps.js';
@@ -25,9 +25,17 @@ test('a pop bumper kicks a slow ball up to its rated speed', () => {
   ball.pos = { x: target.centre.x - (0.03 + BALL_RADIUS + 0.02), y: target.centre.y };
   ball.vel = { x: 0.3, y: 0 };
   let hit = false;
+  // GRAVITY-ROLL: the kick sets speed to exactly POP_BUMPER_KICK, then the SAME advance()
+  // call applies K_DRAG for that step before the loop reads ball.vel — the ball is measured
+  // post-drag against a pre-drag constant. One step's drag costs POP_BUMPER_KICK * K_DRAG *
+  // STEP_DT (~0.0013 m/s here); the tolerance below covers that with margin, not the whole
+  // assertion. Before GRAVITY-ROLL this was masked by gravity the ball had accumulated
+  // before the kick, which happened to exceed the drag loss (ledger/handoffs/opus2/
+  // 20260906T020000Z-ball-speed.md §8) — coincidence, not a property of the kick itself.
+  const oneStepDragTolerance = POP_BUMPER_KICK * K_DRAG * STEP_DT * 1.5;
   for (let i = 0; i < 60 && !hit; i++) {
     advance(world, STEP_DT);
-    if (length(ball.vel) >= POP_BUMPER_KICK - 1e-6) hit = true;
+    if (length(ball.vel) >= POP_BUMPER_KICK - oneStepDragTolerance) hit = true;
   }
   assert.ok(hit, 'ball never reached the pop bumper kick speed');
 });
