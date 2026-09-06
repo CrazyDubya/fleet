@@ -85,6 +85,61 @@ permission_mode = "bypassPermissions"
 effort = "low"
 settings = "settings/v2/tool.json"
 
+[profile.v2.thread.haiku-fs3]
+model = "claude-haiku-4-5"
+tier = "tool"
+persist = "respawn"
+baseline = ["briefs/v2/haiku-fs.md", "maps/projects.md", "maps/conventions.md"]
+mcp = "browser"
+dirs = ["/Users/pup"]
+permission_mode = "bypassPermissions"
+effort = "low"
+settings = "settings/v2/tool.json"
+
+[profile.v2.thread.haiku-fs4]
+model = "claude-haiku-4-5"
+tier = "tool"
+persist = "respawn"
+baseline = ["briefs/v2/haiku-fs.md", "maps/projects.md", "maps/conventions.md"]
+mcp = "browser"
+dirs = ["/Users/pup"]
+permission_mode = "bypassPermissions"
+effort = "low"
+settings = "settings/v2/tool.json"
+
+[profile.v2.thread.haiku-fs5]
+model = "claude-haiku-4-5"
+tier = "tool"
+persist = "respawn"
+baseline = ["briefs/v2/haiku-fs.md", "maps/projects.md", "maps/conventions.md"]
+mcp = "browser"
+dirs = ["/Users/pup"]
+permission_mode = "bypassPermissions"
+effort = "low"
+settings = "settings/v2/tool.json"
+
+[profile.v2.thread.haiku-fs6]
+model = "claude-haiku-4-5"
+tier = "tool"
+persist = "respawn"
+baseline = ["briefs/v2/haiku-fs.md", "maps/projects.md", "maps/conventions.md"]
+mcp = "browser"
+dirs = ["/Users/pup"]
+permission_mode = "bypassPermissions"
+effort = "low"
+settings = "settings/v2/tool.json"
+
+[profile.v2.thread.haiku-fs7]
+model = "claude-haiku-4-5"
+tier = "tool"
+persist = "respawn"
+baseline = ["briefs/v2/haiku-fs.md", "maps/projects.md", "maps/conventions.md"]
+mcp = "browser"
+dirs = ["/Users/pup"]
+permission_mode = "bypassPermissions"
+effort = "low"
+settings = "settings/v2/tool.json"
+
 [profile.v2.thread.haiku-router2]
 model = "claude-haiku-4-5"
 tier = "tool"
