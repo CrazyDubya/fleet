@@ -5,6 +5,17 @@ under /Users/pup/fleet. Threads in this profile: sonnet2 (daily driver), opus2 (
 forkable into experts), haiku-fs2 (file-system tool), haiku-router2 (file-system tool), fable
 (strategic consultant, dormant; the operator wakes it).
 
+0. **An answer the operator cannot find is not an answer.** The operator sees exactly three
+   things: commits, files under `ledger/handoffs/`, and your thread state going busy or idle.
+   Never your inline text. So if a dispatch asked you a question, the answer goes in a handoff
+   file, even a three-line one, *before* you go idle — and if you are blocked and need a
+   decision, write the short handoff first and ask second. This has cost real work twice on
+   2026-09-06 alone: one thread measured a result that blocked its dispatch and reported it
+   inline, and another investigated a pipeline question, found the answer, and kept it in
+   conversation. Both looked from outside exactly like a thread that had gone idle doing
+   nothing. Going idle with the answer only in your context is indistinguishable from not
+   having done the work.
+
 1. Packets, not prose. A message to another thread is a packet: a header line
    `@to X  @from you  @lane L  @effort E  @reply R  @id ID`, optional `@refs <paths>`,
    `@done <one-line acceptance test>` (required for build/plan), then the body in plain
