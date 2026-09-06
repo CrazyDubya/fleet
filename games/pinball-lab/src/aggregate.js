@@ -13,6 +13,7 @@ import path from 'node:path';
 import { mean, sd, fanWidth, flaggedFraction, bitFraction, tally } from './metrics.js';
 import { FLAGS } from './instrument.js';
 import { premiseHeaderLines, requireFlagGateOk } from './gate.js';
+import { rate as measuredRate, fmt as fmtMeasured } from './measured.js';
 
 function parseArgs(argv) {
   const args = {};
@@ -49,6 +50,14 @@ function summariseCfg(cfgMeta, records) {
   const { count: flaggedCount, fraction: flaggedFrac } = flaggedFraction(flags);
   const flagBreakdown = {};
   for (const [name, bit] of Object.entries(FLAGS)) flagBreakdown[name] = bitFraction(flags, bit);
+  // MEASURED-3B: additive sidecars — `bitFraction` returns only the fraction, not the count a
+  // Wilson interval needs, so the count is recomputed here rather than changing that helper's
+  // signature (every other caller of `bitFraction` wants just the number).
+  const flagBreakdownM = {};
+  for (const [name, bit] of Object.entries(FLAGS)) {
+    const count = flags.filter((f) => (f & bit) !== 0).length;
+    flagBreakdownM[name] = measuredRate(count, flags.length, { estimand: `${cfgMeta.cfgId}: fraction of trials flagged ${name}` });
+  }
 
   const validRecords = records.filter((r) => r.f === 0);
   const columns = {};
@@ -57,13 +66,25 @@ function summariseCfg(cfgMeta, records) {
   const terms = Object.fromEntries(tally(records.map((r) => r.term)));
   const xaValues = validRecords.map((r) => r.xa).filter((v) => v !== null && v !== undefined);
 
+  // MEASURED-3B: `contactRate` (used by the header's `never`-baseline line) is not otherwise
+  // computed by this file — `meta.neverBaselineContactRate` is a bare fraction runner.js copied
+  // into meta.json with no raw count alongside it (checked: `cfgMeta.push({..., contactRate,
+  // ...})` in runner.js never stores the numerator). Recomputed here instead of touching
+  // runner.js's shared meta.json shape, from the same per-trial contact-count field
+  // (`r.n`, per instrument.js's runE1Trial) this file already streams into `records`.
+  const contactCount = records.filter((r) => r.n > 0).length;
+
   return {
     cfgId: cfgMeta.cfgId,
     cfg: cfgMeta.cfg,
     trials: records.length,
     flaggedCount,
     flaggedFraction: flaggedFrac,
+    flaggedFractionM: measuredRate(flaggedCount, records.length, { estimand: `${cfgMeta.cfgId}: fraction of trials carrying any validity flag` }),
     flagBreakdown,
+    flagBreakdownM,
+    contactRate: records.length ? contactCount / records.length : 0,
+    contactRateM: measuredRate(contactCount, records.length, { estimand: `${cfgMeta.cfgId}: fraction of trials reaching flipper contact` }),
     terms,
     columns,
     fanWidthXa: xaValues.length >= 2 ? fanWidth(xaValues) : null,
@@ -75,18 +96,22 @@ function fmt(x, digits = 2) {
   return x.toFixed(digits);
 }
 
-function toMarkdown(meta, cfgSummaries) {
+function toMarkdown(meta, cfgSummaries, flaggedFractionM) {
   const lines = [];
   lines.push(`# E1 pilot summary — run \`${path.basename(meta.out)}\``);
   lines.push('');
   lines.push(`- **exp**: ${meta.exp}  ·  **instrument commit**: \`${meta.instrumentCommitSha}\`  ·  **generated**: ${meta.generatedAt}`);
-  lines.push(`- **cfgs**: ${meta.cfgCount}  ·  **trials**: ${meta.trialCount}  ·  **flagged fraction (any bit)**: ${(meta.flaggedFraction * 100).toFixed(3)}%  ·  **wall-clock**: ${meta.secs.toFixed(1)}s`);
+  lines.push(`- **cfgs**: ${meta.cfgCount}  ·  **trials**: ${meta.trialCount}  ·  **flagged fraction (any bit)**: ${fmtMeasured(flaggedFractionM)}  ·  **wall-clock**: ${meta.secs.toFixed(1)}s`);
   lines.push(`- **units**: length m, speed m/s, angle deg (recorded) / rad (internal), \`dt\` ms, \`dw\` s`);
   const eSds = meta.ensembleInboundSds;
+  // MEASURED-3B: `never`-baseline contact rate now carries its own interval, recomputed by
+  // `summariseCfg` (meta.json's own `neverBaselineContactRate` has no raw count to build one
+  // from — see that function's comment) from the same `never`-policy cfg's records.
+  const neverCfgSummary = cfgSummaries.find((s) => s.cfg.pol === 'never');
   lines.push(
     `- **§2.4a ensemble check** (so the next reader can see the ensemble was real without opening a shard): ` +
     `inbound sd — x0=${eSds.x0.toFixed(4)}m, speed0=${eSds.speed0.toFixed(4)}m/s, angle0=${eSds.angle0Deg.toFixed(2)}° ` +
-    `(all cfgs passed their §2.4a floor) · **\`never\`-baseline flipper-contact rate**: ${(meta.neverBaselineContactRate * 100).toFixed(1)}% (floor > 30%)`
+    `(all cfgs passed their §2.4a floor) · **\`never\`-baseline flipper-contact rate**: ${neverCfgSummary ? fmtMeasured(neverCfgSummary.contactRateM) : '—'} (floor > 30%)`
   );
   lines.push('');
   lines.push('> Pilot scope (program handoff §9/LAB-1): one fixed geometry × the policy families' +
@@ -127,20 +152,20 @@ function toMarkdown(meta, cfgSummaries) {
       lines.push(
         `- **${s.cfgId}** (\`${s.cfg.pol}\`${s.cfg.R != null ? ` R=${s.cfg.R} L=${s.cfg.L}` : ''}` +
         `${s.cfg.d != null ? ` d=${s.cfg.d}` : ''}): ` +
-        `${(s.flaggedFraction * 100).toFixed(1)}% flagged, dominated by \`${dominant[0]}\` ` +
-        `(${(dominant[1] * 100).toFixed(1)}%). ${CAUSE_NOTES[dominant[0]] ?? 'Cause not yet inspected.'}`
+        `${fmtMeasured(s.flaggedFractionM)} flagged, dominated by \`${dominant[0]}\` ` +
+        `(${fmtMeasured(s.flagBreakdownM[dominant[0]])}). ${CAUSE_NOTES[dominant[0]] ?? 'Cause not yet inspected.'}`
       );
     }
     lines.push('');
   }
-  lines.push('| cfg | pol | d | R | L | n | flagged% | top term | vi | ai | hs | ha | hw | dt(ms) | vo | ao | contacts(n) | fan(xa) |');
+  lines.push('| cfg | pol | d | R | L | n | flagged | top term | vi | ai | hs | ha | hw | dt(ms) | vo | ao | contacts(n) | fan(xa) |');
   lines.push('|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|');
   for (const s of cfgSummaries) {
     const topTerm = Object.entries(s.terms).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '—';
     const c = s.columns;
     lines.push(
       `| ${s.cfgId} | ${s.cfg.pol} | ${s.cfg.d ?? '—'} | ${s.cfg.R ?? '—'} | ${s.cfg.L ?? '—'} | ${s.trials} | ` +
-      `${(s.flaggedFraction * 100).toFixed(2)} | ${topTerm} | ` +
+      `${fmtMeasured(s.flaggedFractionM)} | ${topTerm} | ` +
       `${fmt(c.vi.mean)} | ${fmt(c.ai.mean, 1)} | ${fmt(c.hs.mean)} | ${fmt(c.ha.mean, 1)} | ${fmt(c.hw.mean, 1)} | ` +
       `${fmt(c.dt.mean, 1)} | ${fmt(c.vo.mean)} | ${fmt(c.ao.mean, 1)} | ${fmt(c.n.mean)} | ${fmt(s.fanWidthXa, 1)} |`
     );
@@ -148,13 +173,13 @@ function toMarkdown(meta, cfgSummaries) {
   lines.push('');
   lines.push('## IMPACTS_EXHAUSTED, per cfg (§2.7/§4.5 — reported prominently, not folded away)');
   lines.push('');
-  lines.push('| cfg | pol | IMPACTS_EXHAUSTED% | ESCAPED% | TIMEOUT% | STALLED% | NAN% |');
+  lines.push('| cfg | pol | IMPACTS_EXHAUSTED | ESCAPED | TIMEOUT | STALLED | NAN |');
   lines.push('|---|---|---|---|---|---|---|');
   for (const s of cfgSummaries) {
     lines.push(
-      `| ${s.cfgId} | ${s.cfg.pol} | ${(s.flagBreakdown.IMPACTS_EXHAUSTED * 100).toFixed(2)} | ` +
-      `${(s.flagBreakdown.ESCAPED * 100).toFixed(2)} | ${(s.flagBreakdown.TIMEOUT * 100).toFixed(2)} | ` +
-      `${(s.flagBreakdown.STALLED * 100).toFixed(2)} | ${(s.flagBreakdown.NAN * 100).toFixed(2)} |`
+      `| ${s.cfgId} | ${s.cfg.pol} | ${fmtMeasured(s.flagBreakdownM.IMPACTS_EXHAUSTED)} | ` +
+      `${fmtMeasured(s.flagBreakdownM.ESCAPED)} | ${fmtMeasured(s.flagBreakdownM.TIMEOUT)} | ` +
+      `${fmtMeasured(s.flagBreakdownM.STALLED)} | ${fmtMeasured(s.flagBreakdownM.NAN)} |`
     );
   }
   lines.push('');
@@ -212,9 +237,14 @@ async function main() {
   const jsonOut = path.join(summariesDir, `${exp}-${runId}.json`);
   const mdOut = path.join(summariesDir, `${exp}-${runId}.md`);
 
-  const jsonSummary = { ...meta, cfgSummaries };
+  // MEASURED-3B: additive sidecar for the headline `meta.flaggedFraction` — bare field
+  // unchanged (re-derived here from the raw counts this loop already summed, same as
+  // e2Report.js's `seriesFlagTotals` precedent, rather than trusting `meta.flaggedFraction`
+  // as a pre-computed value from a possibly different pipeline stage).
+  const flaggedFractionM = measuredRate(totalFlagged, totalTrials, { estimand: `${exp}/${runId}: fraction of ALL trials carrying any validity flag` });
+  const jsonSummary = { ...meta, flaggedFractionM, cfgSummaries };
   writeFileSync(jsonOut, JSON.stringify(jsonSummary, null, 2));
-  writeFileSync(mdOut, toMarkdown(meta, cfgSummaries));
+  writeFileSync(mdOut, toMarkdown(meta, cfgSummaries, flaggedFractionM));
 
   console.log(JSON.stringify({
     ok: true, exp, run: runId, cfgs: meta.cfgs.length, trials: totalTrials,
