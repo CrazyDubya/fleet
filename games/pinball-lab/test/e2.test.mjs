@@ -148,7 +148,10 @@ test('eg[]: reservoir-sampled, not a prefix — reproducible, capped, and not ju
   const cfgs = buildE2SeriesBCfgs();
   const cfg = cfgs.find((c) => c.cfgId === 'd97982e0');
   assert.ok(cfg, 'fixture cfg not found — Series B cfg construction changed');
-  const seed = 2;
+  // GRAVITY-ROLL: seed 2 gave ch=9 under the corrected (5/7) gravity term — was 2 only ever
+  // reproducibly > 12 under the old, too-fast sliding-point-mass gravity. Same cfg, re-picked
+  // seed (measured: ch=49 here, comfortable margin over the property's own >12 requirement).
+  const seed = 4;
 
   const r1 = runTrial(cfg, seed);
   const r2 = runTrial(cfg, seed);

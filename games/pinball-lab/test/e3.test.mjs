@@ -147,6 +147,10 @@ test('deadZoneHits: uncapped — a trial spending > 300 substeps below DEAD_ZONE
   const cfgs = buildE3P3Cfgs();
   const cfg = cfgs.find((c) => c.cfgId === 'ff8a8115');
   assert.ok(cfg, 'fixture cfg not found — P3 grid construction changed');
-  const { deadZoneHits } = runTrialWithMeta(cfg, 89);
-  assert.ok(deadZoneHits.length > 300, `fixture (${cfg.cfgId}, seed 89) should spend > 300 substeps below the dead-zone speed, got ${deadZoneHits.length} — pick a new fixture if the grid/physics changed`);
+  // GRAVITY-ROLL: seed 89 gave 61 substeps under the corrected (5/7) gravity term — that
+  // seed's particular trajectory no longer settles into the dead zone the same way under the
+  // slower ball. Same cfg, re-picked seed (measured: 398 here, comfortable margin over 300).
+  const seed = 140;
+  const { deadZoneHits } = runTrialWithMeta(cfg, seed);
+  assert.ok(deadZoneHits.length > 300, `fixture (${cfg.cfgId}, seed ${seed}) should spend > 300 substeps below the dead-zone speed, got ${deadZoneHits.length} — pick a new fixture if the grid/physics changed`);
 });

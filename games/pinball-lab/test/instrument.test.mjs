@@ -150,6 +150,27 @@ test('cradle: a heldActive/cradle trial reports cr/st/bn; an ordinary trial leav
   // rate; this specific knife-edge seed just isn't one of the settling ones anymore, same as
   // 138 wasn't after the solver fix. Seed 708 is the first of those 6, independently
   // re-verified below (deterministic, re-run bit-identical).
+  //
+  // Seed changed AGAIN, 708 -> 57947, by GRAVITY-ROLL (2026-09-06, gravityForPitch corrected
+  // from the sliding 9.81 sinθ to the rolling 5/7 of that —
+  // ledger/handoffs/opus2/20260906T020000Z-ball-speed.md). This one is NOT the same story as
+  // the prior two re-picks. Those were a knife-edge SEED flipping sides of a stable rate; this
+  // is the RATE itself collapsing. A fresh 3000-seed sweep under corrected gravity found ZERO
+  // settles (previously 6/3000, 0.20%); widened to 100,000 seeds before finding any at all —
+  // 3/100,000, roughly 0.003%, a ~65x drop. Every one of the 27,000 seeds between 3000 and
+  // 57947 that isn't a settle terminates `timeout` or `drain` (measured distribution: 1963
+  // timeout / 1036 drain / 1 shotline / 0 stall across the first 3000 alone). A slower ball
+  // arrives at this held-active flipper with less speed, and empirically it is now far more
+  // likely to either drain past the flipper or time out oscillating than to bleed down to the
+  // 0.05 m/s stall threshold while still in contact — cradling on THIS geometry (e=0.45,
+  // activeAngle 38°, upMs 18) became dramatically rarer, not just relocated to a new seed.
+  // This is a real gameplay-relevant finding, not a fixture-maintenance footnote: it bears
+  // directly on E1's own restitution/cradling conclusions and on the FLIPPER-EXIT dispatch
+  // that cites them (both operate on RESTITUTION, not gravity, but this shows the ball's
+  // approach ENERGY under the flipper also gates whether a catch is possible at all, a second,
+  // independent lever on cradling that GRAVITY-ROLL just moved). Flagged in the GRAVITY-ROLL
+  // handoff rather than silently absorbed by picking a new seed. Seed 57947 is the first of
+  // the 3 settles found in [0, 100000), independently re-verified below (deterministic).
   const geometry = { restAngleDeg: -50, activeAngleDeg: 38, upMs: 18, omegaProfile: 'easeOut', radius: 0.009, restitution: 0.45 };
   const cradleCfgs = buildE1CradleCfgs([geometry]);
   assert.equal(cradleCfgs.length, 1);
@@ -157,7 +178,7 @@ test('cradle: a heldActive/cradle trial reports cr/st/bn; an ordinary trial leav
   assert.equal(cradleCfgs[0].cradle, true);
   assert.equal(cradleCfgs[0].cfgId, '639a5287');
 
-  const settled = runTrial(cradleCfgs[0], 708);
+  const settled = runTrial(cradleCfgs[0], 57947);
   assert.equal(settled.term, 'stall');
   assert.equal(settled.cr, 1);
   assert.ok(settled.st !== null && settled.st > 0 && settled.st <= 1.5, 'settle time reported, within the 1.5s window');
@@ -207,12 +228,13 @@ test('contactStats: an empty sample array (never advanced) reports null minSpeed
   assert.equal(result.dwellS, 0);
 });
 
-test('cradle: a real settled cradle trial (seed 708, same cfg as the cr/st/bn test above) reports cs/cd consistent with bn; an ordinary trial leaves them null', () => {
-  // Seed 654 -> 708: same flipper re-strike fix, same determination — see the long comment on
-  // the cr/st/bn test above.
+test('cradle: a real settled cradle trial (seed 57947, same cfg as the cr/st/bn test above) reports cs/cd consistent with bn; an ordinary trial leaves them null', () => {
+  // Seed 654 -> 708: flipper re-strike fix. Seed 708 -> 57947: GRAVITY-ROLL, and this one is
+  // a rate collapse (~65x), not a knife-edge flip — see the long comment on the cr/st/bn test
+  // above for the measurement.
   const geometry = { restAngleDeg: -50, activeAngleDeg: 38, upMs: 18, omegaProfile: 'easeOut', radius: 0.009, restitution: 0.45 };
   const cradleCfgs = buildE1CradleCfgs([geometry]);
-  const settled = runTrial(cradleCfgs[0], 708);
+  const settled = runTrial(cradleCfgs[0], 57947);
   assert.equal(settled.term, 'stall');
   assert.ok(settled.cs !== null && settled.cs >= 0, 'a contacting, settled trial reports a non-null min contact speed');
   assert.ok(settled.cs <= 0.05 + 1e-9, `a trial that STALLED while in contact must have cs at or under the stall speed threshold (0.05 m/s), got ${settled.cs}`);
