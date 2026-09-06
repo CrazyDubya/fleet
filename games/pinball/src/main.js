@@ -26,6 +26,7 @@ import * as tilt from './rules/tilt.js';
 import { wireInput } from './ui/input.js';
 import { isDebugEnabled, mountDebugPanel, mountEventLog } from './ui/debug.js';
 import { createCalloutLayer } from './ui/callouts.js';
+import { createHud } from './ui/hud.js';
 import { createMomentScreen, bonusBreakdownLines, PERSISTENT_DURATION_MS } from './ui/moment-screen.js';
 import { insertScore, loadHighScores, saveHighScores, highScoreLines } from './ui/high-scores.js';
 import { createSynth } from './audio/synth.js';
@@ -1049,11 +1050,10 @@ wireInput(canvas, {
 if (isDebugEnabled()) mountDebugPanel(world, flippers);
 const eventLog = isDebugEnabled() ? mountEventLog() : null;
 
-// --- HUD: provisional score, always visible (per design doc §9 T4: "provisional scores
-// to the HUD area" — the real chalkboard display is ui/hud.js, T12). ---
-const hud = document.createElement('div');
-hud.style.cssText = 'position:fixed;top:8px;right:8px;color:#fff;font:14px monospace;text-shadow:0 1px 2px #000;z-index:5;pointer-events:none;';
-document.body.appendChild(hud);
+// --- HUD: score, always visible (per design doc §9 T4: "provisional scores to the HUD
+// area", now the real chalk-on-slate display — HUD-CHALK, see ui/hud.js's own doc comment
+// for the look, the update-skip, and how it relates to callouts.js/moment-screen.js). ---
+const hud = createHud(document.body);
 
 // PLUNGE-TOUCH: visible power feedback WHILE charging, not only on release — a plunger you
 // can't see the strength of while pulling is barely better than a fixed-power launch. Placed
@@ -1131,9 +1131,10 @@ document.body.appendChild(muteButton);
 // instruction: this IS a moment, "how many players" / "paused" describing a current state
 // the same way a bonus breakdown describes a past one) rather than a second overlay system.
 //
-// Cut, and said so rather than built partially: attract mode and the chalk-on-slate score
-// display (ui/hud.js) are T12's own next tier — real polish, but polish on a thing that
-// doesn't work yet is the wrong order. A top-5 score prompting for 3-letter initials entry
+// Cut, and said so rather than built partially: attract mode (still cut, HUD-CHALK) and the
+// chalk-on-slate score display (built by HUD-CHALK, see ui/hud.js) were T12's own next tier —
+// real polish, but polish on a thing that doesn't work yet is the wrong order. A top-5 score
+// prompting for 3-letter initials entry
 // (T12's own full acceptance line) is cut too — ui/high-scores.js already marks and persists
 // the just-finished game's own score without needing a name attached to it, and a touch
 // keyboard for initials is its own real design surface, not a few extra lines here.
@@ -1681,9 +1682,9 @@ function frame(now) {
   plungerMeterFill.style.height = `${Math.round(plungerPower * 100)}%`;
 
   const player = activePlayer(rulesState);
-  hud.textContent = rulesState.gameOver
+  hud.update(rulesState.gameOver
     ? `GAME OVER — ${player.score.toLocaleString()}`
-    : `P${(rulesState.turnIndex % rulesState.numPlayers) + 1} BALL ${player.ball}  SCORE ${player.score.toLocaleString()}`;
+    : `P${(rulesState.turnIndex % rulesState.numPlayers) + 1} BALL ${player.ball}  SCORE ${player.score.toLocaleString()}`);
 
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
