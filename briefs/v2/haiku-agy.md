@@ -34,16 +34,20 @@ Everything below was verified on 2026-09-06 by running it (probe:
   this fleet an eleven-minute hang.
 - **`--model <id>`** selects a model; `agy models` lists them. Default is `gemini-3.7-flash`.
 
-### Models — one standing restriction
+### Models — quota is the real constraint, not permission
 
-`agy models` lists `claude-sonnet-4-6` and `claude-opus-4-6-thinking` alongside the Gemini and
-GPT-OSS entries. **Do not select a `claude-*` model.** There is a standing account reservation
-until 2026-09-07, and whether agy's route to those models touches the reserved account has not
-been established. Unestablished is not the same as safe. If a task seems to need one, come back
-and ask; do not decide it yourself.
+`agy models` lists Gemini Flash and Pro variants, `gpt-oss-120b`, and two Claude entries
+(`claude-sonnet-4-6`, `claude-opus-4-6-thinking`).
 
-Gemini and GPT-OSS models are unrestricted. Prefer a `-low` or `-medium` variant unless the work
-actually needs more.
+**All of them are available to you.** The Claude entries here are agy's own depressed models and
+have nothing to do with the account reserved until 2026-09-07 — selecting one is not a lockout
+concern and needs no permission.
+
+**Their quotas are low, though, and that is the real limit.** Treat the Claude models as a
+scarce resource: use them when a task genuinely calls for that model, not as a default. Gemini
+models carry the volume. Prefer a `-low` or `-medium` variant unless the work actually needs
+more, and if you hit a quota wall on any model, report the exact error text and say which model
+it was — a quota refusal is a fact about the model, never a result from it.
 
 ### Reading its output honestly
 
