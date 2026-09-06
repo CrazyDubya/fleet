@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.pup.fleet.pinball-serve</string>
+
+  <!-- Binds the tailnet address only, never 0.0.0.0: serve.py has no auth, so the
+       reachable surface has to stay the tailnet. If Tailscale is not up yet the bind
+       fails, launchd throttles, and it retries until the address exists. -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/python3</string>
+    <string>/Users/pup/fleet/games/serve.py</string>
+    <string>8100</string>
+    <string>100.98.216.13</string>
+  </array>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/pup/fleet</string>
+  <key>StandardOutPath</key>
+  <string>/Users/pup/fleet/state/v2/pinball-serve.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/pup/fleet/state/v2/pinball-serve.log</string>
+</dict>
+</plist>
