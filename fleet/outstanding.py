@@ -122,20 +122,6 @@ def _fmt_age(s: float) -> str:
     return f"{s / 3600:.1f}h"
 
 
-def _ledger_status(path: Path) -> str:
-    """"missing" | "unreadable" | "ok" - checked separately from `no send
-    events`, so a 0-outstanding report can never be confused with a ledger
-    that was never read at all."""
-    if not path.exists():
-        return "missing"
-    try:
-        with open(path, "rb") as f:
-            f.read(1)
-    except OSError:
-        return "unreadable"
-    return "ok"
-
-
 def _load_dispatches(events_path: Path | None) -> tuple[list[Dispatch], int, int]:
     events = ledger.read_events(events_path or ledger.EVENTS)
     dispatches: list[Dispatch] = []
@@ -277,7 +263,7 @@ def outstanding(profile: str = "v2", events_path: Path | None = None,
                  handoffs_root: Path = HANDOFFS, now: float | None = None) -> Report:
     now = now if now is not None else time.time()
     path = events_path or ledger.EVENTS
-    lstatus = _ledger_status(path)
+    lstatus = ledger.status(path)
     if lstatus != "ok":
         return Report(ledger_status=lstatus, ledger_path=str(path), total_sends=0, no_id=0, excluded_no_reply=0)
     dispatches, no_id, excluded_no_reply = _load_dispatches(events_path)

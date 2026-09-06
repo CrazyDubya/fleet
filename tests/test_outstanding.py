@@ -146,5 +146,39 @@ class OutstandingTests(unittest.TestCase):
             transcript.unlink(missing_ok=True)
 
 
+class CliOutstandingTests(unittest.TestCase):
+    """The four ledger-state guards must be reachable from the command line,
+    not just from Python - cmd_outstanding used to build its Report against
+    the hardcoded production ledger with no way to point it elsewhere."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.events = Path(self.tmp.name) / "events.jsonl"
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _run(self, *argv):
+        from fleet.cli import cmd_outstanding, _build_parser
+        args = _build_parser().parse_args(["outstanding", *argv])
+        return cmd_outstanding(args)
+
+    def test_events_path_flag_reaches_a_missing_ledger(self):
+        rc = self._run("--events-path", str(self.events))
+        self.assertEqual(rc, 1)
+
+    def test_events_path_flag_reaches_an_empty_ledger(self):
+        self.events.touch()
+        rc = self._run("--events-path", str(self.events))
+        self.assertEqual(rc, 1)
+
+    def test_a_clean_ledger_exits_zero(self):
+        with open(self.events, "w") as f:
+            f.write(json.dumps({"ev": "send", "t": 1000.0, "thread": "sonnet2", "from": "operator",
+                                 "id": "abc", "lane": "consult", "reply": "none"}) + "\n")
+        rc = self._run("--events-path", str(self.events))
+        self.assertEqual(rc, 0)
+
+
 if __name__ == "__main__":
     unittest.main()

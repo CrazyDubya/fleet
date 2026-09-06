@@ -6,7 +6,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from . import ledger, launcher, outstanding as outstanding_mod, telemetry, tmux
+from . import ledger, launcher, outstanding as outstanding_mod, telemetry, tmux, watchdog as watchdog_mod
 from . import packet as packet_mod
 from . import registry as registry_mod
 from . import send as send_mod
@@ -118,11 +118,19 @@ def cmd_send(args):
 
 
 def _project_rows():
-    """Health for every declared project, or [] if none / unreadable.
+    """Health for every declared project; [] if none declared, None if the check broke.
 
     Never allowed to break `fleet status`: projects are watched repos, and a
     project whose status file has gone missing must not take the thread table
     down with it.
+
+    FLEET-CODE-REVIEW item 4: the two outcomes used to collapse into the same [].
+    A crashed health check and an empty `fleet.toml` rendered identically, and
+    `fleet projects` answered "no [[project]] declared" - a false statement, made
+    to an operator deciding whether it is safe to dispatch into a repo another
+    agent may be working in. The health check is advisory (nothing enforces
+    dispatch_blocked mechanically), so there is no gate to fail closed into; the
+    fix is that the tool stops lying about why it has nothing to say.
     """
     from fleet import projects as projects_mod
     from fleet.registry import Registry
@@ -134,8 +142,9 @@ def _project_rows():
         # must not read as a foreign agent blocking dispatch to themselves.
         mine = {e.session_id for e in Registry().load().values()}
         return projects_mod.rows(projects=ps, exclude_sessions=mine)
-    except Exception:
-        return []
+    except Exception as exc:
+        print(f"project health check failed: {exc!r}", file=sys.stderr)
+        return None
 
 
 def cmd_status(args):
@@ -145,7 +154,10 @@ def cmd_status(args):
     print(status_mod.render(status_mod.rows()))
     from fleet import projects as projects_mod
     hs = _project_rows()
-    if hs:
+    if hs is None:
+        print()
+        print("  ! project health check failed - dispatch guard unavailable, see stderr")
+    elif hs:
         print()
         print(projects_mod.render(hs))
         for h in hs:
@@ -157,6 +169,10 @@ def cmd_status(args):
 def cmd_projects(args):
     from fleet import agents as agents_mod, projects as projects_mod
     hs = _project_rows()
+    if hs is None:
+        print("project health check failed - dispatch guard unavailable, see stderr")
+        print("this is NOT the same as no projects being declared; do not read it as all-clear")
+        return 1
     if not hs:
         print("no [[project]] declared in fleet.toml")
         return 0
@@ -189,9 +205,21 @@ def cmd_report(args):
 
 
 def cmd_outstanding(args):
-    report = outstanding_mod.outstanding(profile=current_profile())
+    events_path = Path(args.events_path) if args.events_path else None
+    report = outstanding_mod.outstanding(profile=current_profile(), events_path=events_path)
     print(report.describe())
-    return 1 if report.outstanding else 0
+    # A degenerate ledger (missing/unreadable/empty) is not "0 outstanding" -
+    # it means this command could not check, and a caller scripting off the
+    # exit code must not read that as a clean bill of health either.
+    return 1 if report.ledger_status != "ok" or report.outstanding else 0
+
+
+def cmd_watchdog(args):
+    events_path = Path(args.events_path) if args.events_path else None
+    status = watchdog_mod.check(profile=current_profile(), events_path=events_path,
+                                 threshold_min=args.minutes)
+    print(status.describe())
+    return 0 if status.alert is None else 1
 
 
 def cmd_decide(args):
@@ -323,7 +351,16 @@ def _build_parser():
     pj.set_defaults(fn=cmd_projects)
     t = sub.add_parser("telemetry"); t.add_argument("--day"); t.set_defaults(fn=cmd_telemetry)
     sub.add_parser("report").set_defaults(fn=cmd_report)
-    sub.add_parser("outstanding").set_defaults(fn=cmd_outstanding)
+    o = sub.add_parser("outstanding")
+    o.add_argument("--events-path", help="ledger events file to read instead of ledger/events.jsonl "
+                    "(also exercises the missing/unreadable/empty ledger guards from the CLI)")
+    o.set_defaults(fn=cmd_outstanding)
+    w = sub.add_parser("watchdog")
+    w.add_argument("--events-path", help="ledger events file to read instead of ledger/events.jsonl")
+    w.add_argument("--minutes", type=float, default=watchdog_mod.DEFAULT_MINUTES,
+                    help="fleet-wide silence threshold in minutes (default: %(default)s, "
+                         "derived from the real gap distribution - see fleet/watchdog.py)")
+    w.set_defaults(fn=cmd_watchdog)
     a = sub.add_parser("ask"); a.add_argument("thread"); a.add_argument("text", nargs="+")
     a.add_argument("--from", dest="sender", default="operator")
     a.add_argument("--timeout", type=float, default=30.0)

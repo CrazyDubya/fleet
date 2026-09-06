@@ -66,9 +66,32 @@ def last_miss(thread: str, path: Path = EVENTS) -> dict | None:
     return hits[-1] if hits else None
 
 
+def status(path: Path) -> str:
+    """"missing" | "unreadable" | "ok" for a ledger file - checked separately
+    from "the file parses to zero events", so a caller can tell a ledger
+    that was never read at all apart from one that was read and is
+    genuinely empty. Shared by `outstanding` and `watchdog`: both refuse to
+    report "nothing wrong" when they could not actually check.
+    """
+    if not path.exists():
+        return "missing"
+    try:
+        with open(path, "rb") as f:
+            f.read(1)
+    except OSError:
+        return "unreadable"
+    return "ok"
+
+
 def last_handoff(thread: str, root: Path = HANDOFFS) -> Path | None:
     d = root / thread
     if not d.is_dir():
         return None
-    files = sorted(p for p in d.iterdir() if p.is_file())
-    return files[-1] if files else None
+    # By mtime, not by name. Handoff filenames are not consistently timestamped -
+    # most are "<UTC>-<slug>", but plenty are free-form ("pinball_sweep_09-04.txt"),
+    # and a leading letter sorts after a leading digit. haiku-fs2 reported a file from
+    # 60 hours earlier as its latest while a handoff written 90 minutes ago sat beside
+    # it, because "p" > "2". launcher.py uses this to advise a respawn and status.py
+    # prints it, so a stale answer here is a wrong decision, not a wrong label.
+    files = [p for p in d.iterdir() if p.is_file()]
+    return max(files, key=lambda f: f.stat().st_mtime) if files else None
