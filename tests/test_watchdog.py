@@ -14,6 +14,7 @@ class WatchdogTests(unittest.TestCase):
         self.root = Path(self.tmp.name)
         self.events = self.root / "events.jsonl"
         self.handoffs = self.root / "handoffs"
+        self.backlog = self.root / "OPEN.md"  # deliberately absent unless a test writes it
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -26,14 +27,14 @@ class WatchdogTests(unittest.TestCase):
     # --- the watchdog's own input going away is the exact failure it exists to catch ---
 
     def test_missing_ledger_is_degraded_not_quiet(self):
-        status = watchdog.check(events_path=self.events, handoffs_root=self.handoffs)
+        status = watchdog.check(events_path=self.events, handoffs_root=self.handoffs, backlog_path=self.backlog)
         self.assertEqual(status.ledger_status, "missing")
         self.assertEqual(status.alert, "degraded")
         self.assertIn("DEGRADED", status.describe())
 
     def test_empty_ledger_is_degraded_not_quiet(self):
         self.events.touch()
-        status = watchdog.check(events_path=self.events, handoffs_root=self.handoffs)
+        status = watchdog.check(events_path=self.events, handoffs_root=self.handoffs, backlog_path=self.backlog)
         self.assertEqual(status.alert, "degraded")
         self.assertIn("DEGRADED", status.describe())
 
@@ -42,21 +43,21 @@ class WatchdogTests(unittest.TestCase):
         self.events.chmod(0o000)
         try:
             with mock.patch("fleet.ledger.status", return_value="unreadable"):
-                status = watchdog.check(events_path=self.events, handoffs_root=self.handoffs)
+                status = watchdog.check(events_path=self.events, handoffs_root=self.handoffs, backlog_path=self.backlog)
             self.assertEqual(status.alert, "degraded")
         finally:
             self.events.chmod(0o644)
 
     def test_events_with_no_timestamp_field_is_degraded(self):
         self._write_events({"ev": "send", "thread": "sonnet2"})
-        status = watchdog.check(events_path=self.events, handoffs_root=self.handoffs)
+        status = watchdog.check(events_path=self.events, handoffs_root=self.handoffs, backlog_path=self.backlog)
         self.assertEqual(status.alert, "degraded")
 
     # --- ordinary timer behaviour ---
 
     def test_recent_event_is_quiet(self):
         self._write_events({"ev": "hook", "t": time.time() - 30, "thread": "sonnet2"})
-        status = watchdog.check(events_path=self.events, handoffs_root=self.handoffs, threshold_min=10)
+        status = watchdog.check(events_path=self.events, handoffs_root=self.handoffs, backlog_path=self.backlog, threshold_min=10)
         self.assertIsNone(status.alert)
         self.assertIn("quiet", status.describe())
 
@@ -69,22 +70,54 @@ class WatchdogTests(unittest.TestCase):
              "id": "abc123", "lane": "build", "reply": "file", "done": "ship it"},
             {"ev": "hook", "t": now - 900, "thread": "sonnet2"},
         )
-        status = watchdog.check(events_path=self.events, handoffs_root=self.handoffs, threshold_min=10)
+        status = watchdog.check(events_path=self.events, handoffs_root=self.handoffs, backlog_path=self.backlog, threshold_min=10)
         self.assertEqual(status.alert, "stuck")
         self.assertIn("ALERT (stuck)", status.describe())
         self.assertIn("abc123", status.describe())
 
-    def test_silence_with_empty_queue_is_idle_queue(self):
+    def test_silence_with_no_backlog_file_is_idle_backlog_unknown(self):
         now = time.time()
         self._write_events(
             {"ev": "send", "t": now - 3600, "thread": "sonnet2", "from": "operator",
              "id": "abc123", "lane": "build", "reply": "none"},
             {"ev": "hook", "t": now - 900, "thread": "sonnet2"},
         )
-        status = watchdog.check(events_path=self.events, handoffs_root=self.handoffs, threshold_min=10)
-        self.assertEqual(status.alert, "idle_queue")
-        self.assertIn("ALERT (idle queue)", status.describe())
-        self.assertIn("waiting on a dispatch from you", status.describe())
+        status = watchdog.check(events_path=self.events, handoffs_root=self.handoffs,
+                                 backlog_path=self.backlog, threshold_min=10)
+        self.assertEqual(status.alert, "idle_backlog_unknown")
+        self.assertIn("ALERT (idle, backlog unknown)", status.describe())
+
+    def test_silence_with_empty_backlog_is_idle_empty(self):
+        now = time.time()
+        self._write_events(
+            {"ev": "send", "t": now - 3600, "thread": "sonnet2", "from": "operator",
+             "id": "abc123", "lane": "build", "reply": "none"},
+            {"ev": "hook", "t": now - 900, "thread": "sonnet2"},
+        )
+        self.backlog.write_text("# Open assignments\n\n| id | thread | expects | notes |\n|---|---|---|---|\n")
+        status = watchdog.check(events_path=self.events, handoffs_root=self.handoffs,
+                                 backlog_path=self.backlog, threshold_min=10)
+        self.assertEqual(status.alert, "idle_empty")
+        self.assertIn("ALERT (idle, backlog empty)", status.describe())
+        self.assertIn("genuinely finished", status.describe())
+
+    def test_silence_with_a_populated_backlog_is_idle_backlog(self):
+        now = time.time()
+        self._write_events(
+            {"ev": "send", "t": now - 3600, "thread": "sonnet2", "from": "operator",
+             "id": "abc123", "lane": "build", "reply": "none"},
+            {"ev": "hook", "t": now - 900, "thread": "sonnet2"},
+        )
+        self.backlog.write_text(
+            "# Open assignments\n\n| id | thread | expects | notes |\n|---|---|---|---|\n"
+            "| FOO | sonnet2 | ship it | - |\n"
+        )
+        status = watchdog.check(events_path=self.events, handoffs_root=self.handoffs,
+                                 backlog_path=self.backlog, threshold_min=10)
+        self.assertEqual(status.alert, "idle_backlog")
+        self.assertIn("ALERT (idle, backlog waiting)", status.describe())
+        self.assertIn("FOO", status.describe())
+        self.assertIn("You have not run.", status.describe())
 
 
 class FleetWideGapsTests(unittest.TestCase):

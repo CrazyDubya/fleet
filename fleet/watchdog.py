@@ -6,13 +6,20 @@ and they call for opposite responses:
   - **stuck**: a dispatch is open (per `fleet.outstanding`) and nothing has
     happened anywhere in the fleet for N minutes. A thread is wedged, or it
     finished and never filed a handoff. This is the fleet's fault.
-  - **idle queue**: the same silence, but nothing is outstanding. There is
-    genuinely nothing running because nobody assigned anything. This is the
-    operator's fault, and no amount of alerting the fleet fixes it.
+  - **idle, with a backlog**: the same silence, nothing outstanding, but
+    `ledger/assignments/OPEN.md` still lists open items nobody has
+    dispatched. This is the operator's failure to run, per opus2's
+    IDLE-ROOT-CAUSE finding (twelve of seventeen measured silences ended in
+    a self-started dispatch, not an operator prompt) - and it is now
+    representable instead of looking identical to a finished fleet.
+  - **idle, empty backlog**: the same silence, nothing outstanding, and the
+    backlog itself asserts there is nothing queued. The fleet has genuinely
+    finished and is waiting on a decision, not a wake-up.
 
 `check()` reuses `outstanding.outstanding()` for the open-assignment side of
-that distinction rather than re-deriving it - the two questions ("is anyone
-stuck" and "has anything happened") share the same evidence.
+this and `backlog.read()` for the unassigned-work side, rather than
+re-deriving either - a naive timer sees identical silence in all three
+cases, and only these two other sources of evidence pull them apart.
 
 N (the silence threshold) is chosen from the real gap distribution in the
 ledger, not intuition - see the derivation recorded in
@@ -33,6 +40,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from . import backlog as backlog_mod
 from . import ledger
 from . import outstanding as outstanding_mod
 
@@ -45,8 +53,10 @@ class Status:
     ledger_path: str
     threshold_min: float
     idle_s: float | None = None
-    alert: str | None = None  # None | "stuck" | "idle_queue" | "degraded"
+    # None | "stuck" | "idle_backlog" | "idle_backlog_unknown" | "idle_empty" | "degraded"
+    alert: str | None = None
     open_items: list = field(default_factory=list)
+    backlog: "backlog_mod.Backlog | None" = None
 
     def describe(self) -> str:
         if self.ledger_status != "ok":
@@ -68,9 +78,27 @@ class Status:
                 age_m = (i.age_s or 0) / 60
                 lines.append(f"  {i.d.id}  {i.d.thread:14}  open {age_m:.0f}m  \u2014 {i.d.done or '(no @done recorded)'}")
             return "\n".join(lines)
+        if self.alert == "idle_backlog":
+            lines = [
+                f"ALERT (idle, backlog waiting): no thread has emitted any event for {mins:.1f}m, "
+                f"nothing is outstanding, but {self.backlog.path} still lists "
+                f"{self.backlog.count} open item(s) nobody has dispatched:"
+            ]
+            for it in self.backlog.items:
+                lines.append(f"  {it.id}  {it.thread or '?':14}  {it.expects}")
+            lines.append("Nobody is stuck. You have not run.")
+            return "\n".join(lines)
+        if self.alert == "idle_backlog_unknown":
+            return (
+                f"ALERT (idle, backlog unknown): no thread has emitted any event for {mins:.1f}m "
+                f"and nothing is outstanding, but the backlog at {self.backlog.path} is "
+                f"{self.backlog.file_status} - cannot tell idle-with-work-waiting from "
+                f"idle-because-finished. Treat as an alert, not a clean idle."
+            )
         return (
-            f"ALERT (idle queue): no thread has emitted any event for {mins:.1f}m, and nothing "
-            f"is outstanding. Nobody is stuck - the fleet is waiting on a dispatch from you."
+            f"ALERT (idle, backlog empty): no thread has emitted any event for {mins:.1f}m, "
+            f"nothing is outstanding, and {self.backlog.path} asserts zero open items. The "
+            f"fleet has genuinely finished and is waiting on you to decide what's next."
         )
 
 
@@ -86,6 +114,7 @@ def _last_event_t(path: Path, tail: int = 50) -> float | None:
 
 def check(profile: str = "v2", events_path: Path | None = None,
           handoffs_root: Path = outstanding_mod.HANDOFFS,
+          backlog_path: Path = backlog_mod.DEFAULT_PATH,
           threshold_min: float = DEFAULT_MINUTES, now: float | None = None) -> Status:
     now = now if now is not None else time.time()
     path = events_path or ledger.EVENTS
@@ -107,9 +136,18 @@ def check(profile: str = "v2", events_path: Path | None = None,
     report = outstanding_mod.outstanding(profile=profile, events_path=events_path,
                                          handoffs_root=handoffs_root, now=now)
     open_items = report.outstanding if report.ledger_status == "ok" else []
-    alert = "stuck" if open_items else "idle_queue"
+    if open_items:
+        return Status(ledger_status="ok", ledger_path=str(path), threshold_min=threshold_min,
+                      idle_s=idle_s, alert="stuck", open_items=open_items)
+    bl = backlog_mod.read(backlog_path)
+    if bl.file_status != "ok":
+        alert = "idle_backlog_unknown"
+    elif bl.count > 0:
+        alert = "idle_backlog"
+    else:
+        alert = "idle_empty"
     return Status(ledger_status="ok", ledger_path=str(path), threshold_min=threshold_min,
-                  idle_s=idle_s, alert=alert, open_items=open_items)
+                  idle_s=idle_s, alert=alert, backlog=bl)
 
 
 def fleet_wide_gaps(path: Path, window_s: float | None = None, min_gap_s: float = 600.0) -> list[float]:

@@ -6,7 +6,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from . import ledger, launcher, outstanding as outstanding_mod, telemetry, tmux, watchdog as watchdog_mod
+from . import backlog as backlog_mod, ledger, launcher, outstanding as outstanding_mod, telemetry, tmux, watchdog as watchdog_mod
 from . import packet as packet_mod
 from . import registry as registry_mod
 from . import send as send_mod
@@ -214,10 +214,25 @@ def cmd_outstanding(args):
     return 1 if report.ledger_status != "ok" or report.outstanding else 0
 
 
+def cmd_backlog(args):
+    path = Path(args.path) if args.path else backlog_mod.DEFAULT_PATH
+    bl = backlog_mod.read(path)
+    if bl.file_status != "ok":
+        print(f"{bl.path}: {bl.file_status} - cannot tell whether there is a backlog")
+        return 1
+    print(f"{bl.path}: {bl.count} open item(s)")
+    for it in bl.items:
+        print(f"  {it.id}  {it.thread or '?':14}  {it.expects}")
+    return 0
+
+
 def cmd_watchdog(args):
     events_path = Path(args.events_path) if args.events_path else None
+    kwargs = {}
+    if args.backlog_path:
+        kwargs["backlog_path"] = Path(args.backlog_path)
     status = watchdog_mod.check(profile=current_profile(), events_path=events_path,
-                                 threshold_min=args.minutes)
+                                 threshold_min=args.minutes, **kwargs)
     print(status.describe())
     return 0 if status.alert is None else 1
 
@@ -360,7 +375,12 @@ def _build_parser():
     w.add_argument("--minutes", type=float, default=watchdog_mod.DEFAULT_MINUTES,
                     help="fleet-wide silence threshold in minutes (default: %(default)s, "
                          "derived from the real gap distribution - see fleet/watchdog.py)")
+    w.add_argument("--backlog-path", help="OPEN.md-shaped backlog file to read instead of "
+                    "ledger/assignments/OPEN.md")
     w.set_defaults(fn=cmd_watchdog)
+    bl = sub.add_parser("backlog")
+    bl.add_argument("--path", help="OPEN.md-shaped file to read instead of ledger/assignments/OPEN.md")
+    bl.set_defaults(fn=cmd_backlog)
     a = sub.add_parser("ask"); a.add_argument("thread"); a.add_argument("text", nargs="+")
     a.add_argument("--from", dest="sender", default="operator")
     a.add_argument("--timeout", type=float, default=30.0)
