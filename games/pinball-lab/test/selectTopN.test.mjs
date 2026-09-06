@@ -235,6 +235,61 @@ test('selectTopN: ranked result is reproducible — same inputs, same seed, same
   assert.deepEqual(r1, r2);
 });
 
+// --- SATURATED-CUT: n === the entire eligible population -------------------------------
+//
+// Rows well-separated enough that the FULL order (not just a coarse band split) is genuinely
+// stable under split-half resampling — distinct from clusteredRows() above, which demotes to
+// `banded` at n === rows.length because its full order is NOT stable. This fixture exists to
+// isolate the saturated-cut case from the already-tested banded/unordered demotion cases: a
+// full-population request must read `saturated` regardless of whether the underlying order
+// would otherwise have resolved cleanly.
+function wellSeparatedRows() {
+  return [
+    { id: 'A', s: mkNoisy(50, 1, 40, 1) },
+    { id: 'B', s: mkNoisy(40, 1, 40, 2) },
+    { id: 'C', s: mkNoisy(30, 1, 40, 3) },
+    { id: 'D', s: mkNoisy(20, 1, 40, 4) },
+    { id: 'E', s: mkNoisy(10, 1, 40, 5) },
+  ];
+}
+
+test('selectTopN: requesting the full eligible population reports saturated, not ranked, even when the full order is genuinely stable', () => {
+  const rows = wellSeparatedRows();
+  const r = selectTopN({ rows, samples: (row) => row.s, estimator: median, n: rows.length, key: (row) => row.id });
+  assert.equal(r.kind, 'saturated');
+  assert.equal(r.cut, undefined, 'a saturated result must have no cut field to publish (anti-V2)');
+  assert.equal(r.stability.kind, 'not-computed');
+  assert.match(r.reason, /equals all 5 eligible row/);
+  assert.equal(r.population.length, rows.length, 'population is still reported in full');
+});
+
+test('selectTopN: population-minus-one is unaffected — a real boundary still exists and resolves normally', () => {
+  const rows = wellSeparatedRows();
+  const r = selectTopN({ rows, samples: (row) => row.s, estimator: median, n: rows.length - 1, key: (row) => row.id });
+  assert.equal(r.kind, 'ranked');
+  assert.equal(r.cut.length, rows.length - 1);
+});
+
+test('selectTopN: ANALYTIC path also reports saturated when n equals the whole population', () => {
+  const rows = [{ id: 'a', v: 5 }, { id: 'b', v: 4 }, { id: 'c', v: 3 }, { id: 'd', v: 2 }, { id: 'e', v: 1 }];
+  const r = selectTopN({ rows, samples: ANALYTIC, estimator: (row) => row.v, n: rows.length, key: (row) => row.id });
+  assert.equal(r.kind, 'saturated');
+  assert.equal(r.cut, undefined);
+});
+
+test('selectTopN: n=1-per-row path also reports saturated when n equals the whole population', () => {
+  const rows = [{ id: 'a', s: [5] }, { id: 'b', s: [4] }, { id: 'c', s: [3] }, { id: 'd', s: [2] }, { id: 'e', s: [1] }];
+  const r = selectTopN({ rows, samples: (row) => row.s, estimator: median, n: rows.length, key: (row) => row.id });
+  assert.equal(r.kind, 'saturated');
+  assert.equal(r.cut, undefined);
+});
+
+test('selectTopN: a banded demotion at n === rows.length still reads banded, not saturated (resampling instability is real regardless of population size)', () => {
+  const rows = clusteredRows();
+  const r = selectTopN({ rows, samples: (row) => row.s, estimator: median, n: rows.length, key: (row) => row.id });
+  assert.equal(r.kind, 'banded', 'a genuine demotion is real information at any n, and must not be swallowed by the saturated-cut check');
+});
+
 // --- n=1 CUT SIZE (a top-1 request), as distinct from n=1 SAMPLE per row above -----------
 //
 // GUARD-MIGRATE: found migrating the first real top-1 caller (lab2Report.js's best-geometry

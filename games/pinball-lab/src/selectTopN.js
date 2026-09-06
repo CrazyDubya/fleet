@@ -201,6 +201,40 @@ export function selectTopN({ rows, samples, estimator, n, key, direction = 'desc
     support: supportArr,
   });
 
+  // SATURATED-CUT: mirrors games/pinball-sandbox's `runScenarioNullTest` — a statistic gets a
+  // `discriminating` flag computed from whether the mechanism had anything to act on, and the
+  // dependent figure (there: percentile; here: a `ranked` verdict) is withheld, not reported
+  // misleadingly, when it doesn't. The gap here is `rankingValidityResult`'s own
+  // boundary-ambiguity test (gate.js: `if (topN != null && topN < n)`), which is SKIPPED
+  // whenever `isFullPopulationCut` — asking for the whole eligible population excludes zero
+  // rows, so there is no boundary left for that test to examine, and `structural.ok` above
+  // passes on the tie/distinct checks alone. Reviewed (haiku-opencode2,
+  // 20260905-cut-n1-review.md): if the cut then ALSO resolves as fully stable (chosenK >= n
+  // below, or the analytic/n=1-per-row shortcuts that always resolve), it reports `ranked` — a
+  // claim that a SELECTION was validated — when nothing was ever excluded to validate a
+  // selection against.
+  //
+  // Deliberately NOT applied to a `banded`/`unordered` outcome: those verdicts come from the
+  // split-half resampling curve genuinely failing to resolve the full order, which is real
+  // information regardless of population size (test/selectTopN.test.mjs's clustered-rows
+  // fixtures demote to `banded` at n === rows.length precisely because that mechanism keeps
+  // working there — only a `ranked`, i.e. fully-resolved, outcome is vacuous when nothing was
+  // excluded).
+  //
+  // The line drawn is "excludes zero rows", not some fraction: it is the one case where the
+  // boundary-ambiguity test cannot structurally run at all (there is no `topN`-th vs
+  // `topN+1`-th row to compare), the exact analogue of the sandbox's zero-spread null. Excluding
+  // even one row (population-minus-one) restores a real boundary — `rankingValidityResult`'s
+  // existing boundary-ambiguity/support checks already evaluate whether THAT boundary is
+  // meaningful (a lone excluded row tied with the cut's last slot fails it already); no second
+  // threshold is invented here for that case.
+  const isFullPopulationCut = eligible.length > 0 && structuralTopN === eligible.length;
+  const saturated = () => ({
+    kind: 'saturated', population, structural,
+    stability: { kind: 'not-computed', why: 'requested cut equals the entire eligible population — nothing is excluded, so no ordering was tested' },
+    reason: `requested top-${n} equals all ${eligible.length} eligible row(s) — this selects the whole population, not a cut; there is no excluded row for a boundary check to examine`,
+  });
+
   if (!structural.ok || eligible.length === 0) {
     return {
       kind: 'unordered', population, structural,
@@ -215,10 +249,14 @@ export function selectTopN({ rows, samples, estimator, n, key, direction = 'desc
   // that plainly rather than running a resampling loop that can't answer anything (spec §3
   // table's "Analytic" and "One measurement per row" rows).
   if (analytic) {
-    return { ...buildRanked(eligible, population, structural, n, direction), stability: { kind: 'not-applicable', why: 'analytic' } };
+    return isFullPopulationCut
+      ? saturated()
+      : { ...buildRanked(eligible, population, structural, n, direction), stability: { kind: 'not-applicable', why: 'analytic' } };
   }
   if (eligible.every((it) => it.n === 1)) {
-    return { ...buildRanked(eligible, population, structural, n, direction), stability: { kind: 'indeterminate', why: 'n=1 per row' } };
+    return isFullPopulationCut
+      ? saturated()
+      : { ...buildRanked(eligible, population, structural, n, direction), stability: { kind: 'indeterminate', why: 'n=1 per row' } };
   }
 
   // --- stability: repeated split-half band agreement, for every k in 2..n ---
@@ -237,6 +275,7 @@ export function selectTopN({ rows, samples, estimator, n, key, direction = 'desc
   const chosenK = rule(curve, n);
 
   if (chosenK >= n) {
+    if (isFullPopulationCut) return saturated();
     const point = curve[curve.length - 1]; // k === n, or k === 2 when n === 1 (see loop bound above)
     return { ...buildRanked(eligible, population, structural, n, direction), stability: { exactAgreement: point.exactAgreement, withinOne: point.withinOne, repeats: resamples, seed } };
   }
