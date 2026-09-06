@@ -7,10 +7,21 @@
 // correctly — this guards ALL of them together so the E4/E5a gap can't reopen, and a future
 // writer can't repeat it either.
 //
-// These are CLI scripts (`main()` called unconditionally at module scope, no export, no
-// `import.meta.url` guard) — importing one would try to run it against this test's argv and
-// fail. Source-text extraction (same idiom as games/pinball/test/glue-scope.test.mjs) is the
-// only way to check them without executing a real run.
+// These are CLI scripts (`main()` called unconditionally at module scope, no
+// `import.meta.url` guard on four of the five) — importing one doesn't crash (a missing-args
+// `main()` prints usage and returns), but it sets `process.exitCode = 1` as a side effect of
+// merely importing the module, which would make this test FILE's own exit status wrong
+// regardless of what any assertion below finds. e4Report.js is the one exception (it guards
+// `main()` behind `import.meta.url` and exports `toMarkdown`), but building a realistic
+// `summary` object for its `toMarkdown` — rankingGuard/equivalenceClasses for three tables,
+// e1Decomposition, pocketMap, releaseDispersion, etc. — is exactly the kind of shape-coupled
+// fixture that breaks on the next unrelated refactor, the same failure mode this file exists
+// to avoid. Source-text extraction (same idiom as games/pinball/test/glue-scope.test.mjs) is
+// the pragmatic choice here — MEASURED-3B (BRITTLE-1) made it tolerant of a function's
+// PARAMETER LIST (matched by name only, `\([^)]*\)`) rather than an exact signature, so it
+// still fails only on the property it actually cares about: does this writer's markdown ever
+// reference `instrumentCommitSha`. A future writer's `toMarkdown(x, y, z)` won't break this
+// test just by adding a fourth parameter.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -53,17 +64,17 @@ const WRITERS = [
   {
     label: 'E1 LAB-2 (lab2Report.js toMarkdown)',
     file: 'lab2Report.js',
-    extract: (src) => extractFunctionBody(src, /function toMarkdown\(summary, best\)\s*\{/),
+    extract: (src) => extractFunctionBody(src, /function toMarkdown\([^)]*\)\s*\{/),
   },
   {
     label: 'E1 Stage A aggregate (aggregate.js toMarkdown)',
     file: 'aggregate.js',
-    extract: (src) => extractFunctionBody(src, /function toMarkdown\(meta, cfgSummaries\)\s*\{/),
+    extract: (src) => extractFunctionBody(src, /function toMarkdown\([^)]*\)\s*\{/),
   },
   {
     label: 'E2 (e2Report.js toMarkdown)',
     file: 'e2Report.js',
-    extract: (src) => extractFunctionBody(src, /function toMarkdown\(summary\)\s*\{/),
+    extract: (src) => extractFunctionBody(src, /function toMarkdown\([^)]*\)\s*\{/),
   },
   {
     label: 'E3 (stageA.js e3ToMarkdown)',
@@ -73,7 +84,7 @@ const WRITERS = [
   {
     label: 'E4 (e4Report.js toMarkdown)',
     file: 'e4Report.js',
-    extract: (src) => extractFunctionBody(src, /function toMarkdown\(summary, csvRelPath\)\s*\{/),
+    extract: (src) => extractFunctionBody(src, /function toMarkdown\([^)]*\)\s*\{/),
   },
   {
     label: 'E5a (e5aReport.js, inline markdown block in main())',
