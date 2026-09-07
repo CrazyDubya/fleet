@@ -22,6 +22,11 @@ const PHASES = ['rest', 'rising', 'full', 'returning'];
 const VI_BINS = 6, VI_MAX = 6.0; // m/s
 const AI_BINS = 8, AI_MAX = 360; // deg
 const CRADLE_SETTLE_WINDOW_S = 1.5; // §3.5: "reaches |v|<0.05 ... within 1.5 s"
+// ANNOTATE-ONLY (opus2, ledger/handoffs/opus2/20260906T094500Z-six-positives-fix.md §"cradleRate"):
+// this 0.05 m/s / 1.5s window is not an implementation proxy standing in for "cradled" - it IS
+// §3.5's own operational definition of a cradle. cr/cradleRate below are correct and correctly
+// named as published; only ct/cp/cv/fastCradleRate (e4Report.js, all gated on the SAME detector
+// firing at all, not on this window) needed the denominator fix. No behavior change here.
 // RETIRE-ALL §3/§4 (ledger/handoffs/opus2/20260905T201139Z-decisions.md): `timingSensitivityDegPerMs`,
 // `SENSITIVITY_CEILING` and the Pareto front built from them are retired from this file's PUBLISHED
 // output — see the doc comment above the dominance-exclusion computation below for why, and what
