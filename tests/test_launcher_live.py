@@ -88,6 +88,12 @@ class LauncherLiveTests(_SpawningTestCase):
     THREADS = ("haiku-fs",)
 
     def test_up_park_wake_respawn_cycle(self):
+        # Opt-in only, same gate as test_bench_live.py's FLEET_BENCH_LIVE:
+        # spawns a real haiku-fs tmux window and drives real Claude Code
+        # turns in it, ~120s each - a routine `pytest tests/` should not do
+        # this as a side effect of someone verifying an unrelated commit.
+        if not os.environ.get("FLEET_LIVE"):
+            self.skipTest("set FLEET_LIVE=1: this spawns and drives a real haiku-fs window")
         reg = Registry()
         self._touched = True
         e = launcher.up("haiku-fs")
@@ -120,6 +126,8 @@ class LauncherLiveTests(_SpawningTestCase):
         self.assertIn(old, new.lineage)
 
     def test_up_twice_is_an_error(self):
+        if not os.environ.get("FLEET_LIVE"):
+            self.skipTest("set FLEET_LIVE=1: this spawns a real haiku-fs window")
         self._touched = True
         launcher.up("haiku-fs")
         with self.assertRaises(launcher.LaunchError):
@@ -144,6 +152,10 @@ class ForkLiveTests(_SpawningTestCase):
             (paths.ROOT / "briefs" / "expert-test.md").unlink(missing_ok=True)
 
     def test_fork_opus_child_gets_brief(self):
+        # Opt-in only: spawns/forks real opus and expert-test windows and
+        # drives real Claude Code turns in them.
+        if not os.environ.get("FLEET_LIVE"):
+            self.skipTest("set FLEET_LIVE=1: this spawns and forks real opus/expert-test windows")
         self._touched = True
         e = launcher.up("opus")
         # --resume needs a session claude has actually recorded at least one

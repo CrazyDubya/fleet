@@ -29,12 +29,28 @@ class V2LiveTests(unittest.TestCase):
         tmux.use_session(self._session)
 
     def test_ask_round_trip_under_5s(self):
+        # Opt-in only, same gate as test_bench_live.py's FLEET_BENCH_LIVE:
+        # this pastes a real packet into haiku-fs2 and logs a real `send`
+        # event, so a routine `pytest tests/` used to ping it "pong" as a
+        # side effect of someone verifying an unrelated commit - 30 of 35
+        # sends to fs2 on one real day were exactly this (see
+        # ledger/assignments/OPEN.md, "pytest tests/ pings production
+        # threads").
+        if not os.environ.get("FLEET_LIVE"):
+            self.skipTest("set FLEET_LIVE=1: this pings the live haiku-fs2 thread")
         t0 = time.monotonic()
         out = ask.ask("haiku-fs2", "reply with exactly: pong", sender="operator", profile="v2")
         self.assertLess(time.monotonic() - t0, 5.0)
         self.assertIn("pong", out)
 
     def test_perm_escalate_then_decide(self):
+        # Opt-in only: spawns a real subprocess against the live v2 profile
+        # and opens a real permission prompt against sonnet2's pending
+        # state - not a `send`, but still a live side effect this file's
+        # own tests should not have as a consequence of an unrelated
+        # `pytest tests/` run.
+        if not os.environ.get("FLEET_LIVE"):
+            self.skipTest("set FLEET_LIVE=1: this drives a live subprocess against the v2 profile")
         # Inherit the ambient PATH (rather than a hand-picked minimal one):
         # on this machine /usr/bin/python3 is a Python 3.9 stuck ahead of
         # the working 3.12 on a short PATH, and fleet's modules use PEP 604
