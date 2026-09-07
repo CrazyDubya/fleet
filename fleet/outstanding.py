@@ -247,7 +247,7 @@ def _tier3_match(dispatches: list["Dispatch"], idx: _HandoffIndex, claimed: set[
     return out
 
 
-def _registry_entries(profile: str) -> dict[str, Entry] | None:
+def registry_entries(profile: str) -> dict[str, Entry] | None:
     try:
         reg = registry_mod.Registry(profile_state(profile) / "registry.json")
         return reg.load()
@@ -356,7 +356,7 @@ def outstanding(profile: str = "v2", events_path: Path | None = None,
         # never filed a handoff naming the id - because none was expected.
         if d.lane == "lookup" or d.reply == "inline":
             if entries is None:
-                entries = _registry_entries(profile) or {}
+                entries = registry_entries(profile) or {}
             status, evidence, reply_t = _inline_evidence(d, entries)
             age = (reply_t - d.t) if status == "answered" and reply_t else (now - d.t if status == "outstanding" else None)
             items.append(Item(d=d, status=status, evidence=evidence, age_s=age))

@@ -63,17 +63,68 @@ class WatchdogTests(unittest.TestCase):
 
     # --- the distinction the whole brief is about ---
 
-    def test_silence_with_open_dispatch_is_stuck(self):
+    def test_silence_with_open_dispatch_and_no_activity_evidence_is_stuck(self):
         now = time.time()
         self._write_events(
             {"ev": "send", "t": now - 3600, "thread": "sonnet2", "from": "operator",
              "id": "abc123", "lane": "build", "reply": "file", "done": "ship it"},
             {"ev": "hook", "t": now - 900, "thread": "sonnet2"},
         )
-        status = watchdog.check(events_path=self.events, handoffs_root=self.handoffs, backlog_path=self.backlog, threshold_min=10)
+        # registry_entries={}: sonnet2 is not resolvable, so activity.check
+        # reports "unknown" for it, not "quiet" - this still verifies the
+        # alert stays "stuck" (an unresolvable thread is not proof of busy)
+        # while staying isolated from the real, currently-active production
+        # registry (sonnet2 genuinely is busy right now, which would
+        # otherwise flip this test's expected verdict for reasons that have
+        # nothing to do with the code under test).
+        status = watchdog.check(events_path=self.events, handoffs_root=self.handoffs,
+                                 backlog_path=self.backlog, threshold_min=10, registry_entries={})
         self.assertEqual(status.alert, "stuck")
         self.assertIn("ALERT (stuck)", status.describe())
         self.assertIn("abc123", status.describe())
+        self.assertIn("could not confirm activity", status.describe())
+
+    def test_silence_with_open_dispatch_but_confirmed_no_activity_is_stuck(self):
+        from fleet.registry import Entry
+        now = time.time()
+        cwd = self.root / "sonnet2"
+        cwd.mkdir()
+        stale = cwd / "old.txt"
+        stale.write_text("x")
+        import os
+        os.utime(stale, (now - 7200, now - 7200))
+        self._write_events(
+            {"ev": "send", "t": now - 3600, "thread": "sonnet2", "from": "operator",
+             "id": "abc123", "lane": "build", "reply": "file", "done": "ship it"},
+            {"ev": "hook", "t": now - 900, "thread": "sonnet2"},
+        )
+        entries = {"sonnet2": Entry(name="sonnet2", session_id="no-such-session", cwd=str(cwd),
+                                     model="x", status="running", spec_hash="x", spawned_at=0)}
+        status = watchdog.check(events_path=self.events, handoffs_root=self.handoffs,
+                                 backlog_path=self.backlog, threshold_min=10, registry_entries=entries)
+        self.assertEqual(status.alert, "stuck")
+        self.assertIn("confirmed: no transcript growth or file activity", status.describe())
+
+    def test_silence_with_open_dispatch_but_real_activity_is_not_stuck(self):
+        from fleet.registry import Entry
+        now = time.time()
+        cwd = self.root / "sonnet2"
+        cwd.mkdir()
+        fresh = cwd / "grok-probes-raw.json"
+        self._write_events(
+            {"ev": "send", "t": now - 3600, "thread": "sonnet2", "from": "operator",
+             "id": "abc123", "lane": "build", "reply": "file", "done": "ship it"},
+            {"ev": "hook", "t": now - 900, "thread": "sonnet2"},
+        )
+        fresh.write_text("{}")  # written now - after the ledger's last event (now - 900)
+        entries = {"sonnet2": Entry(name="sonnet2", session_id="no-such-session", cwd=str(cwd),
+                                     model="x", status="running", spec_hash="x", spawned_at=0)}
+        status = watchdog.check(events_path=self.events, handoffs_root=self.handoffs,
+                                 backlog_path=self.backlog, threshold_min=10, registry_entries=entries)
+        self.assertIsNone(status.alert)
+        self.assertIn("quiet (not stopped)", status.describe())
+        self.assertIn("grok-probes-raw.json", status.describe())
+        self.assertIn("still working", status.describe())
 
     def test_silence_with_no_backlog_file_is_idle_backlog_unknown(self):
         now = time.time()

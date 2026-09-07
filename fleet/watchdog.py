@@ -40,6 +40,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from . import activity as activity_mod
 from . import backlog as backlog_mod
 from . import ledger
 from . import outstanding as outstanding_mod
@@ -57,6 +58,7 @@ class Status:
     alert: str | None = None
     open_items: list = field(default_factory=list)
     backlog: "backlog_mod.Backlog | None" = None
+    note: str | None = None  # explains a None/stuck verdict the raw timer alone would not
 
     def describe(self) -> str:
         if self.ledger_status != "ok":
@@ -67,7 +69,10 @@ class Status:
             )
         mins = (self.idle_s or 0) / 60
         if self.alert is None:
-            return f"quiet: last fleet-wide event {mins:.1f}m ago (< {self.threshold_min:.0f}m threshold)."
+            base = f"quiet: last fleet-wide event {mins:.1f}m ago (< {self.threshold_min:.0f}m threshold)."
+            if self.idle_s is not None and self.note:
+                base = f"quiet (not stopped): ledger silent {mins:.1f}m, but {self.note}"
+            return base
         if self.alert == "stuck":
             lines = [
                 f"ALERT (stuck): no thread has emitted any event for {mins:.1f}m, and "
@@ -77,6 +82,8 @@ class Status:
             for i in self.open_items:
                 age_m = (i.age_s or 0) / 60
                 lines.append(f"  {i.d.id}  {i.d.thread:14}  open {age_m:.0f}m  \u2014 {i.d.done or '(no @done recorded)'}")
+            if self.note:
+                lines.append(self.note)
             return "\n".join(lines)
         if self.alert == "idle_backlog":
             lines = [
@@ -112,10 +119,47 @@ def _last_event_t(path: Path, tail: int = 50) -> float | None:
     return max(ts) if ts else None
 
 
+def _stuck_or_busy(path: Path, threshold_min: float, idle_s: float, open_items: list,
+                    profile: str, since: float, now: float, entries_override=None) -> Status:
+    """The `stuck` verdict, corrected against real evidence of work
+    happening where events.jsonl cannot see it - a subprocess writing its
+    own output files, or a thread mid-turn whose transcript keeps growing.
+    Checked live 2026-09-06: pi running nine grok probe families and
+    sonnet4 mid-turn both produced 50m+ of pure ledger silence with
+    dispatches open, and neither was actually stuck.
+
+    Checks every distinct thread that owns an open dispatch, since>=last_t
+    (the moment the ledger itself went quiet) is the right cutoff: activity
+    strictly after that proves work continued past the point silence would
+    otherwise have been read as a stall.
+    """
+    entries = entries_override if entries_override is not None else outstanding_mod.registry_entries(profile)
+    threads = sorted({i.d.thread for i in open_items})
+    results = {t: activity_mod.check(t, entries, since=since, now=now) for t in threads}
+    busy = [(t, r) for t, r in results.items() if r.status == "busy"]
+    unknown = [(t, r) for t, r in results.items() if r.status == "unknown"]
+    if busy:
+        t, r = busy[0]
+        note = (f"{t} shows real activity outside the ledger: {r.evidence} - not stuck, "
+                f"still working ({len(open_items)} dispatch(es) remain open).")
+        return Status(ledger_status="ok", ledger_path=str(path), threshold_min=threshold_min,
+                      idle_s=idle_s, alert=None, open_items=open_items, note=note)
+    note = None
+    if unknown:
+        note = ("could not confirm activity for: " +
+                ", ".join(f"{t} ({r.evidence})" for t, r in unknown) +
+                " - stuck verdict is not fully verified.")
+    else:
+        note = "confirmed: no transcript growth or file activity found under any open thread's own paths."
+    return Status(ledger_status="ok", ledger_path=str(path), threshold_min=threshold_min,
+                  idle_s=idle_s, alert="stuck", open_items=open_items, note=note)
+
+
 def check(profile: str = "v2", events_path: Path | None = None,
           handoffs_root: Path = outstanding_mod.HANDOFFS,
           backlog_path: Path = backlog_mod.DEFAULT_PATH,
-          threshold_min: float = DEFAULT_MINUTES, now: float | None = None) -> Status:
+          threshold_min: float = DEFAULT_MINUTES, now: float | None = None,
+          registry_entries=None) -> Status:
     now = now if now is not None else time.time()
     path = events_path or ledger.EVENTS
     lstatus = ledger.status(path)
@@ -137,8 +181,8 @@ def check(profile: str = "v2", events_path: Path | None = None,
                                          handoffs_root=handoffs_root, now=now)
     open_items = report.outstanding if report.ledger_status == "ok" else []
     if open_items:
-        return Status(ledger_status="ok", ledger_path=str(path), threshold_min=threshold_min,
-                      idle_s=idle_s, alert="stuck", open_items=open_items)
+        return _stuck_or_busy(path, threshold_min, idle_s, open_items, profile, last_t, now,
+                              entries_override=registry_entries)
     bl = backlog_mod.read(backlog_path)
     if bl.file_status != "ok":
         alert = "idle_backlog_unknown"
