@@ -30,6 +30,59 @@ from .paths import ROOT
 
 DEFAULT_OK = ("OK", "GREEN", "HEALTHY")
 
+# muse's own generator (harness_pkg/harness/analyze.py) emits this literal
+# state whenever zero tasks were attempted that day, BEFORE any of its real
+# health checks run - its own comment there: "every condition below is
+# vacuously satisfied when zero tasks were attempted today". That collapses
+# a genuinely quiet day and a dead harness into the same three words. Do
+# NOT add this to ok_states - that hides the broke case behind a flat
+# classification, the exact vacuous-truth shape this fleet keeps finding.
+# Sub-classified below from the status file's own other fields instead.
+NO_ACTIVITY_STATE = "NO ACTIVITY"
+
+# Verified against muse's source rather than assumed (analyze.py's
+# lock_state computation): the lock file has THREE states, not two.
+# "inactive" means the lock file was never created - no worker ever tried.
+# "stale" means the file exists but its pid is dead - a crashed worker.
+# "active pid=N" means a live process holds it. Inactive does NOT mean
+# crashed; that is what "stale" specifically means, so "benign" below can
+# safely treat an inactive lock as real evidence of nothing having been
+# due, not merely the absence of an alarm.
+_LOCK_RE = re.compile(r"worker lock:\s*(\w+)")  # "inactive"/"stale"/"active" - stops before " pid=N" or a trailing ";"
+_PENDING_RUNNING_RE = re.compile(r"pending:\s*(\d+);\s*running:\s*(\d+)")
+_BACKLOG_PRESSURE_RE = re.compile(r"backlog pressure:\s*(yes|no)")
+
+
+def _classify_no_activity(text: str) -> str:
+    """"benign" | "attention" | "unknown" for a NO ACTIVITY status file.
+
+    benign: nothing was due - lock inactive (no worker ever tried), zero
+    pending, no backlog pressure. All three are required; this is positive
+    evidence of an idle day, not just the absence of a lock.
+
+    attention: something should have run - pending work with nothing
+    running to work it, backlog pressure, or a lock that is stale (a
+    crashed worker) or held active while nothing is running (a worker that
+    locked itself and then produced nothing - the same crash signature by
+    a different name). This is the default for anything that is not
+    affirmatively benign, per instruction: absence of the alarm is not
+    evidence of health.
+
+    unknown: the status file does not carry the fields needed to tell -
+    reported distinctly rather than defaulting to "benign", the one
+    reading this function must never produce by omission.
+    """
+    lock_m = _LOCK_RE.search(text)
+    pr_m = _PENDING_RUNNING_RE.search(text)
+    bp_m = _BACKLOG_PRESSURE_RE.search(text)
+    if not (lock_m and pr_m and bp_m):
+        return "unknown"
+    lock, (pending, running) = lock_m.group(1), (int(pr_m.group(1)), int(pr_m.group(2)))
+    backlog_pressure = bp_m.group(1) == "yes"
+    if lock == "inactive" and pending == 0 and not backlog_pressure:
+        return "benign"
+    return "attention"
+
 
 @dataclass
 class Project:
@@ -58,9 +111,16 @@ class Health:
     # that declares its own ok_states must have them honoured or the setting is
     # decorative and every non-default project reads as unhealthy forever.
     ok_states: list[str] = field(default_factory=lambda: list(DEFAULT_OK))
+    # "benign" | "attention" | "unknown" | None (None unless state is
+    # NO_ACTIVITY_STATE - see _classify_no_activity). A separate field
+    # rather than folded into `state` so the raw value muse actually wrote
+    # stays visible, with fleet's own sub-classification alongside it.
+    no_activity: str | None = None
 
     @property
     def ok(self) -> bool:
+        if self.state is not None and self.state.upper() == NO_ACTIVITY_STATE:
+            return self.no_activity == "benign"
         return self.state is not None and self.state.upper() in {s.upper() for s in self.ok_states}
 
 
@@ -90,15 +150,26 @@ def _state_of(p: Project, status: Path | None) -> str | None:
     return m.group(1) if m else None
 
 
+def _no_activity_of(status: Path | None, state: str | None) -> str | None:
+    if status is None or state is None or state.upper() != NO_ACTIVITY_STATE:
+        return None
+    try:
+        text = status.read_text(errors="replace")
+    except OSError:
+        return "unknown"
+    return _classify_no_activity(text)
+
+
 def health(p: Project, now: float | None = None, activities: list[agents.Activity] | None = None,
            exclude_sessions: set[str] | None = None) -> Health:
     now = time.time() if now is None else now
     status = _newest_status(p)
+    state = _state_of(p, status)
     return Health(
-        project=p.name, dir=p.dir, state=_state_of(p, status), status_file=status,
+        project=p.name, dir=p.dir, state=state, status_file=status,
         age_s=(now - status.stat().st_mtime) if status else None,
         live=agents.live_on(p.dir, now, activities=activities, exclude_sessions=exclude_sessions),
-        thread=p.thread, ok_states=list(p.ok_states),
+        thread=p.thread, ok_states=list(p.ok_states), no_activity=_no_activity_of(status, state),
     )
 
 
@@ -133,5 +204,8 @@ def render(hs: list[Health]) -> str:
     for h in hs:
         age = "-" if h.age_s is None else f"{h.age_s / 3600:.1f}h"
         live = ", ".join(f"{a.agent}:{a.model or '?'}" for a in h.live) or "-"
-        lines.append(f"{h.project:{w}} {(h.state or '?'):10} {age:>10} {(h.thread or '-'):10} {live}")
+        state_text = h.state or "?"
+        if h.no_activity:
+            state_text += f"/{h.no_activity}"
+        lines.append(f"{h.project:{w}} {state_text:10} {age:>10} {(h.thread or '-'):10} {live}")
     return "\n".join(lines)

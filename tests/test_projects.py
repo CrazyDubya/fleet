@@ -25,6 +25,25 @@ def status(d: Path, name: str, state: str, age_s: float = 0.0):
     return f
 
 
+NO_ACTIVITY_STATE_RE = r'state:\s*\*\*([A-Z][A-Z ]*[A-Z]|[A-Z])\*\*'  # fleet.toml's real muse regex
+
+
+def no_activity_status(d: Path, name: str, *, lock="inactive", pending=0, running=0,
+                        backlog_pressure=False, state="NO ACTIVITY"):
+    """A status file shaped like muse's real generator output (harness/
+    analyze.py), with the fields _classify_no_activity actually reads."""
+    p = d / "pipeline"
+    p.mkdir(parents=True, exist_ok=True)
+    f = p / name
+    f.write_text(
+        f"# daily status\n\n- state: **{state}**\n"
+        f"- pending: {pending}; running: {running}; pending families: 0\n"
+        f"- worker lock: {lock}; heartbeat: idle\n"
+        f"- backlog pressure: {'yes' if backlog_pressure else 'no'}\n"
+    )
+    return f
+
+
 class HealthTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -110,6 +129,76 @@ class ConfigTests(unittest.TestCase):
         ps = projects.load()
         self.assertIn("muse", ps)
         self.assertEqual(ps["muse"].thread, "muse2")
+
+
+class NoActivityClassificationTests(unittest.TestCase):
+    """The vacuous-truth case named live: muse's own generator emits
+    NO ACTIVITY whenever zero tasks were attempted, before any of its
+    real health checks run - it means two different things and a flat
+    classification hides the broken one."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.d = Path(self.tmp.name)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _proj(self):
+        return proj(self.d, state_re=NO_ACTIVITY_STATE_RE)
+
+    def test_benign_requires_all_three_positive_conditions(self):
+        no_activity_status(self.d, "status-2026-09-07.md",
+                            lock="inactive", pending=0, backlog_pressure=False)
+        h = projects.health(self._proj(), now=time.time(), activities=[])
+        self.assertEqual((h.state, h.no_activity, h.ok), ("NO ACTIVITY", "benign", True))
+
+    def test_pending_with_nothing_running_is_attention(self):
+        no_activity_status(self.d, "status-2026-09-07.md",
+                            lock="inactive", pending=5, running=0, backlog_pressure=False)
+        h = projects.health(self._proj(), now=time.time(), activities=[])
+        self.assertEqual((h.no_activity, h.ok), ("attention", False))
+
+    def test_backlog_pressure_is_attention_even_with_no_pending(self):
+        no_activity_status(self.d, "status-2026-09-07.md",
+                            lock="inactive", pending=0, backlog_pressure=True)
+        h = projects.health(self._proj(), now=time.time(), activities=[])
+        self.assertEqual((h.no_activity, h.ok), ("attention", False))
+
+    def test_stale_lock_is_attention_a_crashed_worker(self):
+        no_activity_status(self.d, "status-2026-09-07.md",
+                            lock="stale", pending=0, backlog_pressure=False)
+        h = projects.health(self._proj(), now=time.time(), activities=[])
+        self.assertEqual((h.no_activity, h.ok), ("attention", False))
+
+    def test_active_lock_holding_nothing_running_is_attention(self):
+        # A lock actively held (a live pid) while nothing is running is the
+        # same crash signature as "stale" by a different name - the worker
+        # locked itself and then produced nothing.
+        no_activity_status(self.d, "status-2026-09-07.md",
+                            lock="active", pending=0, running=0, backlog_pressure=False)
+        h = projects.health(self._proj(), now=time.time(), activities=[])
+        self.assertEqual((h.no_activity, h.ok), ("attention", False))
+
+    def test_unparseable_fields_are_unknown_not_benign(self):
+        p = self.d / "pipeline"; p.mkdir(parents=True, exist_ok=True)
+        (p / "status-2026-09-07.md").write_text("# daily status\n\n- state: **NO ACTIVITY**\n")
+        h = projects.health(self._proj(), now=time.time(), activities=[])
+        self.assertEqual((h.no_activity, h.ok), ("unknown", False))
+
+    def test_non_no_activity_states_are_unaffected(self):
+        no_activity_status(self.d, "status-2026-09-07.md", state="ATTENTION",
+                            lock="inactive", pending=0, backlog_pressure=False)
+        h = projects.health(self._proj(), now=time.time(), activities=[])
+        # Would be "benign" by the same fields if this classifier fired on
+        # ATTENTION too - it must not; ATTENTION already carries its own
+        # real signal from muse's fuller health checks.
+        self.assertEqual((h.state, h.no_activity, h.ok), ("ATTENTION", None, False))
+
+    def test_no_activity_is_not_silently_added_to_ok_states(self):
+        # Regression guard for the instruction not to just whitelist the
+        # state - ok_states defaults must never include it.
+        self.assertNotIn("NO ACTIVITY", [s.upper() for s in projects.DEFAULT_OK])
 
 
 if __name__ == "__main__":
