@@ -21,7 +21,7 @@ from fleet import decisions as decisions_mod
 from fleet.paths import ROOT
 from gui.server import HttpError
 
-WATCH = ["ledger/assignments/DECISIONS.md", "ledger/assignments/OPEN.md"]
+WATCH = ["ledger/assignments/DECISIONS.md", "ledger/assignments/OPEN.md", "state/v2/watchdog-ALERT"]
 
 HANDOFFS_ROOT = (ROOT / "ledger" / "handoffs").resolve()
 MAX_HANDOFF_BYTES = 200_000  # a render target, not a security boundary - handoffs are prose
@@ -36,6 +36,7 @@ def get(ctx):
     _require_get(ctx)
     r = decisions_mod.read()
     return {
+        "watchdog_alert": decisions_mod.read_watchdog_alert(),
         "decisions_status": r.decisions_status,
         "decisions_path": r.decisions_path,
         "decisions_resolved_note": r.decisions_resolved_note,

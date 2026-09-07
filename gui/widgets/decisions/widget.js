@@ -14,7 +14,10 @@ export function mount(ctx) {
     .dcontent{white-space:pre-wrap;font-family:ui-monospace,Menlo,monospace;font-size:12px;max-height:16em;overflow:auto;background:var(--panel-2,#2a3140);border-radius:8px;padding:8px;margin-top:6px}
     .empty{color:var(--muted);padding:8px}
     .note{color:var(--muted);font-size:13px;padding:4px 0}
-    .err{color:var(--bad);padding:8px}`);
+    .err{color:var(--bad);padding:8px}
+    .watchdog{border:2px solid var(--bad);border-radius:12px;padding:12px;margin:0 0 12px;background:var(--panel-2,#2a3140);font-weight:600}
+    .watchdog .wlabel{text-transform:uppercase;letter-spacing:.04em;font-size:11px;color:var(--bad);margin-bottom:4px}
+    .watchdog .wtext{font-family:ui-monospace,Menlo,monospace;font-weight:400;white-space:pre-wrap}`);
   const root = ctx.root;
 
   const field = (label, text) => {
@@ -92,6 +95,16 @@ export function mount(ctx) {
       return;
     }
     root.replaceChildren();
+    // Prominent, above everything else: this is the piece meant to make a
+    // silent, stalled fleet reach the operator instead of sitting
+    // invisible on this machine. Read-only - just renders whatever the
+    // watchdog job itself already wrote; nothing here can clear it.
+    if (data.watchdog_alert) {
+      const w = document.createElement('div'); w.className = 'watchdog';
+      const l = document.createElement('div'); l.className = 'wlabel'; l.textContent = 'Watchdog alert';
+      const t = document.createElement('div'); t.className = 'wtext'; t.textContent = data.watchdog_alert;
+      w.append(l, t); root.append(w);
+    }
     // Distinct states, never collapsed into a bare empty list: "answered"
     // and "no rows" are real assertions; "missing"/"unreadable" are not -
     // this must not read the same as "nothing pending" (spec's own rule).

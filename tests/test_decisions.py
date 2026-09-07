@@ -112,6 +112,27 @@ class OpenRowsTests(unittest.TestCase):
         self.assertEqual((status, rows), ("ok", []))
 
 
+class WatchdogAlertTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.path = Path(self.tmp.name) / "watchdog-ALERT"
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_missing_file_is_none(self):
+        self.assertIsNone(decisions.read_watchdog_alert(self.path))
+
+    def test_present_file_returns_its_content(self):
+        self.path.write_text("2026-09-07T04:00:00Z stuck: 3 dispatches open, no activity\n")
+        self.assertEqual(decisions.read_watchdog_alert(self.path),
+                          "2026-09-07T04:00:00Z stuck: 3 dispatches open, no activity")
+
+    def test_empty_file_is_none_not_a_blank_banner(self):
+        self.path.write_text("   \n")
+        self.assertIsNone(decisions.read_watchdog_alert(self.path))
+
+
 class ReadTests(unittest.TestCase):
     def test_the_real_files_parse(self):
         # Not a fixture - a format drift in either real file should break

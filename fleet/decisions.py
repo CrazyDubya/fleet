@@ -37,11 +37,12 @@ from pathlib import Path
 
 from . import backlog as backlog_mod
 from . import ledger
-from .paths import LEDGER, ROOT
+from .paths import LEDGER, ROOT, STATE
 
 DECISIONS_PATH = LEDGER / "assignments" / "DECISIONS.md"
 OPEN_PATH = LEDGER / "assignments" / "OPEN.md"
 HANDOFFS_ROOT = (LEDGER / "handoffs").resolve()
+WATCHDOG_ALERT_PATH = STATE / "v2" / "watchdog-ALERT"
 
 _PATH_RE = re.compile(r"`?(/[\w./-]+\.\w+)`?")
 _SECTION_RE = re.compile(r"^##\s+(\d+)\.\s+(.+)$", re.MULTILINE)
@@ -202,3 +203,23 @@ def read(decisions_path: Path | None = None, open_path: Path | None = None) -> R
     report.open_status, report.open_rows = read_open_rows(open_path)
     report.open_path = str(open_path if open_path is not None else OPEN_PATH)
     return report
+
+
+def read_watchdog_alert(path: Path | None = None) -> str | None:
+    """The level-triggered watchdog job's own verdict, or None.
+
+    Deliberately binary, unlike everything else in this module: the
+    watchdog job itself already owns writing this file when stalled and
+    removing it when healthy (fleet/watchdog.py), so its mere presence IS
+    the alert - there is no missing/unreadable/empty distinction to make
+    here the way there is for a document the operator hand-maintains. A
+    transient read failure (the job is mid-rewrite) reads as "no alert"
+    for one tick rather than surfacing a spurious one; the job's own next
+    write settles it.
+    """
+    path = path if path is not None else WATCHDOG_ALERT_PATH
+    try:
+        text = path.read_text(errors="replace").strip()
+    except OSError:
+        return None
+    return text or None

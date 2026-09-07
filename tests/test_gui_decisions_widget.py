@@ -41,6 +41,21 @@ class DecisionsWidgetTests(unittest.TestCase):
             dsrv.get_handoff(ctx("POST", query={"path": "ledger/handoffs/x/y.md"}))
         self.assertEqual(cm.exception.code, 405)
 
+    def test_watchdog_alert_absent_by_default(self):
+        self.decisions_path.write_text("# Decisions\n\nNothing yet.\n")
+        self.open_path.write_text("# Open\n\n| id | thread | expects | notes |\n|---|---|---|---|\n")
+        out = dsrv.get(ctx())
+        self.assertIsNone(out["watchdog_alert"])
+
+    def test_watchdog_alert_surfaces_when_present(self):
+        self.decisions_path.write_text("# Decisions\n\nNothing yet.\n")
+        self.open_path.write_text("# Open\n\n| id | thread | expects | notes |\n|---|---|---|---|\n")
+        wd = Path(self.tmp.name) / "watchdog-ALERT"
+        wd.write_text("2026-09-07T04:00:00Z stuck: 3 dispatches open\n")
+        with mock.patch("fleet.decisions.WATCHDOG_ALERT_PATH", wd):
+            out = dsrv.get(ctx())
+        self.assertEqual(out["watchdog_alert"], "2026-09-07T04:00:00Z stuck: 3 dispatches open")
+
     def test_no_decisions_pending_is_reported_cleanly(self):
         self.decisions_path.write_text("# Decisions\n\nNothing yet.\n")
         self.open_path.write_text("# Open\n\n| id | thread | expects | notes |\n|---|---|---|---|\n")
