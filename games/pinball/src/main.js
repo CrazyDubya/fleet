@@ -1612,7 +1612,16 @@ function frame(now) {
     if (entry === chuteBall) chuteBall = null;
     despawnBall(entry);
     game.captureInTrough(troughState, elapsedS); // every ordinary drain physically reaches the trough
-    const liveBallsRemaining = balls.filter((b) => !b.phys.captured).length;
+    // LIVEBALLS-DRAIN (opus2, ledger/handoffs/opus2/20260907T060000Z-semantic-audit-run.md):
+    // `balls` only ever holds balls still physically in the machine - despawnBall (just above)
+    // already removed the one that just drained, so every remaining entry is live for this
+    // decision, INCLUDING one currently held in the sandbox scoop (`captured`, not drained -
+    // it is going to be ejected, not gone). Excluding captured balls here made the last free
+    // ball's drain read as SW_DRAIN (ball over) whenever it happened during a scoop hold, even
+    // though a ball was still on the playfield/in the scoop. `captured` itself is untouched -
+    // still correctly true during the hold and cleared on eject (line ~1555) - only this
+    // drain-vs-ball-lost count no longer treats "held" as "gone".
+    const liveBallsRemaining = balls.length;
     scoreTags.push(drainTagFor({ liveBallsRemaining }));
   }
 
