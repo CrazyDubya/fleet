@@ -187,18 +187,38 @@ async function main() {
     if (r.cv) row.cv += 1;
     if (r.pk !== null) pkVals.push(r.pk);
   }
+  // SIX-POSITIVES-FIX (opus2, ledger/handoffs/opus2/20260906T094500Z-six-positives-fix.md):
+  // cr/cp/cv are classifications of WHERE a settle happened - classifySettle only ever runs
+  // inside the settleCaptured branch (instrument.js), so a trial the detector never caught
+  // reads as cr=cp=cv=0, identical to "settled somewhere that doesn't count". Dividing by
+  // row.trials (every trial, detected or not) silently treats a detector miss as "did not
+  // catch". Gated to row.ct (trials where the detector actually fired) below; `null` when it
+  // never fired at all, matching this project's existing sentinel for "not measured" rather
+  // than producing 0/0. `ct` itself is renamed `settleDetected` in published output - it names
+  // an instrument event, not a pocket outcome - and its raw count is published alongside as the
+  // gate's own denominator, per the spec's §"1. ct — retire".
   const a1Ranked = [...a1ByCfg.values()].map((row) => ({
     guide: row.cfg.guide, radius: row.cfg.radius, trials: row.trials,
-    ct: row.ct / row.trials, cr: row.cr / row.trials, cp: row.cp / row.trials, cv: row.cv / row.trials,
+    settleDetected: row.ct / row.trials, settleDetectedCount: row.ct,
+    cr: row.ct > 0 ? row.cr / row.ct : null, cp: row.ct > 0 ? row.cp / row.ct : null, cv: row.ct > 0 ? row.cv / row.ct : null,
     cpCount: row.cp,
-  })).sort((x, y) => y.cp - x.cp);
+  })).sort((x, y) => (y.cp ?? -1) - (x.cp ?? -1));
   const a1Key = (r) => `${r.guide.gapX}|${r.guide.tiltDeg}|${r.guide.endDy}|${r.guide.guideE}|${r.radius}`;
   // GUARD-MIGRATE (CUT-1 spec §7 item #8): the top-1 pocket pick, through selectTopN rather
   // than a boundary-only ranking guard. Runs the FULL structural + split-half stability check
   // (see `synthBinary`'s comment above for why a reconstructed 0/1 array is honest here).
+  // SIX-POSITIVES-FIX: sample size is now settleDetectedCount, not raw trials — cp is a rate
+  // among DETECTED settles, so that is the population the stability check must resample from.
+  // A cfg where the detector never fired at all (settleDetectedCount === 0) has no cp SAMPLE to
+  // resample from, not a cp of zero (selectTopN itself refuses an empty samples() array rather
+  // than silently treating it as one — this is exactly the "detector miss reads as a real zero"
+  // defect resurfacing one layer up if it weren't excluded here). Excluded from the ranked CUT's
+  // population; still published in a1Ranked with cp/cr/cv = null, per this file's own sentinel
+  // for "not measured" elsewhere.
+  const a1Rankable = a1Ranked.filter((r) => r.settleDetectedCount > 0);
   const a1Cut = selectTopN({
-    rows: a1Ranked, samples: (r) => synthBinary(r.cpCount, r.trials), estimator: meanOf01,
-    support: (r) => r.trials, n: 1, key: a1Key,
+    rows: a1Rankable, samples: (r) => synthBinary(r.cpCount, r.settleDetectedCount), estimator: meanOf01,
+    support: (r) => r.settleDetectedCount, n: 1, key: a1Key,
   });
 
   // --- A2: the ranked assembly table (§8 item 2), controls' cp for the E1 decomposition. ---
@@ -225,32 +245,43 @@ async function main() {
     if (r.st !== null) row.stVals.push(r.st);
     if (r.bn !== null) row.bnVals.push(r.bn);
   }
+  // SIX-POSITIVES-FIX (opus2, six-positives-fix.md §"2-4"/"5"/"1"): same gating as a1Ranked
+  // above, plus fastCradleRate — row.stVals only ever receives a value when the detector fired
+  // (r.st = settleCaptured ? settledAtS : null in instrument.js), so row.stVals.length already
+  // equals row.ct; dividing fastCradleCount by row.trials instead of that count had the same
+  // "detector miss reads as a real zero" defect as cr/cp/cv. `ct` renamed `settleDetected`.
   const a2Ranked = [...a2ByCfg.values()].map((row) => {
     const fastCradleCount = row.stVals.filter((s) => s < 1.0).length;
+    const detected = row.ct; // === row.stVals.length; kept as row.ct, the loop's own counter
     return {
       cfgId: row.cfg.cfgId, guide: row.cfg.guide, feed: row.cfg.feed, post: row.cfg.post, outlaneW: row.cfg.outlaneW,
       radius: row.cfg.radius, trials: row.trials,
-      ct: row.ct / row.trials, cr: row.cr / row.trials, cp: row.cp / row.trials, cv: row.cv / row.trials,
-      // MEASURED-3: additive sidecars — bare fields above are unchanged.
-      ctM: measuredRate(row.ct, row.trials, { estimand: `${row.cfg.cfgId}: fraction of trials clearing the ct check` }),
-      crM: measuredRate(row.cr, row.trials, { estimand: `${row.cfg.cfgId}: fraction of trials that catch (cr)` }),
-      cpM: measuredRate(row.cp, row.trials, { estimand: `${row.cfg.cfgId}: fraction of trials clearing the catch/playability tradeoff (cp)` }),
-      cvM: measuredRate(row.cv, row.trials, { estimand: `${row.cfg.cfgId}: fraction of trials landing in the closed-V trap (cv)` }),
+      settleDetected: row.ct / row.trials, settleDetectedCount: row.ct,
+      cr: detected > 0 ? row.cr / detected : null, cp: detected > 0 ? row.cp / detected : null, cv: detected > 0 ? row.cv / detected : null,
+      // MEASURED-3: additive sidecars — bare fields above are unchanged in KIND, only in
+      // denominator (SIX-POSITIVES-FIX).
+      settleDetectedM: measuredRate(row.ct, row.trials, { estimand: `${row.cfg.cfgId}: fraction of trials where the settle detector fired` }),
+      crM: measuredRate(row.cr, detected, { estimand: `${row.cfg.cfgId}: fraction of DETECTED settles that catch (cr)` }),
+      cpM: measuredRate(row.cp, detected, { estimand: `${row.cfg.cfgId}: fraction of DETECTED settles clearing the catch/playability tradeoff (cp)` }),
+      cvM: measuredRate(row.cv, detected, { estimand: `${row.cfg.cfgId}: fraction of DETECTED settles landing in the closed-V trap (cv)` }),
       medianSt: row.stVals.length ? percentile(row.stVals, 50) : null,
-      fastCradleRate: row.stVals.length ? fastCradleCount / row.trials : 0,
-      fastCradleRateM: measuredRate(fastCradleCount, row.trials, { estimand: `${row.cfg.cfgId}: fraction of trials settling in under 1.0s` }),
+      fastCradleRate: detected > 0 ? fastCradleCount / detected : null,
+      fastCradleRateM: measuredRate(fastCradleCount, detected, { estimand: `${row.cfg.cfgId}: fraction of DETECTED settles under 1.0s` }),
       medianBn: row.bnVals.length ? percentile(row.bnVals, 50) : null,
       cpCount: row.cp,
     };
-  }).sort((x, y) => y.cp - x.cp);
+  }).sort((x, y) => (y.cp ?? -1) - (x.cp ?? -1));
   // GUARD-MIGRATE (CUT-1 spec §7 item #9): the A2 top-20, through selectTopN. This is the case
   // the migration itself found: the OLD boundary-only guard reported this population "ok" (its
   // 15-way tie sits above the top-20 cut boundary, not inside it), but selectTopN's split-half
   // stability check evaluates whether the CUT ITSELF replicates, which a boundary check cannot
   // see — see the result inspected below for what that difference actually produces.
+  // SIX-POSITIVES-FIX: sample size is settleDetectedCount, matching a1Cut above; same
+  // zero-support exclusion for the same reason.
+  const a2Rankable = a2Ranked.filter((r) => r.settleDetectedCount > 0);
   const a2Cut = selectTopN({
-    rows: a2Ranked, samples: (r) => synthBinary(r.cpCount, r.trials), estimator: meanOf01,
-    support: (r) => r.trials, n: 20, key: (r) => r.cfgId,
+    rows: a2Rankable, samples: (r) => synthBinary(r.cpCount, r.settleDetectedCount), estimator: meanOf01,
+    support: (r) => r.settleDetectedCount, n: 20, key: (r) => r.cfgId,
   });
 
   // GUARD-MIGRATE (CUT-1 spec §7, item #12): the pocket-map heatmap below is a GRID, sorted by
@@ -636,12 +667,15 @@ export function toMarkdown(summary, csvRelPath) {
     const note = cutStatusNote(summary.cuts.a2, a2ByKey, a2FieldsFromSummary, 'assembly');
     if (note) { lines.push(note); lines.push(''); }
   }
-  lines.push('| gapX | tilt° | endDy | guideE | radius | feed | post | outlaneW | cp | cr | ct | cv | median st | fastCradle | median bn |');
+  // SIX-POSITIVES-FIX: cp/cr/cv/fastCradle below are now rates AMONG DETECTED SETTLES, not
+  // among all trials - `settleDetected` is that gate's own denominator (fraction of trials the
+  // detector fired on at all), published beside them rather than folded silently into each rate.
+  lines.push('| gapX | tilt° | endDy | guideE | radius | feed | post | outlaneW | cp (of detected) | cr (of detected) | settleDetected | cv (of detected) | median st | fastCradle (of detected) | median bn |');
   lines.push('|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|');
   for (const a of summary.rankedAssemblies.slice(0, 15)) {
     lines.push(
       `| ${a.guide.gapX} | ${a.guide.tiltDeg} | ${a.guide.endDy} | ${a.guide.guideE} | ${a.radius} | ${a.feed ? 'on' : 'off'} | ${a.post ? 'on' : 'off'} | ${a.outlaneW ?? 'off'} | ` +
-      `${fmtMeasured(a.cpM)} | ${fmtMeasured(a.crM)} | ${fmtMeasured(a.ctM)} | ${fmtMeasured(a.cvM)} | ${fmt(a.medianSt, 2)} | ${fmtMeasured(a.fastCradleRateM)} | ${fmt(a.medianBn, 0)} |`
+      `${fmtMeasured(a.cpM)} | ${fmtMeasured(a.crM)} | ${fmtMeasured(a.settleDetectedM)} | ${fmtMeasured(a.cvM)} | ${fmt(a.medianSt, 2)} | ${fmtMeasured(a.fastCradleRateM)} | ${fmt(a.medianBn, 0)} |`
     );
   }
   lines.push('');
