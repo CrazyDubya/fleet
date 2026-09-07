@@ -240,7 +240,14 @@ def main(argv=None):
     import argparse
     p = argparse.ArgumentParser()
     p.add_argument("--port", type=int, default=int(os.environ.get("GUI_PORT", 8787)))
-    p.add_argument("--bind", default=os.environ.get("GUI_BIND", "0.0.0.0"))
+    # Loopback by default, like games/serve.py: this GUI does gate every
+    # request on a token (auth.py), but the decisions widget added in
+    # DECISIONS-DASHBOARD links directly to handoff text with fleet
+    # internals in it, and 14b4bdc reverted a prior GUI specifically for
+    # binding wide by default. Reaching it from another device (the
+    # tailnet) has to be an explicit choice - GUI_BIND=<tailscale ip> or
+    # --bind <tailscale ip> - never inherited from a default.
+    p.add_argument("--bind", default=os.environ.get("GUI_BIND", "127.0.0.1"))
     p.add_argument("--new-token", action="store_true")
     args = p.parse_args(argv)
 
@@ -251,7 +258,15 @@ def main(argv=None):
 
     httpd = ThreadingHTTPServer((args.bind, args.port), Handler)
     httpd.daemon_threads = True
-    print(f"fleet gui  ->  http://{_lan_ip()}:{args.port}/?k={TOKEN}", flush=True)
+    # Print the address actually bound, not a guessed convenience one - a
+    # loopback bind printing a tailnet URL would claim reachability that
+    # was never granted, exactly the "explicit, never inherited" property
+    # the default above exists for.
+    if args.bind in ("127.0.0.1", "localhost"):
+        print(f"fleet gui  ->  http://127.0.0.1:{args.port}/?k={TOKEN}  (loopback only)", flush=True)
+        print(f"             for the tailnet: --bind <tailscale-ip> (e.g. {_lan_ip()}), or GUI_BIND=<ip>", flush=True)
+    else:
+        print(f"fleet gui  ->  http://{args.bind}:{args.port}/?k={TOKEN}", flush=True)
     print(f"             (open once with ?k= on each device; token at {TOKEN_PATH})", flush=True)
     try:
         httpd.serve_forever()

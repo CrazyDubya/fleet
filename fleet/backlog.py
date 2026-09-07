@@ -60,7 +60,7 @@ def _split_row(line: str) -> list[str]:
     return [c.strip() for c in line.strip().strip("|").split("|")]
 
 
-def _parse_table(text: str) -> list[Item]:
+def parse_table(text: str) -> list[Item]:
     """The leading markdown table (everything before the first `## `
     heading) whose header row's first cell is "id" - tolerant of the
     thread/expects/notes columns being renamed, reordered, or dropped,
@@ -103,4 +103,4 @@ def read(path: Path = DEFAULT_PATH) -> Backlog:
         text = path.read_text(errors="replace")
     except OSError:
         return Backlog(file_status="unreadable", path=str(path))
-    return Backlog(file_status="ok", path=str(path), items=_parse_table(text))
+    return Backlog(file_status="ok", path=str(path), items=parse_table(text))
