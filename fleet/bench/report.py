@@ -175,14 +175,18 @@ def render(summary: dict) -> str:
     if mixed:
         lines.append(f"warning: rows span {len(versions)} claude versions / {len(profiles)} profiles - the arms are not like for like")
     w = max([len("task")] + [len(t) for t in summary if t not in NOT_A_TASK])  # ids longer than 16 chars must not shove the columns
-    head = f"{'task':{w}} {'arm':7} {'n':>3} {'err':>3} {'skip':>4} {'pass':>5} {'wall':>7} {'$':>6} {'judge$':>7} {'weekly$':>8} {'fable$':>7} {'interv':>6} {'judge':>5}"
+    # est$/judge-est$: fleet.cost.RATES are published API list prices, not
+    # pool spend - weekly$/fable$ are real pool-split numbers and keep
+    # their names unchanged; only the two RATES-derived columns get the
+    # qualifier.
+    head = f"{'task':{w}} {'arm':7} {'n':>3} {'err':>3} {'skip':>4} {'pass':>5} {'wall':>7} {'est$':>6} {'judge-est$':>10} {'weekly$':>8} {'fable$':>7} {'interv':>6} {'judge':>5}"
     lines.append(head + (f" {'profile':>8} {'claude':>14}" if mixed else ""))
     for task, arms in summary.items():
         if task in NOT_A_TASK:
             continue
         for arm, s in arms.items():
             row = (f"{task:{w}} {arm:7} {s['n']:>3} {s.get('errors', 0):>3} {s.get('skipped', 0):>4} {_f(s['pass_rate']):>5} {_f(s['wall_med'], '{:.0f}s'):>7} {_f(s['usd_med']):>6} "
-                   f"{_f(s.get('judge_usd_med')):>7} {_f(s['weekly_med']):>8} {_f(s['fable_med']):>7} "
+                   f"{_f(s.get('judge_usd_med')):>10} {_f(s['weekly_med']):>8} {_f(s['fable_med']):>7} "
                    f"{_f(s['interventions_per_run'], '{:.1f}'):>6} {_f(s['judge_med'], '{:.1f}'):>5}")
             if mixed:
                 row += f" {','.join(s.get('profiles') or ['-']):>8} {','.join(s.get('claude_versions') or ['-']):>14}"
@@ -201,13 +205,13 @@ def render(summary: dict) -> str:
         # not show a swarm at all, and time-to-completion is the metric the bench
         # exists for, so it leads.
         lines.append("")
-        lines.append(f"{'arm':13} {'n':>4} {'skip':>5} {'pass':>6} {'s/pass':>8} {'$/pass':>8}")
+        lines.append(f"{'arm':13} {'n':>4} {'skip':>5} {'pass':>6} {'s/pass':>8} {'est$/pass':>9}")
         for arm in ARMS:
             if not stats_of(summary, arm):
                 continue
             st = stats_of(summary, arm)
             lines.append(f"{arm:13} {st['n']:>4} {st['skip']:>5} {_f(st['pass']):>6} "
-                         f"{_f(st['time'], '{:.0f}'):>8} {_f(st['usd']):>8}")
+                         f"{_f(st['time'], '{:.0f}'):>8} {_f(st['usd']):>9}")
         base = "sonnet"
         lines.append("")
         for arm in ARMS:

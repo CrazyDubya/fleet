@@ -41,7 +41,7 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(s["t1"]["fable"]["judge_usd_med"], 0.11)   # median of the two judged fable runs
         self.assertEqual(s["t1"]["sonnet"]["judge_usd_med"], 0.08)  # its one judged run
         self.assertEqual(s["t1"]["fable"]["usd_med"], 4.5)          # judge $ is NOT folded into the arm's $
-        self.assertIn("judge$", report.render(s))
+        self.assertIn("judge-est$", report.render(s))  # RATES-derived, so it carries the est qualifier too
 
     def test_judge_cost_counts_a_judge_whose_score_would_not_parse(self):
         # the score is None but the opus session still spent: keying off `judge` lost it

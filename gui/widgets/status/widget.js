@@ -29,7 +29,7 @@ function renderRow(r) {
     r.model,
     `idle ${r.idle_minutes}m`,
     `ctx ${r.context}`,
-    r.dollars >= 0 ? `$${r.dollars.toFixed(2)}` : '$?',
+    r.dollars >= 0 ? `est$${r.dollars.toFixed(2)}` : 'est$?', // API list-price estimate, not pool spend
   ];
   meta.textContent = bits.join(' · ');
   el.appendChild(meta);

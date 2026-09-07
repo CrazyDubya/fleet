@@ -184,7 +184,12 @@ def rows(now: float | None = None, registry: Registry | None = None, specs=None,
 
 
 def render(rs: list[Row]) -> str:
-    hdr = f"{'thread':10} {'tier':8} {'state':7} {'warmth':8} {'idle':>5} {'ctx':>8} {'read':>9} {'write':>8} {'out':>7} {'$':>7} {'resume$':>8} {'respawn$':>9} flags"
+    # "est$" (not bare "$"): RATES in fleet/cost.py are published API list
+    # prices, and the fleet spends pool budget, not list prices - a bare
+    # dollar sign here once propagated into a thread-value ranking that got
+    # called "cost" when it was actually this estimate. resume$/respawn$
+    # keep their names; they already declare themselves modelled.
+    hdr = f"{'thread':10} {'tier':8} {'state':7} {'warmth':8} {'idle':>5} {'ctx':>8} {'read':>9} {'write':>8} {'out':>7} {'est$':>7} {'resume$':>8} {'respawn$':>9} flags"
     lines = [hdr]
     for r in rs:
         flags = " ".join(x for x in (
