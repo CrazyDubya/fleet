@@ -556,6 +556,11 @@ function runE4Trial(cfg, seed, opts) {
   let term = null;
   let crossing = null;
   let steps = 0;
+  // STALL-SPEED-DECIDED: true from the first substep speed ever drops below STALL_SPEED, even
+  // briefly — unlike stallSinceS (reset to null the instant speed rises again), this never
+  // resets, so it survives to trial end as "did the ball ever get this slow, regardless of
+  // whether it held".
+  let everBelowStallSpeed = false;
 
   let settleCaptured = false;
   let settleClass = null; // {cr,cp,cv,hsS,restingSide}
@@ -675,6 +680,7 @@ function runE4Trial(cfg, seed, opts) {
 
     const speed = Math.hypot(ball.vel.x, ball.vel.y);
     if (speed < STALL_SPEED) {
+      everBelowStallSpeed = true;
       if (stallSinceS === null) {
         stallSinceS = elapsedS;
         posAtStallStart = { x: ball.pos.x, y: ball.pos.y };
@@ -771,7 +777,25 @@ function runE4Trial(cfg, seed, opts) {
     // and called it "a constant"; the real reason is that every trial crossed an
     // absolute speed threshold under the physics of the time.
     // See ledger/handoffs/opus2/20260906T055000Z-sweep-verdict.md §2.
+    //
+    // SIX-POSITIVES-FIX (opus2, ledger/handoffs/opus2/20260906T094500Z-six-positives-fix.md):
+    // a1Ranked/a2Ranked in e4Report.js now gate cr/cp/cv/fastCradleRate on this field's count
+    // rather than raw trial count, and publish it renamed `settleDetected` alongside them - the
+    // wire field here stays `ct` so shards already on disk keep reading correctly; only the
+    // report layer's naming and denominator changed. pocketMap/stageBRanked/H6's sliceArms (in
+    // e4Report.js) read this same field but were NOT part of that fix and remain ungated - see
+    // that handoff's own limits section and the SIX-POSITIVES-APPLY handoff.
     ct: settleCaptured ? 1 : 0,
+    // STALL-SPEED-DECIDED (operator): STALL_SPEED stays 0.05 m/s, so !ct alone still can't tell
+    // "touched the threshold but didn't hold 0.5s" (a real geometry/near-miss finding) from
+    // "never got anywhere near that slow, all trial" (which under corrected gravity is a
+    // detector-scale mismatch, not a physical one — the exact GRAVITY-ROLL ambiguity). This is a
+    // plain record field, not a FLAGS bit: FLAGS feeds validExclStalled/the §2.7 flag gate, and
+    // "the ball never slowed down" is the ordinary, valid outcome for most non-cradle trials
+    // (e.g. anything that shoots straight back up) — flagging it there would have marked huge
+    // swaths of healthy trials invalid. Additive: no existing ct/cr/cp/cv/flags value changes:
+    // this only reads speed history already computed for ct, and is false whenever ct is 1.
+    tnr: !settleCaptured && !everBelowStallSpeed, // "threshold never reached", once, at all
     cr: settleClass?.cr ?? 0,
     cp: settleClass?.cp ?? 0,
     cv: settleClass?.cv ?? 0,
