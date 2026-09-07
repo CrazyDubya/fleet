@@ -3,6 +3,7 @@ import json
 import os
 import re
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -237,13 +238,40 @@ def cmd_watchdog(args):
     return 0 if status.alert is None else 1
 
 
+# How long to wait, after writing a decision, for the waiting `wait_decision`
+# poll loop (fleet/prompts.py) to notice and consume (unlink) the prompt
+# file - proof the decision actually reached a live listener rather than
+# sitting on disk unread. wait_decision polls every 0.5s, so this only ever
+# costs real time when there is no listener at all, which is exactly the
+# case this exists to catch.
+DECIDE_CONFIRM_TIMEOUT_S = 3.0
+
+
 def cmd_decide(args):
     from . import prompts as prompts_mod
     try:
-        prompts_mod.record_decision(args.thread, args.id, args.decision, current_profile())
-    except FileNotFoundError:
-        print(f"error: no pending prompt {args.thread}-{args.id}", file=sys.stderr); return 1
+        path = prompts_mod.record_decision(args.thread, args.id, args.decision, current_profile())
+    except (FileNotFoundError, json.JSONDecodeError) as exc:
+        print(f"error: no pending prompt {args.thread}-{args.id} ({exc})", file=sys.stderr); return 1
     ledger.event("decide", thread=args.thread, id=args.id, decision=args.decision)
+    # A decide event landing is NOT the same as the decision taking effect.
+    # wait_decision only unblocks the waiting thread by consuming (unlinking)
+    # this exact file - if its own process already died (a hook timeout
+    # killing it before its own `finally: path.unlink()` runs is a real,
+    # reproduced failure: ledger/handoffs/sonnet4/20260906T211500Z-decide-
+    # silent-noop.md), nothing is left to notice this decision. Without this
+    # check `fleet decide` printed an identical "success" line whether or
+    # not anything downstream actually happened, which reads from outside as
+    # a thread stalled on its own prompt.
+    deadline = time.monotonic() + DECIDE_CONFIRM_TIMEOUT_S
+    while path.exists() and time.monotonic() < deadline:
+        time.sleep(0.1)
+    if path.exists():
+        print(f"error: {args.decision} recorded for {args.thread} {args.id} and logged to the ledger, "
+              f"but nothing consumed the prompt file within {DECIDE_CONFIRM_TIMEOUT_S:.0f}s - its waiter "
+              f"is not listening (most likely died before writing the decision). The thread is NOT "
+              f"unblocked; this decision had no effect.", file=sys.stderr)
+        return 1
     print(f"{args.decision}: {args.thread} {args.id}"); return 0
 
 
