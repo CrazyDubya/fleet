@@ -22,6 +22,7 @@ def run(argv, timeout, env=None):
 
 def pi_call(msg, sid, new, timeout):
     env = dict(os.environ, PATH=f"{FLEET}/state/v2/lockout-shim:" + os.environ["PATH"])
+    if msg.lstrip().startswith("@"): msg = "packet:\n" + msg   # pi treats a leading @word as a file reference
     argv = ["pi", "-p", msg, "--append-system-prompt", f"{FLEET}/briefs/v2/_worker-common.md",
             "--append-system-prompt", f"{FLEET}/briefs/v2/pi.md", "--mode", "json", "--approve",
             ("--session-id" if new else "--session"), sid]
