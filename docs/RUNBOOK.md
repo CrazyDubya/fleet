@@ -10,8 +10,8 @@ Daily: `tmux attach -t fleet`; type in the `sonnet` window. `fleet status --watc
 | haiku is bloated | `fleet respawn haiku-fs` |
 | regenerate the map | `bin/fleet-map`, then `fleet respawn haiku-fs` |
 | about to compact | `fleet miss <thread> compaction` (threads do this themselves per brief) |
-| talk to pi directly (relay retired 2026-09-09) | in `/Users/pup/cognitive/project1`: `PATH="/Users/pup/fleet/state/v2/lockout-shim:$PATH" pi -p "<msg>" --mode json --session-id $(uuidgen) --approve < /dev/null`; later turns `--session <uuid>`. Flags explained in `briefs/v2/haiku-pi.md` |
-| talk to opencode directly (relay retired 2026-09-09) | `opencode run "<msg>" --model opencode/muse-spark-1.3-contributor-free --format json --dir <dir> < /dev/null`; later turns `--session <ses_id>`. Details in `briefs/v2/haiku-opencode.md` |
+| talk to pi directly (relay retired 2026-09-09) | in `/Users/pup/cognitive/project1`: `PATH="/Users/pup/fleet/state/v2/lockout-shim:$PATH" pi -p "<msg>" --append-system-prompt briefs/v2/_worker-common.md --append-system-prompt briefs/v2/pi.md --mode json --session-id $(uuidgen) --approve < /dev/null`; later turns `--session <uuid>`. Flags explained in `briefs/v2/haiku-pi.md`; worker rules in `briefs/v2/_worker-common.md` |
+| talk to opencode directly (relay retired 2026-09-09) | `opencode run "<msg>" --agent fleet --format json --dir /Users/pup/cognitive/project1 < /dev/null` (agent `fleet` = `~/.config/opencode/agent/fleet.md`, built from `briefs/v2/_worker-common.md` + `opencode.md`, model muse-spark free); later turns `--session <ses_id>`. Details in `briefs/v2/haiku-opencode.md` |
 | message from outside Claude | `fleet send <thread> "text"` |
 | numbers | `fleet status` — resume$ vs respawn$ decides wake-vs-respawn for cold threads |
 
