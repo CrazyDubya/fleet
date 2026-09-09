@@ -51,25 +51,61 @@ NO_ACTIVITY_STATE = "NO ACTIVITY"
 _LOCK_RE = re.compile(r"worker lock:\s*(\w+)")  # "inactive"/"stale"/"active" - stops before " pid=N" or a trailing ";"
 _PENDING_RUNNING_RE = re.compile(r"pending:\s*(\d+);\s*running:\s*(\d+)")
 _BACKLOG_PRESSURE_RE = re.compile(r"backlog pressure:\s*(yes|no)")
+_HEARTBEAT_AGE_RE = re.compile(r"heartbeat:\s*oldest update (\d+)s ago")
+_HEARTBEAT_UNCOVERED_RE = re.compile(r"heartbeat:\s*\d+\s*task\(s\) not covered by heartbeat monitoring")
+# muse's harness_pkg/harness/config.py Config.stall_timeout_s default.
+# Verified rather than assumed: grepped harness/harness.yaml and
+# harness-morning/harness.yaml (both real configs muse runs) for an
+# override - neither sets it, so 600 is the value actually in effect as
+# of 2026-09-09. This is a real coupling to a number fleet does not own;
+# if muse ever overrides it in a yaml, this drifts silently, because
+# there is no live-config path fleet can read without depending on
+# muse's own config loader (out of scope for a status-file parser).
+STALL_TIMEOUT_S = 600
+
+
+def _heartbeat_fresh(text: str) -> bool | None:
+    """True/False when the printed heartbeat text lets freshness be
+    determined against STALL_TIMEOUT_S, else None - "idle" (running==0,
+    says nothing about a held lock's own freshness) or text this does not
+    recognise."""
+    m = _HEARTBEAT_AGE_RE.search(text)
+    if m:
+        return int(m.group(1)) <= STALL_TIMEOUT_S
+    if _HEARTBEAT_UNCOVERED_RE.search(text):
+        return False  # muse's own logic: a running task with NO heartbeat file is stale, unconditionally
+    return None
 
 
 def _classify_no_activity(text: str) -> str:
     """"benign" | "attention" | "unknown" for a NO ACTIVITY status file.
 
-    benign: nothing was due - lock inactive (no worker ever tried), zero
-    pending, no backlog pressure. All three are required; this is positive
-    evidence of an idle day, not just the absence of a lock.
+    benign, two distinct paths:
+      - nothing was due: lock inactive (no worker ever tried), zero
+        pending, no backlog pressure. All three required - positive
+        evidence of an idle day, not just the absence of a lock.
+      - a worker is genuinely alive and progressing: lock active AND the
+        heartbeat is confirmed FRESH (age <= STALL_TIMEOUT_S). Found live
+        (4c368d7's own false positive): a worker mid-task with a fresh
+        heartbeat and real pending work queued behind it was flagged
+        attention, because the original rule required an inactive lock
+        unconditionally. Mere idleness-at-this-instant (lock held, but the
+        printed heartbeat text does not say how old it is - "idle" is
+        running==0, not a freshness fact about a held lock) does NOT
+        qualify - only a CONFIRMED-fresh heartbeat does; anything else
+        falls through to attention below, same "absence of alarm is not
+        evidence of health" rule as the rest of this function.
 
-    attention: something should have run - pending work with nothing
-    running to work it, backlog pressure, or a lock that is stale (a
-    crashed worker) or held active while nothing is running (a worker that
-    locked itself and then produced nothing - the same crash signature by
-    a different name). This is the default for anything that is not
-    affirmatively benign, per instruction: absence of the alarm is not
-    evidence of health.
+    attention: everything not affirmatively benign - pending work with
+    nothing running, backlog pressure, a stale lock (a crashed worker), or
+    an active lock whose heartbeat is confirmed stale or cannot be
+    confirmed fresh (a worker that locked itself and stopped producing
+    progress, or an ambiguous reading - both default to attention, not to
+    benign, on the same rule the two benign paths above are built to
+    satisfy honestly rather than skip).
 
-    unknown: the status file does not carry the fields needed to tell -
-    reported distinctly rather than defaulting to "benign", the one
+    unknown: the status file does not carry the fields needed to tell at
+    all - reported distinctly rather than defaulting to "benign", the one
     reading this function must never produce by omission.
     """
     lock_m = _LOCK_RE.search(text)
@@ -80,6 +116,8 @@ def _classify_no_activity(text: str) -> str:
     lock, (pending, running) = lock_m.group(1), (int(pr_m.group(1)), int(pr_m.group(2)))
     backlog_pressure = bp_m.group(1) == "yes"
     if lock == "inactive" and pending == 0 and not backlog_pressure:
+        return "benign"
+    if lock == "active" and _heartbeat_fresh(text) is True:
         return "benign"
     return "attention"
 

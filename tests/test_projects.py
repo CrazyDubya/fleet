@@ -29,7 +29,7 @@ NO_ACTIVITY_STATE_RE = r'state:\s*\*\*([A-Z][A-Z ]*[A-Z]|[A-Z])\*\*'  # fleet.to
 
 
 def no_activity_status(d: Path, name: str, *, lock="inactive", pending=0, running=0,
-                        backlog_pressure=False, state="NO ACTIVITY"):
+                        backlog_pressure=False, state="NO ACTIVITY", heartbeat="idle"):
     """A status file shaped like muse's real generator output (harness/
     analyze.py), with the fields _classify_no_activity actually reads."""
     p = d / "pipeline"
@@ -38,7 +38,7 @@ def no_activity_status(d: Path, name: str, *, lock="inactive", pending=0, runnin
     f.write_text(
         f"# daily status\n\n- state: **{state}**\n"
         f"- pending: {pending}; running: {running}; pending families: 0\n"
-        f"- worker lock: {lock}; heartbeat: idle\n"
+        f"- worker lock: {lock}; heartbeat: {heartbeat}\n"
         f"- backlog pressure: {'yes' if backlog_pressure else 'no'}\n"
     )
     return f
@@ -177,6 +177,44 @@ class NoActivityClassificationTests(unittest.TestCase):
         # locked itself and then produced nothing.
         no_activity_status(self.d, "status-2026-09-07.md",
                             lock="active", pending=0, running=0, backlog_pressure=False)
+        h = projects.health(self._proj(), now=time.time(), activities=[])
+        self.assertEqual((h.no_activity, h.ok), ("attention", False))
+
+    def test_active_lock_with_fresh_heartbeat_is_benign_even_with_pending(self):
+        # The real false positive found live (4c368d7): a worker mid-task
+        # with a fresh heartbeat and real pending work queued behind it
+        # was flagged attention, because the original rule required an
+        # inactive lock unconditionally. Pending > 0 here on purpose - a
+        # live, progressing worker must not be penalised for a queue
+        # behind it.
+        no_activity_status(self.d, "status-2026-09-07.md",
+                            lock="active", pending=3, running=1, backlog_pressure=False,
+                            heartbeat="oldest update 45s ago")
+        h = projects.health(self._proj(), now=time.time(), activities=[])
+        self.assertEqual((h.no_activity, h.ok), ("benign", True))
+
+    def test_active_lock_with_stale_heartbeat_is_attention(self):
+        no_activity_status(self.d, "status-2026-09-07.md",
+                            lock="active", pending=3, running=1, backlog_pressure=False,
+                            heartbeat="oldest update 900s ago")  # > STALL_TIMEOUT_S (600)
+        h = projects.health(self._proj(), now=time.time(), activities=[])
+        self.assertEqual((h.no_activity, h.ok), ("attention", False))
+
+    def test_active_lock_with_uncovered_task_is_attention(self):
+        # muse's own logic: a running task contributing no heartbeat file
+        # at all is treated as stale unconditionally, not as "fine".
+        no_activity_status(self.d, "status-2026-09-07.md",
+                            lock="active", pending=0, running=1, backlog_pressure=False,
+                            heartbeat="1 task(s) not covered by heartbeat monitoring")
+        h = projects.health(self._proj(), now=time.time(), activities=[])
+        self.assertEqual((h.no_activity, h.ok), ("attention", False))
+
+    def test_active_lock_with_idle_heartbeat_text_is_attention_not_benign(self):
+        # "idle" only tells us running==0 - it is not a freshness claim
+        # about a held lock, so it must not be read as confirmed-fresh.
+        no_activity_status(self.d, "status-2026-09-07.md",
+                            lock="active", pending=0, running=0, backlog_pressure=False,
+                            heartbeat="idle")
         h = projects.health(self._proj(), now=time.time(), activities=[])
         self.assertEqual((h.no_activity, h.ok), ("attention", False))
 
