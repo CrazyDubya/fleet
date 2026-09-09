@@ -172,18 +172,6 @@ permission_mode = "bypassPermissions"
 effort = "low"
 settings = "settings/v2/tool.json"
 
-[profile.v2.thread.haiku-pi2]
-model = "claude-haiku-4-5"
-tier = "tool"
-persist = "respawn"
-baseline = ["briefs/v2/_protocol.md", "briefs/v2/haiku-pi.md"]
-mcp = "browser"
-dir = "/Users/pup/cognitive/project1"
-dirs = ["/Users/pup"]
-permission_mode = "bypassPermissions"
-effort = "low"
-settings = "settings/v2/tool.json"
-
 [profile.v2.thread.haiku-agy2]
 model = "claude-haiku-4-5"
 tier = "tool"
@@ -205,17 +193,6 @@ model = "claude-haiku-4-5"
 tier = "tool"
 persist = "respawn"
 baseline = ["briefs/v2/_protocol.md", "briefs/v2/haiku-grok.md"]
-mcp = "browser"
-dirs = ["/Users/pup"]
-permission_mode = "bypassPermissions"
-effort = "low"
-settings = "settings/v2/tool.json"
-
-[profile.v2.thread.haiku-opencode2]
-model = "claude-haiku-4-5"
-tier = "tool"
-persist = "respawn"
-baseline = ["briefs/v2/_protocol.md", "briefs/v2/haiku-opencode.md"]
 mcp = "browser"
 dirs = ["/Users/pup"]
 permission_mode = "bypassPermissions"
