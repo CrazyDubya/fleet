@@ -1,0 +1,78 @@
+#!/usr/bin/env python3
+"""Drive one pi or opencode turn set deterministically: send a message, auto-continue while the
+worker ends its turn on an announcement instead of a result, print the final text and session id.
+
+  harness-drive pi       --msg "<packet>" [--session UUID | --new] [--max-continue 5] [--timeout 900]
+  harness-drive opencode --msg "<packet>" [--session ses_x]        [--max-continue 5] [--timeout 900]
+
+Always stdin=/dev/null. pi gets the worker briefs via --append-system-prompt and the lockout shim on PATH.
+Exit 0 = final text obtained; 2 = blocked (✗ / error / timeout); 3 = worker asked a question (?).
+"""
+import argparse, json, os, re, subprocess, sys, time, uuid
+FLEET = "/Users/pup/fleet"; CORPUS = "/Users/pup/cognitive/project1"
+ANNOUNCE = re.compile(r"(?i)\b(now (I'?ll|let me|I will)|I'?ll (now )?(run|start|proceed|begin|do)|let me (run|start|proceed|check|begin)|next,? I)\b")
+
+def run(argv, timeout, env=None):
+    t0 = time.time()
+    try:
+        r = subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=timeout, env=env, cwd=CORPUS)
+    except subprocess.TimeoutExpired:
+        return None, None, time.time() - t0
+    return r.returncode, r.stdout + ("\n[stderr]\n" + r.stderr[-2000:] if r.returncode else ""), time.time() - t0
+
+def pi_call(msg, sid, new, timeout):
+    env = dict(os.environ, PATH=f"{FLEET}/state/v2/lockout-shim:" + os.environ["PATH"])
+    argv = ["pi", "-p", msg, "--append-system-prompt", f"{FLEET}/briefs/v2/_worker-common.md",
+            "--append-system-prompt", f"{FLEET}/briefs/v2/pi.md", "--mode", "json", "--approve",
+            ("--session-id" if new else "--session"), sid]
+    rc, out, dt = run(argv, timeout, env)
+    texts = []
+    for l in (out or "").splitlines():
+        try: d = json.loads(l)
+        except Exception: continue
+        m = d.get("message") or {}
+        if m.get("role") == "assistant":
+            texts += [c.get("text", "") for c in m.get("content", []) if isinstance(c, dict) and c.get("type") == "text"]
+    return rc, "\n".join(t for t in texts if t.strip()), dt, sid, out
+
+def oc_call(msg, sid, timeout):
+    argv = ["opencode", "run", msg, "--agent", "fleet", "--format", "json", "--dir", CORPUS] + (["--session", sid] if sid else [])
+    rc, out, dt = run(argv, timeout)
+    texts, fin = [], {}
+    for l in (out or "").splitlines():
+        try: d = json.loads(l)
+        except Exception: continue
+        sid = sid or d.get("sessionID")
+        p = d.get("part") or {}
+        if d.get("type") == "text": texts.append(p.get("text", ""))
+        if d.get("type") == "step_finish": fin = p
+    tail = f"\n# step_finish reason={fin.get('reason')} · tokens={ (fin.get('tokens') or {}).get('total') } · cost={fin.get('cost')}" if fin else ""
+    return rc, "\n".join(t for t in texts if t.strip()) + tail, dt, sid, out
+
+def main():
+    ap = argparse.ArgumentParser(); ap.add_argument("harness", choices=["pi", "opencode"]); ap.add_argument("--msg", required=True)
+    ap.add_argument("--session"); ap.add_argument("--new", action="store_true"); ap.add_argument("--max-continue", type=int, default=5)
+    ap.add_argument("--timeout", type=int, default=900); ap.add_argument("--raw", help="append raw JSONL of every call to this file")
+    a = ap.parse_args()
+    sid = a.session or (str(uuid.uuid4()).upper() if a.harness == "pi" else None)
+    new = a.harness == "pi" and (a.new or not a.session)
+    msg, turns, total = a.msg, 0, 0.0
+    while True:
+        turns += 1
+        rc, text, dt, sid, raw = (pi_call(msg, sid, new, a.timeout) if a.harness == "pi" else oc_call(msg, sid, a.timeout))
+        new = False; total += dt
+        if a.raw:
+            with open(a.raw, "a") as f: f.write(f"\n### turn {turns} rc={rc} dt={dt:.0f}s\n{raw or ''}")
+        if rc is None:
+            print(f"✗ timeout {a.timeout}s on turn {turns}\n# session {sid} · turns {turns} · {total:.0f}s"); sys.exit(2)
+        if rc != 0:
+            print(f"✗ exit {rc} on turn {turns}\n{(raw or '')[-600:]}\n# session {sid} · turns {turns} · {total:.0f}s"); sys.exit(2)
+        last = (text.strip().splitlines() or [""])[-1]
+        first = (text.strip().splitlines() or [""])[0]
+        if first.startswith("✗"): print(text + f"\n# session {sid} · turns {turns} · {total:.0f}s"); sys.exit(2)
+        if first.startswith("?") or last.startswith("?"): print(text + f"\n# session {sid} · turns {turns} · {total:.0f}s"); sys.exit(3)
+        if ANNOUNCE.search(last) and turns <= a.max_continue:
+            msg = "Continue. Run it and paste the output."; continue
+        print(text + f"\n# session {sid} · turns {turns} · {total:.0f}s"); sys.exit(0)
+
+if __name__ == "__main__": main()
