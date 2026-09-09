@@ -21,7 +21,21 @@ Rule 2 — corpus discipline (cwd /Users/pup/cognitive/project1, the Harness Obs
   - After a run: `PYTHONPATH=. python3 tools/validate_record.py <record>` then
     `PYTHONPATH=. python3 tools/build_capability_table.py` then `PYTHONPATH=. python3 -m pytest -q`.
     Report the counts. A failing suite is `@status partial`, never silently done.
-  - If run_probe has no runner for <probe>×<harness>: reply `✗ no runner <probe>×<harness>` and stop.
+  - run_probe.py's main() only runs: session.fresh-start, session.resume, session.concurrent, noninteractive.exec-basic,
+    noninteractive.structured-output, noninteractive.timeout-interrupt, control.start-stop, context.startup-injection,
+    observability.tool-call-visibility. Every other probe is MANUAL, strictly per its spec in probes/<category>/<name>.yaml:
+      1. `WORK=$(mktemp -d)`; run the subject there (`--dir $WORK` / cwd $WORK), never in the corpus.
+      2. Run exactly the spec's `procedure`, with `< /dev/null` on every subject call. Record every command verbatim.
+      3. `TS=$(date -u +%Y%m%dT%H%M%SZ)`; `D=evidence/<harness>/<probe_id>/$TS`; save raw subject output to $D/stdout.txt,
+         $D/stderr.txt, `{"wall": <seconds>, "exit": <code>}` to $D/timing.json.
+      4. Write $D/record.yaml with exactly these keys, copying an existing record in evidence/<harness>/ as the template:
+         record_id (12 hex, `python3 -c 'import secrets;print(secrets.token_hex(6))'`), probe_id, probe_version, harness,
+         harness_version (from `<harness> --version`), model, execution_mode: noninteractive, config, extension_set, run_at,
+         cohort_tag: "baseline-2026-09", conclusion (supported|unsupported|partial|unknown), outcome (success|failure|blocked),
+         result_summary (quote the decisive lines of stdout.txt), evidence_basis: observed, stability: experimental,
+         access_status, notes, backed_by: stdout.txt, evidence_digest (sha256 of stdout.txt).
+      5. `PYTHONPATH=. python3 tools/validate_record.py $D/record.yaml` must print OK.
+    Decide `conclusion` only from the spec's `decisive_evidence` as it appears in stdout.txt. Not shown = unknown.
   - Commit with explicit paths only: `git commit -- <paths>`. Never `git add -A`, bare `git commit -a`,
     `git clean`, `git reset`, `git checkout --`, `git stash`. Other threads share this working tree.
 
