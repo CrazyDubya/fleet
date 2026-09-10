@@ -25,6 +25,11 @@ class Row:
     written: int
     output: int
     dollars: float
+    # read / (read + uncached-input), i.e. what fraction of this thread's
+    # own input tokens hit the prompt cache rather than being paid for in
+    # full. 0.0 when there is no input to have a ratio over yet (a "new"
+    # thread), never a division error - see rows() for the guard.
+    hit_ratio: float
     spec_stale: bool
     last_handoff: str | None
     miss_reason: str | None
@@ -167,11 +172,18 @@ def rows(now: float | None = None, registry: Registry | None = None, specs=None,
             state = "idle" if tmux.window_exists(name) else "parked"
         ctx = cost.context_size(turns)
         sp, resume_usd, respawn_usd = _money(turns, ctx, e.model, ttl, _baseline_bytes(t) if t else 0)
+        # Not from Spend - cost.py has no reason to carry uncached input, and
+        # adding it there for one caller would widen a shared type for a
+        # display-only ratio. Computed straight from turns instead, same as
+        # sp.read's own source.
+        uncached = sum(t.input for t in turns)
+        hit_ratio = (sp.read / (sp.read + uncached)) if (sp.read + uncached) > 0 else 0.0
         miss = ledger.last_miss(name)
         hand = ledger.last_handoff(name)
         out.append(Row(
             name=name, model=e.model, tier=(t.tier if t else "?"), state=state, warmth=w, idle_minutes=idle,
             context=ctx, read=sp.read, written=sp.written, output=sp.output, dollars=sp.dollars,
+            hit_ratio=hit_ratio,
             spec_stale=bool(t) and spec_hash(t) != e.spec_hash,
             last_handoff=(str(hand.relative_to(ROOT)) if hand else None),
             miss_reason=(miss["reason"] if miss and miss["t"] > (last_turn_ts or 0) else None),
@@ -189,7 +201,14 @@ def render(rs: list[Row]) -> str:
     # dollar sign here once propagated into a thread-value ranking that got
     # called "cost" when it was actually this estimate. resume$/respawn$
     # keep their names; they already declare themselves modelled.
-    hdr = f"{'thread':10} {'tier':8} {'state':7} {'warmth':8} {'idle':>5} {'ctx':>8} {'read':>9} {'write':>8} {'out':>7} {'est$':>7} {'resume$':>8} {'respawn$':>9} flags"
+    # model: Row.model always existed but was never in the render() line -
+    # per-thread cost/cache columns beside it with no way to see WHICH
+    # model they belong to (haiku-fs7's COST-CACHE-VISIBILITY audit).
+    # hit%: read / (read + uncached) - real-time cache performance
+    # alongside the token counts it's computed from, not only visible
+    # after the fact in the telemetry report.
+    hdr = (f"{'thread':10} {'model':15} {'tier':8} {'state':7} {'warmth':8} {'idle':>5} {'ctx':>8} "
+           f"{'read':>9} {'write':>8} {'out':>7} {'hit%':>5} {'est$':>7} {'resume$':>8} {'respawn$':>9} flags")
     lines = [hdr]
     for r in rs:
         flags = " ".join(x for x in (
@@ -204,8 +223,8 @@ def render(rs: list[Row]) -> str:
             if r.provider_refused else "",
             "STALE-SPEC" if r.spec_stale else "", f"miss:{r.miss_reason}" if r.miss_reason else "",
             f"handoff:{r.last_handoff}" if r.last_handoff else "", f"parse-errors:{r.errors}" if r.errors else "") if x)
-        lines.append(f"{r.name:10} {r.tier:8} {r.state:7} {r.warmth:8} {r.idle_minutes:>5} {r.context:>8} {r.read:>9} "
-                     f"{r.written:>8} {r.output:>7} {_usd(r.dollars):>7} {_usd(r.resume_usd):>8} "
+        lines.append(f"{r.name:10} {r.model:15} {r.tier:8} {r.state:7} {r.warmth:8} {r.idle_minutes:>5} {r.context:>8} {r.read:>9} "
+                     f"{r.written:>8} {r.output:>7} {r.hit_ratio * 100:>4.0f}% {_usd(r.dollars):>7} {_usd(r.resume_usd):>8} "
                      f"{_usd(r.respawn_usd):>9} {flags}")
     return "\n".join(lines)
 

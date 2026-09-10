@@ -53,6 +53,8 @@ class StatusTests(unittest.TestCase):
         # see test_transcript.py's test_dedupes_by_message_id_and_sums.
         self.assertEqual(r.errors, 2)
         self.assertAlmostEqual(r.resume_usd, 1205 * 1.0 * 2.0 / 1e6, places=9)
+        # hit_ratio = read / (read + uncached-input): 1000 / (1000 + 15)
+        self.assertAlmostEqual(r.hit_ratio, 1000 / 1015, places=6)
 
     def test_cold_after_ttl(self):
         [r] = status.rows(now=LAST_TURN_TS + 61 * 60, registry=self.reg)
@@ -62,6 +64,30 @@ class StatusTests(unittest.TestCase):
         text = status.render(status.rows(now=1787716701.0, registry=self.reg))
         self.assertEqual(len(text.strip().splitlines()), 2)
         self.assertIn("haiku-fs", text)
+
+    def test_render_shows_model_and_cache_hit_percent(self):
+        # haiku-fs7's COST-CACHE-VISIBILITY audit: Row.model existed but
+        # was never in the render() line, and hit_ratio was only ever
+        # visible after the fact in the telemetry report.
+        rows = status.rows(now=1787716701.0, registry=self.reg)
+        text = status.render(rows)
+        header, row_line = text.strip().splitlines()
+        self.assertIn("model", header)
+        self.assertIn("hit%", header)
+        self.assertIn(rows[0].model, row_line)
+        # 1000 / 1015 rounds to 99% at the column's own precision
+        self.assertIn(" 99% ", row_line)
+
+    def test_zero_input_and_zero_read_is_a_zero_hit_ratio_not_a_division_error(self):
+        # A "new" thread (no turns at all) must not raise ZeroDivisionError.
+        empty_cwd = Path(self.tmp.name) / "empty"
+        empty_cwd.mkdir()
+        reg = Registry(Path(self.tmp.name) / "registry-empty.json")
+        t = load_specs()["haiku-fs"]
+        reg.save({"haiku-fs": Entry(name="haiku-fs", session_id="nope", cwd=str(empty_cwd), model=t.model,
+                                    status="parked", spec_hash=spec_hash(t), spawned_at=0.0)})
+        [r] = status.rows(now=1787716701.0, registry=reg)
+        self.assertEqual(r.hit_ratio, 0.0)
 
 
 class ResolvePendingForkTests(unittest.TestCase):

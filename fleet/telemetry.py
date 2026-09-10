@@ -112,4 +112,20 @@ def report(days: list[str] | None = None, out_dir: Path = OUT) -> str:
         if th.startswith("haiku"):
             for r in rs:
                 lines.append(f"   {th} {r['day']}: respawns={r['respawns']} turns={r['turns']} hit={r['hit_ratio']:.2f}")
+    lines.append("4. Per-model summary, all threads combined (haiku-fs7's COST-CACHE-VISIBILITY audit):")
+    by_model: dict[str, list[dict]] = {}
+    for r in recs:
+        by_model.setdefault(r["model"], []).append(r)
+    for model, rs in sorted(by_model.items()):
+        # UNKNOWN_USD records are excluded from the $ total, not summed in -
+        # a record for an unrated model reports "?" already (derive_day),
+        # and -1.0 per unpriced record would quietly understate every
+        # model's real total the moment one appeared. hit_ratio has no such
+        # sentinel (0.0 is a real "no cache hits", not "unknown"), so every
+        # record contributes to that average.
+        priced = [r for r in rs if r["dollars"] != UNKNOWN_USD]
+        dollars_text = f"{sum(r['dollars'] for r in priced):.2f}" if priced else "?"
+        avg_hit = sum(r["hit_ratio"] for r in rs) / len(rs)
+        turns = sum(r["turns"] for r in rs)
+        lines.append(f"   {model}: total est${dollars_text} avg-hit={avg_hit:.2f} turns={turns} records={len(rs)}")
     return "\n".join(lines)

@@ -84,6 +84,29 @@ class TelemetryTests(unittest.TestCase):
         for q in ("hot tier", "dormant tiers", "tool-threads"):
             self.assertIn(q, text)
 
+    def test_report_has_a_per_model_aggregate_section(self):
+        # haiku-fs7's COST-CACHE-VISIBILITY audit: aggregate stats were
+        # only ever computable per-thread, never grouped by model across
+        # the whole fleet.
+        telemetry.derive_day(_fixture_day(), registry=self.reg, events=self.events, out_dir=self.out)
+        text = telemetry.report(out_dir=self.out)
+        self.assertIn("Per-model summary", text)
+        self.assertIn("claude-haiku-4-5:", text)
+        self.assertIn("avg-hit=0.45", text)  # 1000/2215, this fixture's one record
+        self.assertIn("turns=2", text)
+        self.assertIn("records=1", text)
+
+    def test_per_model_dollars_excludes_unknown_usd_records_from_the_total(self):
+        # An unpriced model's record must not silently drag the model's $
+        # total down by -1.0 per record - it is excluded from the sum, and
+        # the total reads "?" when nothing in the group was priced.
+        entries = self.reg.load()
+        entries["haiku-fs"].model = "claude-unpublished-9"
+        self.reg.save(entries)
+        telemetry.derive_day(_fixture_day(), registry=self.reg, events=[], out_dir=self.out)
+        text = telemetry.report(out_dir=self.out)
+        self.assertIn("claude-unpublished-9: total est$?", text)
+
 
 def _assistant_line(msg_id: str, ts: str, **usage) -> str:
     base = {"input_tokens": 5, "cache_read_input_tokens": 0, "output_tokens": 10, "cache_creation": {}}
