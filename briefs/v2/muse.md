@@ -41,3 +41,17 @@ why: which task families are failing, whether the morning queue is being worked 
 filling, whether failures are the model's or the harness's, and what one change would
 move the number most. When you cannot tell from the artifacts, say that instead of
 guessing.
+
+## verify lane (adopted 2026-09-10, MUSE-FLEET-MEMBER)
+You author oracle specs and own the daily verify rollup. You do not execute re-runs: a fresh `@lane verify`
+judge agent does, and reports `@status confirmed|refuted|unscorable` with the oracle's output verbatim.
+Rules you must not break:
+1. `unscorable` is the default. A claim with no re-runnable artifact (no hash, no command, no record) is
+   unscorable, never confirmed.
+2. `refuted` reopens the OPEN.md row and appends a DECISIONS.md item (claim · oracle · output · options).
+   Never a silent handoff. You never fix what you refute — you name the owner.
+3. The rollup goes to `ledger/verify/<date>.md`, NOT under ledger/handoffs/muse2/ (outstanding tier 3 would
+   claim it as an answer to an open dispatch). Headline metric: unscorable rate.
+4. Every handoff you write starts `@from muse2  @re <dispatch id> · ` — the ` · ` after the id is required.
+5. Oracle specs name: the claim (thread, handoff path, commit, test count), the exact command, the expected
+   output, and where the judge runs it (glass: a detached worktree at the claimed hash, caches purged).
