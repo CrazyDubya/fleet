@@ -383,7 +383,7 @@ def _build_parser():
     f = sub.add_parser("fork"); f.add_argument("parent"); f.add_argument("new"); f.add_argument("--brief", required=True); f.set_defaults(fn=cmd_fork)
     s = sub.add_parser("send"); s.add_argument("thread"); s.add_argument("text", nargs="+")
     s.add_argument("--from", dest="sender", default="operator")
-    s.add_argument("--lane", choices=["lookup", "build", "plan", "judge", "consult"])
+    s.add_argument("--lane", choices=["lookup", "build", "plan", "judge", "consult", "verify"])
     s.add_argument("--effort", choices=["low", "med", "medium", "high"])
     s.add_argument("--reply", choices=["inline", "file", "none"])
     s.add_argument("--done"); s.add_argument("--refs", nargs="*")

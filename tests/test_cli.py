@@ -134,5 +134,20 @@ class PermCheckTests(unittest.TestCase):
         self.assertEqual(self._check("cat /Users/pup/other/secret.txt"), "ok")
 
 
+class SendLaneChoicesTests(unittest.TestCase):
+    """The plumbing for the verify lane (MUSE-FLEET-MEMBER): --lane must
+    accept "verify" the same way it accepts the other five, and must
+    reject anything else - that a typo like "verifyy" still errors is
+    what makes the choices list a real guard, not a suggestion."""
+
+    def test_lane_verify_is_a_valid_choice(self):
+        args = cli._build_parser().parse_args(["send", "muse2", "check", "it", "--lane", "verify"])
+        self.assertEqual(args.lane, "verify")
+
+    def test_an_unknown_lane_is_still_rejected(self):
+        with self.assertRaises(SystemExit):
+            cli._build_parser().parse_args(["send", "muse2", "x", "--lane", "verifyy"])
+
+
 if __name__ == "__main__":
     unittest.main()

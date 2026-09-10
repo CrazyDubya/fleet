@@ -33,9 +33,18 @@ class PacketTests(unittest.TestCase):
         self.assertIsNone(p.done)
 
     def test_lane_table(self):
-        self.assertEqual(set(packet.LANES), {"lookup", "build", "plan", "judge", "consult"})
+        self.assertEqual(set(packet.LANES), {"lookup", "build", "plan", "judge", "consult", "verify"})
         self.assertEqual(packet.LANES["build"], packet.Lane(target="sonnet2", effort="med", tier="hot", reply="file"))
         self.assertEqual(packet.LANES["lookup"].tier, "tool")
+
+    def test_verify_lane_routes_to_a_fresh_judge_agent(self):
+        # Not muse2's own standing context - a verify packet routes exactly
+        # like judge: fresh judge-lane agent, tool tier, file reply.
+        self.assertEqual(packet.LANES["verify"], packet.Lane(target="judge", effort="med", tier="tool", reply="file"))
+
+    def test_verify_packet_parses_without_raising(self):
+        p = packet.parse("@to muse2  @from operator  @lane verify\nverify the glass re-grade")
+        self.assertEqual((p.lane, p.effort, p.reply), ("verify", "med", "file"))
 
     def test_normalize_effort(self):
         self.assertEqual(packet.normalize_effort("med"), "medium")

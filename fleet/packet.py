@@ -43,6 +43,10 @@ LANES: dict[str, Lane] = {
     "plan": Lane("opus2", "high", "warm", "file"),
     "judge": Lane("judge", "med", "tool", "file"),
     "consult": Lane("fable", "high", "warm", "file"),
+    # Routes to a FRESH judge-lane agent, not muse2's own standing context -
+    # same target/tier/reply as "judge", distinct name so a verify packet
+    # reads as what it is (fleet-beta's MUSE-FLEET-MEMBER proposal).
+    "verify": Lane("judge", "med", "tool", "file"),
 }
 
 
