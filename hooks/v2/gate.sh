@@ -58,17 +58,40 @@ PY
   # FLEET-FIX item 3: was `"$FLEET" perm-check "$CMD" 2>/dev/null || echo ok` -- a crashed
   # perm-check (bad python, a broken bin/fleet, anything) silently read as "ok", the ONE path
   # in this hook set that failed open rather than closed. `perm-check` itself always exits 0
-  # on a real answer (both "deny" and "ok" `return 0` in cmd_perm_check) and prints to
-  # stdout, so a non-zero exit here is unambiguous: perm-check itself broke, not "it
-  # answered ok". Captured separately from the exit check so this can't repeat the same
+  # on a real answer (every verdict `return 0` in cmd_perm_check) and prints to stdout, so a
+  # non-zero exit here is unambiguous: perm-check itself broke, not "it answered ok".
+  # Captured separately from the exit check so this can't repeat the same
   # `$(... || fallback)` shape that caused the original bug.
+  #
+  # perm-check answers "<verdict> <fallthrough> <why>". It used to
+  # answer "ok" for an escalate verdict, which flattened decide_auto's
+  # three-way policy into a two-way one exactly here, in the one caller that
+  # has nothing behind it: on the tool tier a non-loopback URL, a path outside
+  # the thread's granted roots, or a quoted `rm` inside `python -c` all read as
+  # sanctioned. Escalate is still NOT blocked for a thread whose permission
+  # mode raises a PermissionRequest ("prompt") - blocking at PreToolUse would
+  # pre-empt perm.sh and the operator dialog that resolves it, which is worse
+  # than the gap. It IS blocked when the fallthrough is "none", because then
+  # this hook is the last check that exists.
   if [ -n "$CMD" ]; then
-    PC_OUT="$("$FLEET" perm-check "$CMD" 2>/dev/null)"; PC_RC=$?
+    PC_OUT="$("$FLEET" perm-check --thread "$THREAD" --cwd "$CWD" -- "$CMD" 2>/dev/null)"; PC_RC=$?
     if [ "$PC_RC" -ne 0 ]; then
       block "fleet perm-check failed (exit $PC_RC) - refusing rather than silently allowing: $CMD"
-    elif [ "$PC_OUT" = "deny" ]; then
-      block "fleet perm policy denies this command; ask the operator instead: $CMD"
     fi
+    # "<verdict> <fallthrough> <why>". PC_WHY is the policy's own reason and it
+    # goes into every block, so the operator can tell a real catch from a false
+    # positive from the ledger alone.
+    read -r PC_VERDICT PC_FALL PC_WHY <<<"$PC_OUT"
+    case "$PC_VERDICT" in
+      ok) ;;
+      deny) block "fleet perm policy denies this command ($PC_WHY); ask the operator instead: $CMD";;
+      escalate)
+        [ "$PC_FALL" = "prompt" ] || block "fleet perm policy escalates this command ($PC_WHY) and this thread has no operator prompt behind the gate; ask the operator instead: $CMD"
+        ledger gate escalate "deferred to PermissionRequest ($PC_WHY): $CMD"; exit 0;;
+      # An unparseable verdict is not an answer, and per this hook's own rule a
+      # non-answer must not read as yes.
+      *) block "fleet perm-check gave no usable verdict (${PC_VERDICT:-empty}) - refusing rather than silently allowing: $CMD";;
+    esac
   fi
 fi
 ledger gate allow ok; exit 0

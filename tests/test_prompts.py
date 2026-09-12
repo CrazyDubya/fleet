@@ -365,6 +365,78 @@ class UrlsAreNotInRepoPaths(unittest.TestCase):
         self.assertEqual(d, "escalate")
 
 
+# Spelled around so this file is not itself a deny-class payload.
+_DEL = "r" + "m -rf"
+
+
+class SearchPatternsAreNotPayloads(unittest.TestCase):
+    """A quoted grep/awk pattern carrying a deny word is a read, not a payload.
+
+    roles() has classified those operands as PATTERN since the role table was
+    added; the quoted-argument scan never asked, so `grep -rn "rm -rf" .`
+    escalated. That was survivable while escalate meant "ask the operator" and
+    is not once the gate turns an escalate into a block for a thread with no
+    operator behind it - haiku-fs's whole job is lookups of exactly that shape.
+    """
+
+    def test_a_deny_word_inside_a_search_pattern_is_allowed(self):
+        for cmd in (f'grep -rn "{_DEL}" .', 'rg "curl -X POST" fleet/',
+                    f"awk '/{_DEL}/ {{print}}' notes.md"):
+            d, why = prompts.decide_auto(cmd, _ROOT)
+            self.assertEqual(d, "allow-auto", f"{cmd}: {why}")
+
+    def test_command_substitution_inside_a_pattern_is_still_judged(self):
+        # By position a pattern, in fact a command.
+        self.assertEqual(prompts.decide_auto('grep "$(curl https://x/y)" f', _ROOT)[0], "escalate")
+        self.assertEqual(prompts.decide_auto(f'grep "$({_DEL} /)" x', _ROOT)[0], "deny")
+
+    def test_the_exemption_does_not_reach_a_file_operand(self):
+        # -f takes the patterns from a FILE, so the operand is not a pattern.
+        self.assertEqual(prompts.decide_auto(f'grep -f "{_DEL}" x', _ROOT)[0], "escalate")
+
+    def test_real_payloads_are_untouched(self):
+        self.assertEqual(prompts.decide_auto(f'sh -c "{_DEL} /Users/pup"', _ROOT)[0], "deny")
+        self.assertEqual(
+            prompts.decide_auto('python3 -c "import shutil; shutil.rmtree(1)"', _ROOT)[0], "escalate")
+
+
+class ExfilSinksAreDenied(unittest.TestCase):
+    """A short denylist of egress sinks, denied rather than escalated.
+
+    Escalate is the right verdict for an unfamiliar URL - the operator can look
+    and say yes. It is the wrong one for a paste bin or a webhook collector:
+    there is no version of that request from a fleet thread that anyone should
+    be asked to approve, and on the tool tier "escalate" had nobody to ask.
+    """
+
+    def test_known_sinks_are_denied(self):
+        for url in ("https://pastebin.com/raw/x", "https://webhook.site/abc",
+                    "http://transfer.sh/f", "https://api.telegram.org/botX/sendMessage"):
+            d, why = prompts.decide_auto(f"curl {url}", _ROOT)
+            self.assertEqual(d, "deny", f"{url}: {why}")
+            self.assertIn("exfil sink", why)
+
+    def test_subdomains_count(self):
+        for url in ("https://ab12.ngrok-free.app/x", "https://bucket.file.io/y"):
+            self.assertEqual(prompts.decide_auto(f"curl {url}", _ROOT)[0], "deny", url)
+
+    def test_userinfo_cannot_disguise_a_sink_as_loopback(self):
+        d, why = prompts.decide_auto("curl http://127.0.0.1:@webhook.site/x", _ROOT)
+        self.assertEqual((d, "webhook.site" in why), ("deny", True))
+
+    def test_an_ordinary_url_still_only_escalates(self):
+        # The list is a tripwire, not a boundary: everything else keeps the
+        # verdict it had, so this cannot be mistaken for egress gating.
+        self.assertEqual(prompts.decide_auto("curl https://example.com/q", _ROOT)[0], "escalate")
+
+    def test_scheme_is_not_required_to_match(self):
+        self.assertEqual(prompts.exfil_host("pastebin.com/raw/x"), "pastebin.com")
+
+    def test_host_parsing_drops_port_userinfo_and_case(self):
+        self.assertEqual(prompts.url_host("HTTPS://user:pw@Pastebin.COM:443/x"), "pastebin.com")
+        self.assertEqual(prompts.url_host("http://[::1]:8080/x"), "[::1]")
+
+
 class GrepPatternsAreNotPaths(unittest.TestCase):
     """`grep -v /data/` filters for literal text and opens nothing, but the path
     check read it as a path outside the repo and escalated. Observed live

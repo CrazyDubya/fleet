@@ -5,7 +5,7 @@ import json
 import os
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
@@ -116,22 +116,60 @@ class SettingsCacheTests(unittest.TestCase):
 
 
 class PermCheckTests(unittest.TestCase):
-    def _check(self, command):
+    """perm-check must report decide_auto's verdict unflattened.
+
+    It used to print "ok" for an escalate, which made a three-way policy
+    two-way for the one caller - gate.sh - that has nothing behind it.
+    """
+
+    def _check(self, command, thread=None, cwd=None):
         out = io.StringIO()
-        with redirect_stdout(out):
-            cli.cmd_perm_check(SimpleNamespace(command=command))
+        with redirect_stdout(out), redirect_stderr(io.StringIO()):
+            cli.cmd_perm_check(SimpleNamespace(command=command, thread=thread, cwd=cwd))
         return out.getvalue().strip()
 
+    def _verdict(self, command, thread=None, cwd=None):
+        return self._check(command, thread, cwd).split()[0]
+
+    def _head(self, command, thread=None, cwd=None):
+        return " ".join(self._check(command, thread, cwd).split()[:2])
+
     def test_denies_the_deny_class(self):
-        self.assertEqual(self._check("git push origin main"), "deny")
+        self.assertEqual(self._verdict("git push origin main"), "deny")
 
     def test_allows_benign(self):
-        self.assertEqual(self._check("ls"), "ok")
+        self.assertEqual(self._verdict("ls"), "ok")
 
-    def test_escalate_is_reported_as_ok(self):
-        # perm-check answers the policy question only: escalation belongs to
-        # perm-decide (PermissionRequest), which has an operator to wait for.
-        self.assertEqual(self._check("cat /Users/pup/other/secret.txt"), "ok")
+    def test_escalate_is_reported_as_escalate(self):
+        self.assertEqual(self._verdict("cat /Users/pup/other/secret.txt"), "escalate")
+
+    def test_an_attended_thread_reports_a_prompt_fallthrough(self):
+        # sonnet2 runs acceptEdits: a PermissionRequest still reaches perm.sh
+        # and the operator, so the gate must not pre-empt it.
+        self.assertEqual(self._head("ls", "sonnet2"), "ok prompt")
+
+    def test_a_bypass_thread_reports_no_fallthrough(self):
+        # haiku-fs2 runs bypassPermissions: nothing behind the gate.
+        self.assertEqual(self._head("ls", "haiku-fs2"), "ok none")
+
+    def test_an_unknown_thread_counts_as_no_fallthrough(self):
+        self.assertEqual(self._head("ls", "no-such-thread"), "ok none")
+
+    def test_the_reason_rides_along_on_stdout(self):
+        # A block whose ledger line does not say why is a block whose
+        # false-positive rate nobody can measure.
+        line = self._check("git push origin main", "haiku-fs2")
+        self.assertTrue(line.startswith("deny none "), line)
+        self.assertIn("git push", line)
+
+    def test_a_threads_granted_dirs_are_in_bounds(self):
+        # haiku-fs2's whole job is lookups across /Users/pup, which its spec
+        # grants at spawn. Without the roots, escalate-now-blocks would turn
+        # every one of those into a hard block.
+        self.assertEqual(self._verdict("ls /Users/pup/muse", "haiku-fs2"), "ok")
+
+    def test_outside_every_granted_root_still_escalates(self):
+        self.assertEqual(self._verdict("cat /etc/hosts", "haiku-fs2"), "escalate")
 
 
 class SendLaneChoicesTests(unittest.TestCase):

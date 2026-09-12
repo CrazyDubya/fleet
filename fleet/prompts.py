@@ -204,6 +204,11 @@ MAX_WRAP_DEPTH = 3
 # the inert-text exemptions in _wrapped_verdict to a single command.
 SHELL_OPERATORS = frozenset({"&&", "||", ";", "|", "&", ";;"})
 WS_IN_TOKEN = re.compile(r"\s")
+# Command substitution inside an otherwise-inert argument. `grep "$(rm -rf /)"`
+# is a pattern by position and a deletion in fact, so a token carrying one of
+# these is judged even where a plain pattern is exempt.
+SUBST_RE = re.compile(r"\$\(|`|\$\{")
+
 # Deny-class content inside a single quoted argument. A multi-word token is
 # NOT a path and never reaches _path_ok, so `sh -c "..."`, `eval "..."` and
 # `python3 -c "..."` used to be auto-allowed whole. Recursion (above) catches
@@ -240,11 +245,58 @@ def _loopback_url(tok: str) -> bool | None:
     back "in-repo, no deny match" - a GET-shaped egress the curl DENY rule
     (POST/PUT/-d/-F only) never sees.
     """
-    m = URL_RE.match(tok)
-    if not m:
+    if not URL_RE.match(tok):
         return None
-    host = m.group("host").split("@")[-1].split(":")[0] or ""
-    return host in LOOPBACK_HOSTS or host == "[::1]"
+    return url_host(tok) in LOOPBACK_HOSTS
+
+
+def url_host(tok: str) -> str:
+    """The host a URL actually resolves to: userinfo, port and case removed.
+
+    Splitting on the LAST "@" is what makes http://127.0.0.1:@evil.com/ read as
+    evil.com rather than as loopback - the same authority trick perm.sh already
+    rejects outright for browser_navigate. A token with no scheme is read
+    host-first, because WebFetch accepts "example.com/x" and a denylist that
+    can be stepped around by dropping "https://" is not a denylist.
+    """
+    m = URL_RE.match(tok)
+    authority = m.group("host") if m else tok.split("/")[0].split("?")[0].split("#")[0]
+    host = authority.split("@")[-1].strip().lower()
+    if host.startswith("["):                      # [::1]:8080 -> [::1]
+        return host.split("]")[0] + "]"
+    return host.split(":")[0].rstrip(".")
+
+
+# Deliberately short, and a tripwire rather than a boundary. An egress denylist
+# can never be complete, and the danger in having one is that it starts to be
+# read as a boundary and postpones real gating. These are the sinks that turn a
+# single unattended GET into an exfiltration: anonymous paste bins, one-shot
+# file drops, request/webhook collectors, and public tunnel hostnames that hand
+# any machine a working inbound URL in seconds. No fleet thread has a
+# legitimate errand at one of them; if one ever does, the operator can run it.
+EXFIL_HOSTS = (
+    "pastebin.com", "paste.ee", "hastebin.com", "dpaste.com", "ghostbin.com",
+    "termbin.com", "ix.io", "0x0.st",
+    "transfer.sh", "file.io", "gofile.io", "anonfiles.com", "bashupload.com",
+    "webhook.site", "requestbin.com", "hookbin.com", "beeceptor.com",
+    "pipedream.net", "oast.fun", "interact.sh", "burpcollaborator.net",
+    "ngrok.io", "ngrok-free.app", "trycloudflare.com", "loca.lt", "serveo.net",
+    "api.telegram.org",
+)
+
+
+def exfil_host(tok: str) -> str | None:
+    """The denylisted host `tok` points at, or None.
+
+    Subdomains count: a drop at <bucket>.file.io or a tunnel at
+    <random>.ngrok-free.app is the same sink as its parent, and exact-string
+    matching would leave the list matching almost nothing that occurs in life.
+    """
+    host = url_host(tok)
+    for d in EXFIL_HOSTS:
+        if host == d or host.endswith("." + d):
+            return d
+    return None
 
 
 def _is_path_candidate(tok: str) -> bool:
@@ -518,6 +570,7 @@ def _wrapped_verdict(command: str, root: Path, depth: int, cwd: Path | str | Non
        outright.
     """
     tokens = _tokens(command)
+    patterns = _pattern_operands(tokens)
     # `fleet send` bodies and `git commit` messages are inert text: a packet is
     # judged by the receiving thread's own hooks, and a commit message never
     # executes. Scanning them here only produced false positives ('curl' in a
@@ -555,6 +608,15 @@ def _wrapped_verdict(command: str, root: Path, depth: int, cwd: Path | str | Non
             d, why = decide_auto(tok, root, cwd, _depth=depth + 1, extra_roots=extra_roots)
             if d != "allow-auto":
                 return d, f"wrapped code ({prev}): {why}"
+        # A search/program operand opens nothing and executes nothing:
+        # `grep -rn "rm -rf" .` is a read. roles() has classified this token
+        # since the PATTERN role was added; this scan simply never asked, and
+        # once an escalate became a block for threads with no operator behind
+        # the gate, not asking meant refusing ordinary lookups. Substitution
+        # bearing tokens are still judged - by position a pattern, in fact a
+        # command.
+        if i in patterns and not SUBST_RE.search(tok):
+            continue
         m = QUOTED_DENY_RE.search(tok)
         if m:
             return "escalate", f"quoted argument contains {m.group(0)!r}"
@@ -597,6 +659,12 @@ def decide_auto(command: str, root: Path, cwd: Path | str | None = None, _depth:
     bases = _token_bases(tokens, Path(cwd) if cwd else root)
     for i, (tok, role) in enumerate(zip(tokens, roles(tokens))):
         if role is URL:
+            # A known sink is denied outright rather than escalated: there is
+            # no version of "curl https://webhook.site/..." from a fleet thread
+            # that an operator should be asked to approve at 3am.
+            sink = exfil_host(tok)
+            if sink:
+                return "deny", f"known exfil sink ({sink}): {tok}"
             return "escalate", f"non-loopback URL: {tok}"
         if role is not PATH:
             continue  # VERB or PATTERN: not a file this command reads or writes

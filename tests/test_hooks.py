@@ -207,6 +207,85 @@ class GateSendTarget(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
 
 
+class GateEscalateTests(unittest.TestCase):
+    """The gate acts on all three verdicts now, and differently per thread.
+
+    perm-check used to answer "ok" for an escalate, so on the tool tier - the
+    one tier with no PermissionRequest behind the gate - a path outside every
+    granted root, or a non-loopback URL, was waved through with no trace.
+    """
+
+    def _gate(self, thread, command):
+        return run("gate.sh", {"cwd": str(ROOT / thread), "tool_name": "Bash",
+                               "tool_input": {"command": command}})
+
+    def test_escalate_is_deferred_for_a_thread_with_an_operator_prompt(self):
+        # Blocking here would pre-empt perm.sh and the dialog that resolves it.
+        r = self._gate("sonnet2", "cat /etc/hosts")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        ev = ledger.read_events()[-1]
+        self.assertEqual((ev["hook"], ev["decision"]), ("gate", "escalate"))
+
+    def test_escalate_is_blocked_for_a_bypass_permissions_thread(self):
+        r = self._gate("haiku-fs2", "cat /etc/hosts")
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("no operator prompt", r.stderr)
+
+    def test_a_granted_dir_is_not_escalated(self):
+        # haiku-fs2's dirs grant /Users/pup; a lookup there is its job.
+        self.assertEqual(self._gate("haiku-fs2", "ls /Users/pup/muse").returncode, 0)
+
+    def test_an_exfil_sink_is_blocked_even_with_a_prompt_behind_the_gate(self):
+        r = self._gate("sonnet2", "curl https://pastebin.com/raw/x")
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("perm policy denies", r.stderr)
+
+
+class WebHookTests(unittest.TestCase):
+    """WebFetch/WebSearch were gated by nothing and logged nowhere. web.sh is
+    the visibility half - and blocks the denylisted sinks, so one refused to
+    curl is not quietly reachable through WebFetch."""
+
+    cwd = str(ROOT / "sonnet2")
+
+    def _web(self, tool, payload):
+        return run("web.sh", {"cwd": self.cwd, "tool_name": tool, "tool_input": payload})
+
+    def test_an_ordinary_fetch_is_allowed_and_logged(self):
+        r = self._web("WebFetch", {"url": "https://example.com/a", "prompt": "x"})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        ev = ledger.read_events()[-1]
+        self.assertEqual((ev["hook"], ev["decision"], ev["thread"]), ("web", "allow", "sonnet2"))
+        self.assertIn("https://example.com/a", ev["why"])
+
+    def test_a_search_is_logged_with_its_query(self):
+        r = self._web("WebSearch", {"query": "opus 5 release notes"})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        ev = ledger.read_events()[-1]
+        self.assertEqual((ev["hook"], ev["decision"]), ("web", "allow"))
+        self.assertIn("opus 5 release notes", ev["why"])
+
+    def test_a_denylisted_sink_is_blocked(self):
+        r = self._web("WebFetch", {"url": "https://x.webhook.site/abc"})
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("exfil denylist", r.stderr)
+        ev = ledger.read_events()[-1]
+        self.assertEqual((ev["hook"], ev["decision"]), ("web", "block"))
+
+    def test_another_tool_is_a_noop(self):
+        self.assertEqual(self._web("Bash", {"command": "ls"}).returncode, 0)
+
+    def test_registered_for_every_v2_settings_file(self):
+        # A hook nobody wires in is not a hook. Each tier's settings must carry
+        # the WebFetch|WebSearch matcher, or that tier stays invisible.
+        for name in ("hot.json", "warm.json", "tool.json", "project-muse.json"):
+            cfg = json.loads((ROOT / "settings" / "v2" / name).read_text())
+            hooks = [h for m in cfg["hooks"]["PreToolUse"] if m.get("matcher") == "WebFetch|WebSearch"
+                     for h in m["hooks"]]
+            self.assertEqual([h["command"] for h in hooks],
+                             [str(ROOT / "hooks" / "v2" / "web.sh")], name)
+
+
 class PermBrowserNavigate(unittest.TestCase):
     cwd = str(ROOT / "sonnet2")
 

@@ -312,20 +312,94 @@ def cmd_perm_decide(args):
     print(got or "escalate-timeout"); return 0
 
 
-def cmd_perm_check(args):
-    """Policy question only: `deny` or `ok`, no prompt file, no waiting.
+def _gate_thread(thread: str | None):
+    """The spec for `thread`, or None when there isn't one to be had."""
+    if not thread:
+        return None
+    try:
+        return spec_mod.active_threads(current_profile()).get(thread)
+    except (OSError, KeyError):  # unreadable/unknown profile
+        return None
 
-    perm-decide is the PermissionRequest path (it may escalate and block for
-    the operator up to 4 minutes). The PreToolUse gate needs the same policy
-    without either of those: the tool tier runs with permission_mode that
-    never reaches a PermissionRequest, so gate.sh is the only place a
-    destructive Bash command can be stopped, and a hook has 3 seconds.
+
+def _gate_roots(thread: str | None) -> tuple[str, ...]:
+    """Containment roots for the PreToolUse gate: every directory the spec
+    already grants this thread, plus a [[project]] thread's own repo.
+
+    Wider than _thread_roots, and only here. perm-decide can escalate a path it
+    is unsure about to a human; the gate cannot, so from the moment escalate
+    stops meaning "allow anyway" (see cmd_perm_check) an unlisted root turns
+    into a hard block on sanctioned work - haiku-fs2's entire job is lookups
+    across /Users/pup, which is exactly what its `dirs` grants it at spawn.
+    Reading a root the operator already granted is not a widening of policy;
+    inventing one the spec does not mention would be.
+    """
+    t = _gate_thread(thread)
+    if not t:
+        return ()
+    roots = [str(Path(d).resolve()) for d in t.dirs]
+    if t.dir:
+        roots.append(str(Path(t.dir).resolve()))
+    return tuple(roots)
+
+
+def _operator_fallthrough(thread: str | None) -> bool:
+    """Can an escalate for this thread still reach a human?
+
+    Only if its permission mode raises a PermissionRequest at all.
+    bypassPermissions raises none, which is precisely why the gate is the last
+    check those threads have. An unknown thread counts as no fallthrough: "no
+    answer" must not read as yes, the same rule gate.sh applies to a missing jq.
+    """
+    t = _gate_thread(thread)
+    return bool(t) and t.permission_mode != "bypassPermissions"
+
+
+def cmd_perm_check(args):
+    """The PreToolUse gate's oracle. Prints "<verdict> <fallthrough> <why>".
+
+    `verdict` is decide_auto's own answer, unflattened: deny, escalate or ok.
+    It used to print "ok" for escalate, which turned a three-way policy into a
+    two-way one for the single caller that has nothing behind it: every
+    escalate-class command - a non-loopback URL, a path outside the thread's
+    roots, a quoted `rm` inside a python -c - read to gate.sh as sanctioned.
+
+    `fallthrough` is whether an escalate can still reach a human: "prompt" when
+    the thread's permission mode raises a PermissionRequest (perm.sh asks the
+    operator, so the gate must NOT block those - blocking at PreToolUse
+    pre-empts the very prompt that would resolve it), "none" when it does not.
+    The gate blocks deny always, and escalate only when fallthrough is none.
+
+    decide_auto's reason follows as the rest of the line, so a blocked command
+    reaches the ledger with WHY it was blocked - the only way the operator can
+    tell a real catch from a false positive without re-deriving it. It rides on
+    stdout, not stderr, so gate.sh can keep 2>/dev/null: merging stderr would
+    let a stray python warning parse as the verdict, in a hook that fails
+    closed on anything it cannot parse.
+
+    Still no prompt file and no waiting either way: a hook has ~3 seconds.
     """
     from . import prompts as prompts_mod
     from .paths import ROOT
-    d, why = prompts_mod.decide_auto(args.command, ROOT)
-    if d == "deny":
-        print("deny"); print(why, file=sys.stderr); return 0
+    thread = getattr(args, "thread", None)
+    d, why = prompts_mod.decide_auto(args.command, ROOT, getattr(args, "cwd", None) or None,
+                                     extra_roots=_gate_roots(thread))
+    verdict = "ok" if d == "allow-auto" else d
+    print(f"{verdict} {'prompt' if _operator_fallthrough(thread) else 'none'} {why}")
+    return 0
+
+
+def cmd_web_check(args):
+    """Egress oracle for hooks/v2/web.sh: "deny <host>" or "ok".
+
+    Same denylist the Bash path uses (fleet.prompts.EXFIL_HOSTS), asked from
+    one place so a URL that is refused to curl is not quietly available to
+    WebFetch.
+    """
+    from . import prompts as prompts_mod
+    host = prompts_mod.exfil_host(args.url)
+    if host:
+        print(f"deny {host}"); print(f"known exfil sink ({host}): {args.url}", file=sys.stderr); return 0
     print("ok"); return 0
 
 
@@ -417,7 +491,11 @@ def _build_parser():
     h = sub.add_parser("hook-event"); h.add_argument("hook"); h.add_argument("thread"); h.add_argument("decision")
     h.add_argument("ms", type=int); h.add_argument("why", nargs="*"); h.set_defaults(fn=cmd_hook_event)
     pd = sub.add_parser("perm-decide"); pd.add_argument("thread"); pd.add_argument("cwd"); pd.add_argument("command"); pd.set_defaults(fn=cmd_perm_decide)
-    pc = sub.add_parser("perm-check"); pc.add_argument("command"); pc.set_defaults(fn=cmd_perm_check)
+    pc = sub.add_parser("perm-check"); pc.add_argument("command")
+    pc.add_argument("--thread", help="whose policy roots and permission mode to judge by")
+    pc.add_argument("--cwd", help="where the command's relative paths resolve from")
+    pc.set_defaults(fn=cmd_perm_check)
+    wc = sub.add_parser("web-check"); wc.add_argument("url"); wc.set_defaults(fn=cmd_web_check)
     b = sub.add_parser("bench"); bs = b.add_subparsers(dest="bench_cmd", required=True)
     br = bs.add_parser("run"); br.add_argument("task"); br.add_argument("--arms", default="fable,sonnet,fleet")
     br.add_argument("--repeat", type=int, default=1); br.set_defaults(fn=cmd_bench)
