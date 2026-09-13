@@ -1,4 +1,5 @@
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -368,6 +369,78 @@ class UrlsAreNotInRepoPaths(unittest.TestCase):
 # Spelled around so this file is not itself a deny-class payload.
 _DEL = "r" + "m -rf"
 _HOME = Path.home()
+
+
+@unittest.skipUnless(prompts.FS_CASE_INSENSITIVE, "case-folding matters only on a case-insensitive fs")
+class CaseInsensitiveFilesystemBypass(unittest.TestCase):
+    """The kernel opens ~/library/Keychains as ~/Library/Keychains on this Mac,
+    while every compare in sensitive_verdict was case-sensitive - a clean allow
+    on the real login keychain (Fable audit, 2026-09-12). The exact repro is the
+    first case; the rest are the same hole in the other credential rules."""
+
+    def _v(self, cmd):
+        return prompts.decide_auto(cmd, _ROOT, extra_roots=(str(_HOME),))
+
+    def test_the_audited_keychain_bypass_is_denied(self):
+        d, why = self._v("cat ~/library/Keychains/login.keychain-db")
+        self.assertEqual(d, "deny", why)
+
+    def test_credential_stores_deny_regardless_of_case(self):
+        for p in ("~/.SSH/id_rsa", "~/.Aws/credentials", "~/.GnuPG/x", "~/.KUBE/config"):
+            self.assertEqual(self._v(f"cat {p}")[0], "deny", p)
+
+    def test_basenames_and_env_and_fleet_files_fold(self):
+        for p in ("~/.NETRC", "/Users/pup/fleet/.ENV", "/Users/pup/fleet/MAIL/Token.json",
+                  "/Users/pup/proj/.Git-Credentials"):
+            self.assertEqual(self._v(f"cat {p}")[0], "deny", p)
+
+    def test_a_template_still_reads_as_a_template_when_cased(self):
+        self.assertEqual(self._v("cat /Users/pup/fleet/.ENV.EXAMPLE")[0], "allow-auto")
+
+
+class SymlinkLaunderingBypass(unittest.TestCase):
+    """A text gate cannot see through a symlink. `ln -s /Users/pup home2 && cat
+    home2/.ssh/id_rsa` read the real key while the checks judged the in-repo
+    name (Fable audit, 2026-09-12): the link's target is caught at creation, and
+    a pre-existing link is followed by realpath at read time."""
+
+    def _v(self, cmd, cwd=None, roots=(str(_HOME),)):
+        return prompts.decide_auto(cmd, _ROOT, cwd, extra_roots=roots)
+
+    def test_the_audited_chain_escalates_at_creation(self):
+        d, why = self._v("ln -s /Users/pup home2 && cat home2/.ssh/id_rsa")
+        self.assertEqual(d, "escalate", why)
+        self.assertIn("ln -s", why)
+
+    def test_symlink_to_outside_repo_escalates(self):
+        for cmd in ("ln -s /Users/pup x", "ln -s ~ x", "ln -s /etc etc", "ln -sf $HOME h",
+                    "ln -s /Users/pup/muse m"):
+            self.assertEqual(self._v(cmd)[0], "escalate", cmd)
+
+    def test_hardlink_or_symlink_to_a_credential_is_denied(self):
+        for cmd in ("ln ~/.ssh/id_rsa x", "ln -s ~/.aws/credentials creds"):
+            self.assertEqual(self._v(cmd)[0], "deny", cmd)
+
+    def test_a_symlink_inside_the_repo_is_fine(self):
+        for cmd in ("ln -s state/v2 cur", "ln -s ./gui/server.py s", "ln -s ../fleet/x y"):
+            self.assertEqual(self._v(cmd, cwd=str(_ROOT))[0], "allow-auto", cmd)
+
+    def test_a_preexisting_symlink_is_followed_by_realpath(self):
+        # A link that ALREADY exists on disk (so realpath can follow it), inside
+        # a temp root, pointing at the real ~/.ssh. Reading through it must deny
+        # even though the in-repo name says nothing. Nothing under ~ is read;
+        # only a symlink to the directory is created, in a temp dir.
+        with tempfile.TemporaryDirectory() as t:
+            link = os.path.join(t, "home")
+            try:
+                os.symlink(str(_HOME), link)
+            except OSError:
+                self.skipTest("cannot create symlink here")
+            d, why = prompts.decide_auto("cat home/.ssh/id_rsa", _ROOT, cwd=t, extra_roots=(t,))
+            self.assertEqual(d, "deny", why)
+            self.assertIn("via symlink", why)
+            self.assertEqual(prompts.decide_auto("cat home/Documents/x", _ROOT, cwd=t,
+                                                 extra_roots=(t,))[0], "allow-auto")
 
 
 class SensitivePathsAreJudgedByWhatTheyAre(unittest.TestCase):

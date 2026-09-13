@@ -432,6 +432,35 @@ def _token_bases(tokens: list[str], cwd: Path, words: list[Word] | None = None,
 
 HOME = Path.home()
 
+
+def _fs_case_insensitive(home: str) -> bool:
+    """Does this filesystem open `Library` and `library` as one directory?
+
+    macOS's default APFS is case-INSENSITIVE (case-preserving), so the kernel
+    reads ~/library/Keychains as ~/Library/Keychains while every string compare
+    in sensitive_verdict, being case-sensitive, saw a different, non-matching
+    path (Fable audit, 2026-09-12). Detected once by asking the kernel whether
+    the home path and its case-swap are the same file. Fails toward "insensitive"
+    - which only makes the credential checks STRICTER - when it cannot tell.
+    """
+    try:
+        alt = home.swapcase()
+        if alt == home:
+            return True                        # no letters to swap: assume the stricter world
+        return os.path.exists(home) and os.path.exists(alt) and os.path.samefile(home, alt)
+    except OSError:
+        return True
+
+
+FS_CASE_INSENSITIVE = _fs_case_insensitive(str(HOME))
+
+
+def _cf(s: str) -> str:
+    """Casefold for a credential comparison, when the filesystem is
+    case-insensitive. A no-op on a case-sensitive filesystem, where `~/.AWS` is
+    genuinely a different directory from `~/.aws`."""
+    return s.casefold() if FS_CASE_INSENSITIVE else s
+
 # Credential stores. Denied, not escalated: there is no version of a fleet
 # thread reading one that an operator should be asked to approve, and on the
 # tool tier "escalate" has nobody to ask.
@@ -477,31 +506,40 @@ def sensitive_verdict(path: str, root: Path, home: Path | None = None) -> tuple[
     parts = Path(path).parts
     name = parts[-1] if parts else ""
 
-    if name in SECRET_BASENAMES:
+    # Every comparison here is casefolded on a case-insensitive filesystem: the
+    # kernel opens `login.keychain-db` through `~/library/keychains` and `.ENV`
+    # just as well as their canonical casing, so a case-sensitive string match
+    # was a clean allow on the real credential.
+    cname = _cf(name)
+    if cname in {_cf(b) for b in SECRET_BASENAMES}:
         return "deny", f"credential file: {path}"
-    if name == ".env" or (name.startswith(".env.") and not name.endswith(ENV_TEMPLATE_SUFFIXES)):
+    if cname == ".env" or (cname.startswith(".env.") and not cname.endswith(
+            tuple(_cf(s) for s in ENV_TEMPLATE_SUFFIXES))):
         return "deny", f"credential file: {path}"
     for rel in SECRET_FLEET_FILES:
-        if path == str(root / rel):
+        if _cf(path) == _cf(str(root / rel)):
             return "deny", f"fleet credential: {path}"
 
-    if path != home and not path.startswith(home + "/"):
+    chome = _cf(home)
+    if _cf(path) != chome and not _cf(path).startswith(chome + "/"):
         return None                                   # not under this home
-    rel_parts = Path(path).relative_to(home).parts
+    rel_parts = Path(path).relative_to(home).parts if path == home or path.startswith(home + "/") \
+        else Path(_cf(path)).relative_to(chome).parts
     if not rel_parts:
         return None
     top = rel_parts[0]
-    rel = "/".join(rel_parts)
+    ctop = _cf(top)
+    rel = _cf("/".join(rel_parts))
 
-    if top in SECRET_HOME_DIRS:
+    if ctop in {_cf(d) for d in SECRET_HOME_DIRS}:
         return "deny", f"credential store (~/{top}): {path}"
-    if rel_parts[:2] == ("Library", "Keychains"):
+    if tuple(_cf(p) for p in rel_parts[:2]) == (_cf("Library"), _cf("Keychains")):
         return "deny", f"credential store (~/Library/Keychains): {path}"
-    if any(rel == f or rel.startswith(f + "/") for f in SECRET_HOME_FILES):
+    if any(rel == _cf(f) or rel.startswith(_cf(f) + "/") for f in SECRET_HOME_FILES):
         return "deny", f"credential file: {path}"
     if not top.startswith("."):
         return None
-    if any(rel == e or rel.startswith(e + "/") for e in DOTDIR_EXCEPTIONS):
+    if any(rel == _cf(e) or rel.startswith(_cf(e) + "/") for e in DOTDIR_EXCEPTIONS):
         return None
     return "escalate", f"home-level dot-entry (~/{top}): {path}"
 
@@ -531,12 +569,39 @@ def path_verdict(path: str, root: Path, cwd: Path | str | None = None,
     p = _resolve(path, Path(cwd) if cwd is not None else root)
     if p in DEV_OK:
         return "allow-auto", "device"
+    for cand, why_sym in _with_realpath(p):
+        sv = sensitive_verdict(cand, root)
+        if sv and sv[0] == "deny":
+            return sv[0], sv[1] + why_sym       # a credential reached through a symlink
     v = sensitive_verdict(p, root)
     if v:
         return v
     if not _contained(p, root, extra_roots):
         return "escalate", f"path outside repo: {path}"
     return "allow-auto", "in-repo, no deny match"
+
+
+def _with_realpath(p: str) -> list[tuple[str, str]]:
+    """The path, then its realpath when a symlink actually changed it.
+
+    _resolve does os.path.normpath, which never follows a symlink, so
+    `ln -s /Users/pup home2 && cat home2/.ssh/id_rsa` had the credential read
+    judged as the in-repo name `home2/.ssh/id_rsa` while the kernel followed
+    the link to the real key (Fable audit, 2026-09-12). realpath resolves the
+    symlinks in whatever prefix already exists on disk and leaves a
+    not-yet-created leaf alone, so a pre-existing laundering link is caught at
+    read time; one created in the same `&&` chain is caught at `ln` (see
+    _symlink_verdict), because at gate time the link does not exist yet.
+    """
+    if "\x00" in p:
+        return [(p, "")]                        # an unresolved substitution placeholder, not a real path
+    try:
+        rp = os.path.realpath(p)
+    except (OSError, ValueError):
+        return [(p, "")]
+    if rp == p:
+        return [(p, "")]
+    return [(p, ""), (rp, f" (via symlink from {p})")]
 
 
 def _judge_path(tok: str, root: Path, base: Path | str | None = None,
@@ -574,9 +639,17 @@ def _judge_path(tok: str, root: Path, base: Path | str | None = None,
     for p in paths:
         if p in DEV_OK:
             continue
+        # Follow symlinks for the credential check only: a link launders WHAT a
+        # path is, and reading ~/.ssh through an in-repo alias must still deny.
+        # Containment is judged on the un-followed path on purpose - a granted
+        # root is often itself reached through a symlink (/var -> /private/var,
+        # /tmp -> /private/tmp), and realpath-ing containment escalated every
+        # read under such a root.
+        for cand, why_sym in _with_realpath(p):
+            sv = sensitive_verdict(cand, root)
+            if sv and sv[0] == "deny":
+                return sv[0], sv[1] + why_sym       # deny outranks anything unresolved
         v = sensitive_verdict(p, root)
-        if v and v[0] == "deny":
-            return v                                  # deny outranks anything unresolved
         if not v and not _contained(p, root, extra_roots):
             v = "escalate", f"path outside repo: {tok}"
         found = found or v
@@ -963,6 +1036,9 @@ def decide_auto(command: str, root: Path, cwd: Path | str | None = None, _depth:
     # only reports whichever offending token comes first when a command has
     # both, and either way the verdict is escalate.
     bases = _token_bases(tokens, Path(cwd) if cwd else root, words, sc)
+    link = _symlink_verdict(words, bases, sc, root, extra_roots)
+    if link:
+        return link
     inert = _inert_positions(tokens)
     for i, (tok, role) in enumerate(zip(tokens, roles(tokens))):
         if role is URL:
@@ -987,6 +1063,64 @@ def decide_auto(command: str, root: Path, cwd: Path | str | None = None, _depth:
         if verdict:
             return verdict
     return "allow-auto", "in-repo, no deny match"
+
+
+def _symlink_verdict(words: list[Word], bases: list[str], sc: shellwords.Scope,
+                     root: Path, extra_roots: tuple[str, ...]) -> tuple[str, str] | None:
+    """`ln` creates an alias, and a text gate cannot see through one.
+
+    `ln -s /Users/pup home2 && cat home2/.ssh/id_rsa` reads the real key while
+    every later check judges the in-repo name `home2/...`; /Users/pup is a
+    contained extra_root, so nothing fired (Fable audit, 2026-09-12). The link
+    does not exist at gate time, so realpath cannot help - the defence has to be
+    at creation. Two rules:
+
+      - a link (hard or symbolic) whose TARGET is itself a credential is denied,
+        the same as reading it (`ln ~/.ssh/id_rsa x`);
+      - a SYMLINK whose target is not strictly inside the repo escalates: it
+        grafts an out-of-repo subtree onto an in-repo path, past sensitive_verdict
+        for everything under it. extra_roots do not excuse it - a direct read of
+        ~/.ssh under the /Users/pup grant is still denied by what a path IS, and
+        the symlink exists precisely to launder that.
+
+    Real `ln` invocations in the recorded corpus: zero.
+    """
+    root_s = str(root)
+    i, n = 0, len(words)
+    while i < n:
+        w = words[i]
+        if not (w.starts_command and os.path.basename(w.text.lstrip("({")) == "ln"):
+            i += 1
+            continue
+        symlink = False
+        operands: list[tuple[int, Word]] = []
+        j = i + 1
+        while j < n and not words[j].starts_command and words[j].raw not in SHELL_OPERATORS:
+            t = words[j].text
+            if t.startswith("-") and t != "-":
+                if t == "--symbolic" or "s" in t.lstrip("-").split("=")[0]:
+                    symlink = True
+            else:
+                operands.append((j, words[j]))
+            j += 1
+        # ln [OPT] TARGET... LINKNAME|DIR - the link name is the last operand
+        # (harmless as an in-repo name); every earlier operand is a target. One
+        # operand means the link is created in the cwd under the target's name.
+        targets = operands[:-1] if len(operands) >= 2 else operands
+        for idx, ow in targets:
+            v = _judge_path(ow.text, root, bases[idx], extra_roots, ow, sc, idx)
+            if v and v[0] == "deny":
+                return "deny", f"ln target is a credential: {v[1]}"
+            if symlink:
+                paths, unresolved = _shell_paths(ow, bases[idx], sc, idx)
+                if unresolved:
+                    return "escalate", f"ln -s target the gate cannot resolve: {ow.text}"
+                for p in paths:
+                    if p != root_s and not p.startswith(root_s + "/"):
+                        return "escalate", ("ln -s aliases a path outside the repo into it "
+                                            f"({ow.text} -> {p}); the gate cannot see through the link")
+        i = j
+    return None
 
 
 def _dir(profile: str) -> Path:
