@@ -464,6 +464,124 @@ class PathsHiddenInCodePayloads(unittest.TestCase):
         self.assertEqual(prompts.decide_auto(cmd, _ROOT)[0], "allow-auto")
 
 
+class ShellExpansionsAreJudgedAfterExpanding(unittest.TestCase):
+    """The shell expands a path before `cat` ever opens it; the gate used to
+    judge the literal text. `cat $HOME/.aws/credentials` resolved to
+    <root>/$HOME/.aws/credentials - in-repo - while the shell read the real
+    file. Every command in the first test returned allow-auto on 1cf753f.
+    Braces, globs and `cd` are the same bug: an expansion the gate never did.
+    """
+
+    def _v(self, cmd, cwd=None, roots=(str(_HOME),)):
+        return prompts.decide_auto(cmd, _ROOT, cwd, extra_roots=roots)
+
+    def test_the_audited_bypasses_are_denied(self):
+        for cmd in ("cat $HOME/.aws/credentials",
+                    "cat $HOME/.ssh/id_rsa",
+                    "cat ${HOME}/.aws/credentials",
+                    'cat "$(echo ~/.aws/credentials)"',
+                    "cp $HOME/.ssh/id_rsa ./stolen",
+                    "tar czf out.tgz $HOME/.ssh",
+                    'echo "$(cat ~/.aws/credentials)"',
+                    "cd $HOME/.ssh && cat id_rsa"):
+            d, why = self._v(cmd)
+            self.assertEqual(d, "deny", f"{cmd}: {why}")
+
+    def test_brace_expansion_is_expanded(self):
+        for cmd in ("cat /Users/pup/{.ssh,x}/id_rsa", "cat ~/{.aws,x}/credentials",
+                    "cat ~/.aw{s,}/credentials"):
+            d, why = self._v(cmd.replace("/Users/pup", str(_HOME)))
+            self.assertEqual(d, "deny", f"{cmd}: {why}")
+
+    def test_globs_are_judged_by_what_they_match(self):
+        with tempfile.TemporaryDirectory() as t:
+            Path(t, ".env").write_text("SECRET=1\n")
+            Path(t, "notes.md").write_text("x\n")
+            for cmd in (f"cat {t}/.en?", f"cat {t}/.e*", "cat .en?", f"cat {t}/*(D)"):
+                d, why = self._v(cmd, cwd=t, roots=(t,))
+                self.assertEqual(d, "deny", f"{cmd}: {why}")
+            self.assertEqual(self._v(f"cat {t}/*.md", cwd=t, roots=(t,))[0], "allow-auto")
+
+    def test_a_variable_the_gate_cannot_see_escalates(self):
+        # X is set by the command itself, so its value is not in the gate's
+        # environment; the path it builds cannot be judged in advance.
+        for cmd in ("read X; cat $X/.ssh/id_rsa", "X=$(cat list.txt); cat $X/id_rsa",
+                    "cat ${X:-/etc}/passwd", 'cat "$(find . -name x | head -1)/y"',
+                    "cd $SOMEWHERE_UNSET && cat notes.md"):
+            d, why = self._v(cmd)
+            self.assertNotEqual(d, "allow-auto", f"{cmd}: {why}")
+
+    def test_what_the_gate_can_evaluate_it_does(self):
+        # The fleet's own idioms: the newest handoff, the repo top, a for-loop.
+        # Each is resolved to real values and judged, not escalated as unknown.
+        for cmd in ('f=$(ls -t ledger/handoffs/opus2/ | head -1); cat "ledger/handoffs/opus2/$f"',
+                    'cat "$(git rev-parse --show-toplevel)/fleet.toml"',
+                    "S=/tmp/x; mkdir -p $S && cp fleet.toml $S/",
+                    'for d in gui fleet; do (cd "$d" && ls); done',
+                    'echo "count: $(ls ledger | wc -l)"'):
+            d, why = self._v(cmd, cwd=str(_ROOT))
+            self.assertEqual(d, "allow-auto", f"{cmd}: {why}")
+        with tempfile.TemporaryDirectory() as t:
+            Path(t, ".ssh").mkdir()
+            Path(t, "x").mkdir()
+            # `ls -a` could print .ssh, so it stays unknowable; plain ls cannot.
+            self.assertNotEqual(self._v(f"cat {_HOME}/$(ls -a {t} | head -1)/id_rsa")[0], "allow-auto")
+        with tempfile.TemporaryDirectory() as t:
+            Path(t, ".env").write_text("A=1\n")
+            d, why = self._v(f'cd {t} && f=$(ls -d .e*); cat "$f"', cwd=t, roots=(t,))
+            self.assertEqual(d, "deny", why)
+
+    def test_ansi_c_quoting_is_decoded(self):
+        d, why = self._v(r"cat $'\x2fUsers\x2fpup\x2f.ssh\x2fid_rsa'".replace("\\x2fUsers\\x2fpup",
+                         str(_HOME).replace("/", "\\x2f")))
+        self.assertEqual(d, "deny", why)
+
+    def test_brace_expansion_reaches_the_delete_rule(self):
+        d, why = self._v(_DEL + " state/{..,x}/gui")
+        self.assertEqual(d, "deny", why)
+        self.assertEqual(self._v(_DEL + " state/{a,b}")[0], "allow-auto")
+
+    def test_brace_groups_still_split_for_the_delete_rule(self):
+        for cmd in ("({ %s gui; })", "x `{ %s gui; }`", "{ %s gui; }", "echo $({ %s gui; })"):
+            d, why = self._v(cmd % _DEL)
+            self.assertEqual(d, "deny", f"{cmd}: {why}")
+
+    def test_single_quotes_expand_nothing(self):
+        # The shell opens a file literally named $HOME/... here; so does the gate.
+        self.assertEqual(self._v("cat '$HOME/.aws/credentials'")[0], "allow-auto")
+
+    def test_a_known_variable_leaves_a_path_where_it_is(self):
+        with mock.patch.dict("os.environ", {"FLEET_T": str(_ROOT / "gui")}):
+            self.assertEqual(self._v("cat $FLEET_T/x.py")[0], "allow-auto")
+            self.assertEqual(self._v("cat ${FLEET_T}/../fleet.toml")[0], "allow-auto")
+
+    def test_cd_home_forms_move_the_base(self):
+        for cmd in ("cd && cat .ssh/id_rsa", "cd; cat .aws/credentials",
+                    "pushd ~ && cat .ssh/id_rsa", "cd ~ && cat .ssh/id_rsa"):
+            d, why = self._v(cmd)
+            self.assertEqual(d, "deny", f"{cmd}: {why}")
+        d, why = self._v("cd $SOMEWHERE_UNSET && cat .ssh/id_rsa")
+        self.assertNotEqual(d, "allow-auto", why)
+
+    def test_a_variable_inside_a_code_payload(self):
+        d, why = self._v('''python3 -c "print(open('$HOME/.aws/credentials').read())"''')
+        self.assertEqual(d, "deny", why)
+
+    def test_ordinary_shell_work_still_passes(self):
+        for cmd in ('for f in fleet/*.py; do echo "== $f"; cat "$f"; done',
+                    "TOKEN=$(cat state/gui-token); echo $TOKEN",
+                    "git commit -m \"$(cat <<'EOF'\nfix gui/x.py\n\n"
+                    "Claude-Session: https://claude.ai/code/session_x\nEOF\n)\"",
+                    "ls state/*.json", "cat gui/{server,widgets}.py",
+                    "echo total: $((1 + 2))"):
+            d, why = self._v(cmd)
+            self.assertEqual(d, "allow-auto", f"{cmd}: {why}")
+
+    def test_a_substitution_inside_a_commit_message_still_runs(self):
+        d, why = self._v('git commit -m "$(cat ~/.ssh/id_rsa)"')
+        self.assertEqual(d, "deny", why)
+
+
 class PathVerdictIsTheSameOracle(unittest.TestCase):
     """The file tools hand over a path, not a command. Same rules, same order -
     a credential refused to `cat` must not be one Read call away."""

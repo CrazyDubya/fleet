@@ -4,6 +4,7 @@ decide_auto: deny the destructive/egress patterns; allow anything whose
 path tokens all resolve inside ROOT or /tmp; escalate the rest to the
 operator through a prompt file the dashboard renders.
 """
+import dataclasses
 import json
 import os
 import re
@@ -12,6 +13,8 @@ import time
 from pathlib import Path
 
 from . import packet as packet_mod
+from . import shellwords
+from .shellwords import GLOB_CHARS, Word
 from .paths import profile_state
 
 # A verb may be written as a bare name or as a path (`git push` vs
@@ -48,7 +51,10 @@ DEV_OK = ("/dev/null", "/dev/stdin", "/dev/stdout", "/dev/stderr")
 # Only paths strictly INSIDE these count: `rm -rf /tmp` is everyone's scratch
 # space, not just this thread's.
 TMP_ZONES = ("/tmp", "/private/tmp")
-SEGMENT_RE = re.compile(r"\s*(?:;|&&|\|\||\||&|\n|\$\(|\(|`|\{)\s*")
+# `{` only as a brace GROUP (`{ cmd; }`), never inside a word: splitting
+# `state/{..,x}/gui` there left `state/` - in state - as the delete's whole
+# argument, while brace expansion made it gui/.
+SEGMENT_RE = re.compile(r"\s*(?:;|&&|\|\||\||&|\n|\$\(|\(|`|(?:^|(?<=[\s(`;&|]))\{(?=\s))\s*")
 
 # Commands that delete. `rm` keeps its own recursive+force rule below; the
 # others delete unconditionally, so any path argument is enough.
@@ -207,14 +213,14 @@ WS_IN_TOKEN = re.compile(r"\s")
 # Command substitution inside an otherwise-inert argument. `grep "$(rm -rf /)"`
 # is a pattern by position and a deletion in fact, so a token carrying one of
 # these is judged even where a plain pattern is exempt.
-SUBST_RE = re.compile(r"\$\(|`|\$\{")
+SUBST_RE = re.compile(r"\$\(|`|\$\{|\x00")
 # A quoted absolute (or ~) path inside a code payload. shlex sees
 # `print(open('/Users/pup/.aws/credentials').read())` as ONE token with no
 # whitespace, _resolve normpaths that whole string into gibberish under the
 # cwd, and the containment check calls the result in-repo - so the payload's
 # real path was never judged at all. Covers the three shapes that matter:
 # open('...'), Path('...'), and a subprocess argument list.
-EMBEDDED_PATH_RE = re.compile(r"""['"]([~/][^'"\n]{0,512})['"]""")
+EMBEDDED_PATH_RE = re.compile(r"""['"]([~/$][^'"\n]{0,512})['"]""")
 
 # Deny-class content inside a single quoted argument. A multi-word token is
 # NOT a path and never reaches _path_ok, so `sh -c "..."`, `eval "..."` and
@@ -311,12 +317,49 @@ def _is_path_candidate(tok: str) -> bool:
         return False  # a bare slash is division/a separator in wrapped code, not a path
     if _loopback_url(tok) is not None:
         return False  # a URL is not a path; egress is judged by _url_verdict
-    return bool(PATH_TOKEN.match(tok)) or "/" in tok or ".." in tok
+    if PATH_TOKEN.match(tok) or "/" in tok or ".." in tok or GLOB_CHARS.search(tok):
+        return True
+    if tok.startswith(".") and tok != ".":
+        return True   # `cat .env`, `cd && cat .netrc`: a bare dotfile is a path
+    # `tar czf out.tgz $HOME` names a path with no slash in its spelling. A
+    # value with ":" is a search list ($PATH), not one path.
+    if "$" in tok:
+        exp = shellwords.expand_vars(tok, None)[0][0]
+        return exp != tok and ":" not in exp and bool(PATH_TOKEN.match(exp) or "/" in exp)
+    return False
 
 
 def _resolve(tok: str, root: Path) -> str:
+    """A path as a file tool opens it: leading ~ only, no shell expansion.
+    The Bash side goes through _shell_paths instead, because the shell does
+    not open what the command spells."""
     p = os.path.expanduser(tok)
     return os.path.normpath(p if p.startswith("/") else os.path.join(str(root), p))
+
+
+# The directory after a `cd` whose target the gate could not resolve. Not a
+# path: nothing is contained in it, and a relative path from it is unjudgeable.
+UNKNOWN_BASE = "\0unknown-cwd"
+MAX_BASES = 16
+
+
+def _shell_paths(word: Word, base: Path | str | tuple, sc: shellwords.Scope | None = None,
+                 at: int = 0) -> tuple[list[str], list[str]]:
+    """Every absolute path the shell could open for `word`, and what it could
+    not expand. The Bash-side counterpart of _resolve: see fleet.shellwords for
+    why the spelling alone is not what gets opened."""
+    paths: list[str] = []
+    unresolved: list[str] = []
+    for b in (base if isinstance(base, tuple) else (base,)):
+        glob_base = str(b) if str(b) != UNKNOWN_BASE else "/nonexistent"
+        texts, more = shellwords.expand(word, sc, at, glob_base)
+        unresolved += more
+        for t in texts:
+            if str(b) == UNKNOWN_BASE and not t.startswith(("/", "~")):
+                unresolved.append("the directory an earlier cd moved to")
+                continue
+            paths.append(_resolve(t, Path(b)))
+    return list(dict.fromkeys(paths)), list(dict.fromkeys(unresolved))
 
 
 def _clean_arg(tok: str) -> str:
@@ -326,7 +369,8 @@ def _clean_arg(tok: str) -> str:
     return tok.rstrip(")`};")
 
 
-def _token_bases(tokens: list[str], cwd: Path) -> list[str]:
+def _token_bases(tokens: list[str], cwd: Path, words: list[Word] | None = None,
+                 sc: shellwords.Scope | None = None) -> list[str]:
     """The directory each token's relative paths resolve against.
 
     Starts at the thread's cwd and follows `cd` across shell operators, so
@@ -338,28 +382,51 @@ def _token_bases(tokens: list[str], cwd: Path) -> list[str]:
     thread's own directory and read as in-repo. Tracking the cd resolves it to
     /etc and escalates.
 
-    Known limit: shlex drops newlines, so a `cd` that starts a command on a new
-    line (rather than after && or ;) is not seen as a verb and its directory
-    change is missed. Strictly better than resolving everything against the
-    repo root, which is what this replaces.
+    The target is shell-expanded like any path, and a bare `cd` goes home:
+    `cd; cat .aws/credentials` used to judge .aws/credentials under the repo.
+    A target the gate cannot resolve (`cd $X`, `cd -`, `popd`, a glob with
+    several matches) makes the base UNKNOWN_BASE, so a later relative path
+    escalates instead of being read as in-repo.
+
+    Command boundaries come from shellwords, so a `cd` on its own line counts:
+    shlex drops newlines, and a newline-separated `cd /tmp` used to be
+    invisible here.
     """
+    if words is None or len(words) != len(tokens):
+        words = shellwords.words_for(tokens)
     bases: list[str] = []
     base = str(cwd)
     verb: str | None = None
-    pending_cd: str | None = None
-    for tok in tokens:
+    target: tuple[int, Word] | None = None
+
+    def moved(v: str | None, target: tuple[int, Word] | None, base: str) -> str:
+        if v == "popd" or (v == "pushd" and target is None) or (target and target[1].text == "-"):
+            return UNKNOWN_BASE
+        if v not in ("cd", "pushd"):
+            return base
+        at, w = target if target else (0, Word("~", "~"))
+        paths, unresolved = _shell_paths(w, base, sc, at)
+        found = sorted({p for p in paths if not GLOB_CHARS.search(p)} or set(paths))
+        if unresolved or not found or len(found) > MAX_BASES:
+            return UNKNOWN_BASE
+        return found[0] if len(found) == 1 else tuple(found)   # `for d in a b; do cd $d`
+
+    for i, w in enumerate(words):
+        if w.starts_command or w.raw in SHELL_OPERATORS:
+            if verb is not None:
+                base = moved(verb, target, base)
+            verb, target = None, None
         bases.append(base)
-        if tok in SHELL_OPERATORS:
-            if pending_cd is not None:
-                base = _resolve(pending_cd, Path(base))
-                pending_cd = None
-            verb = None
+        # shlex leaves an unspaced `;` on its word: `cd;` is cd, then an operator.
+        text = w.text[:-1] if w.raw.endswith(";") and w.raw != ";" else w.text
+        if w.raw in SHELL_OPERATORS or not text:
             continue
         if verb is None:
-            verb = tok
+            if w.starts_command and not shellwords.ASSIGN_RE.match(text):
+                verb = os.path.basename(text.lstrip("({"))
             continue
-        if verb == "cd" and pending_cd is None and not tok.startswith("-"):
-            pending_cd = tok
+        if verb in ("cd", "pushd") and target is None and (text == "-" or not text.startswith("-")):
+            target = (i, dataclasses.replace(w, text=text))
     return bases
 
 
@@ -473,7 +540,8 @@ def path_verdict(path: str, root: Path, cwd: Path | str | None = None,
 
 
 def _judge_path(tok: str, root: Path, base: Path | str | None = None,
-                extra_roots: tuple[str, ...] = ()) -> tuple[str, str] | None:
+                extra_roots: tuple[str, ...] = (), word: Word | None = None,
+                sc: shellwords.Scope | None = None, at: int = 0) -> tuple[str, str] | None:
     """The verdict for one PATH-role token, or None if it is fine (or not a path).
 
     Relative paths resolve against the thread's CWD; containment is judged
@@ -481,22 +549,43 @@ def _judge_path(tok: str, root: Path, base: Path | str | None = None,
     was a live false positive: sonnet2 runs in games/pinball-lab, so `ls
     ../e4/` resolved to /Users/e4 and escalated a read of a directory that is
     in fact inside the repo.
+
+    Every path the token can EXPAND to is judged (see fleet.shellwords), and a
+    deny for any of them wins. What the gate cannot expand escalates: the
+    value is decided after the gate has answered, so no answer but "ask" is
+    honest. `word` carries the quoting facts; without it everything expands.
     """
     # strip shell decorations: redirections, option=paths, trailing punctuation
-    tok = tok.lstrip("<>=").rstrip(";&|)")
+    tok = REDIRECT_RE.sub("", tok).lstrip("<>=").rstrip(";&|)")
+    if word and "'" not in word.raw and '"' not in word.raw and re.search(r"[|;&]", tok):
+        # `2>/dev/null|wc`: operators glued to a word end it, as they do for the shell.
+        for piece in re.split(r"[|;&]+", tok):
+            v = _judge_path(piece, root, base, extra_roots, dataclasses.replace(word, raw=piece), sc, at)
+            if v:
+                return v
+        return None
     if "=" in tok and not tok.startswith("/"):
         tok = tok.split("=", 1)[1]
     if not _is_path_candidate(tok):
         return None  # not a path
-    p = _resolve(tok, Path(base) if base is not None else root)
-    if p in DEV_OK:
-        return None
-    v = sensitive_verdict(p, root)
-    if v:
-        return v
-    if not _contained(p, root, extra_roots):
-        return "escalate", f"path outside repo: {tok}"
-    return None
+    word = dataclasses.replace(word, text=tok) if word else Word(tok, tok)
+    paths, unresolved = _shell_paths(word, base if base is not None else root, sc, at)
+    found: tuple[str, str] | None = None
+    for p in paths:
+        if p in DEV_OK:
+            continue
+        v = sensitive_verdict(p, root)
+        if v and v[0] == "deny":
+            return v                                  # deny outranks anything unresolved
+        if not v and not _contained(p, root, extra_roots):
+            v = "escalate", f"path outside repo: {tok}"
+        found = found or v
+    if unresolved and not WS_IN_TOKEN.search(shellwords.VAR_RE.sub("", tok)):
+        # (A word with spaces of its own is a message - `echo "newest: $f"` -
+        # not a path whose unknown part could point anywhere.)
+        return "escalate", (f"path depends on {', '.join(dict.fromkeys(unresolved))}, "
+                            f"which the gate cannot expand before the shell does: {tok}")
+    return found
 
 
 def _path_ok(tok: str, root: Path, base: Path | str | None = None, extra_roots: tuple[str, ...] = ()) -> bool:
@@ -550,7 +639,10 @@ def _all_args_in_state(args: list[str], root: Path) -> bool:
     stripping."""
     for a in args:
         for cand in (a, _clean_arg(a)):
-            if not _delete_safe(_resolve(cand, root), root):
+            # Expanded like any path: `rm -rf state/{..,x}/gui` normpaths
+            # under state/ as spelled and deletes gui/ as expanded.
+            paths, unresolved = _shell_paths(Word(cand, cand), root)
+            if unresolved or not all(_delete_safe(p, root) for p in paths):
                 return False
     return True
 
@@ -672,8 +764,27 @@ def _delete_denied(command: str, root: Path) -> str | None:
     return None
 
 
+def _inert_positions(tokens: list[str]) -> set[int]:
+    """Indices of the `fleet send` / `git commit` words and everything after
+    them up to the next shell operator: text, not commands (see
+    _wrapped_verdict)."""
+    out: set[int] = set()
+    inert = False
+    for i, tok in enumerate(tokens):
+        if tok in SHELL_OPERATORS:
+            inert = False  # a new command starts here; resume judging
+            continue
+        if (tok == "send" and i and tokens[i - 1].endswith("fleet")) or \
+                (tok == "commit" and i and tokens[i - 1] == "git"):
+            inert = True
+        if inert:
+            out.add(i)
+    return out
+
+
 def _wrapped_verdict(command: str, root: Path, depth: int, cwd: Path | str | None = None,
-                     extra_roots: tuple[str, ...] = ()) -> tuple[str, str] | None:
+                     extra_roots: tuple[str, ...] = (),
+                     sc: shellwords.Scope | None = None) -> tuple[str, str] | None:
     """Judge every multi-word token, i.e. every quoted argument.
 
     Such a token is not a path, so _path_ok waves it through, and the DENY
@@ -709,18 +820,11 @@ def _wrapped_verdict(command: str, root: Path, depth: int, cwd: Path | str | Non
     # raw text on shell operators cuts through the inside of a quoted payload
     # (`python3 -c "import shutil; shutil.rmtree(...)"` splits at the `;`),
     # shredding the very token that needs judging.
-    inert = False
+    inert = _inert_positions(tokens)
+    verbs = sorted(_verb_positions(tokens))
+    env = sc.flat() if sc else None
     for i, tok in enumerate(tokens):
-        if tok in SHELL_OPERATORS:
-            inert = False  # a new command starts here; resume judging
-            continue
-        if tok == "send" and i and tokens[i - 1].endswith("fleet"):
-            inert = True
-            continue
-        if tok == "commit" and i and tokens[i - 1] == "git":
-            inert = True
-            continue
-        if inert:
+        if tok in SHELL_OPERATORS or i in inert:
             continue
         prev = tokens[i - 1] if i else ""
         is_code = prev in CODE_OPTS or prev in CODE_VERBS
@@ -729,7 +833,10 @@ def _wrapped_verdict(command: str, root: Path, depth: int, cwd: Path | str | Non
         if not is_code and not WS_IN_TOKEN.search(tok):
             continue
         if is_code and depth < MAX_WRAP_DEPTH:
-            d, why = decide_auto(tok, root, cwd, _depth=depth + 1, extra_roots=extra_roots)
+            verb = os.path.basename(tokens[max([v for v in verbs if v < i], default=0)])
+            shell = prev in CODE_VERBS or verb in shellwords.SHELLS
+            d, why = decide_auto(tok, root, cwd, _depth=depth + 1, extra_roots=extra_roots,
+                                 _env=env, _code=not shell, _subs=sc.subs if sc else None)
             if d != "allow-auto":
                 return d, f"wrapped code ({prev}): {why}"
         if is_code:
@@ -740,7 +847,10 @@ def _wrapped_verdict(command: str, root: Path, depth: int, cwd: Path | str | Non
             # anything that reads text rather than watching behaviour, and this
             # is not sold as more than it is.
             for m in EMBEDDED_PATH_RE.finditer(tok):
-                v = _judge_path(m.group(1), root, root, extra_roots)
+                # The payload's own quotes are not shell quotes: no braces or
+                # globs, but the outer shell did expand its variables.
+                w = Word(m.group(1), m.group(1), expands=False, bare_var=False)
+                v = _judge_path(m.group(1), root, root, extra_roots, w, sc, i)
                 if v:
                     return v[0], f"path in code payload ({prev}): {v[1]}"
         # A search/program operand opens nothing and executes nothing:
@@ -758,8 +868,34 @@ def _wrapped_verdict(command: str, root: Path, depth: int, cwd: Path | str | Non
     return None
 
 
+def _payload_verdict(verb: str, contents: str, quoted: bool, root: Path, cwd, depth: int,
+                     extra_roots: tuple[str, ...], env: dict) -> tuple[str, str] | None:
+    """A heredoc an interpreter reads is code, not data. A shell's is judged
+    as the command it is; anyone else's the way a -c payload is - its quoted
+    paths, and deny-class content in its multi-word strings."""
+    if verb in shellwords.SHELLS:
+        d, why = decide_auto(contents, root, cwd, _depth=depth + 1, extra_roots=extra_roots, _env=env)
+        return (d, f"heredoc run by {verb}: {why}") if d != "allow-auto" else None
+    # Only what a path IS, not where it sits: a heredoc program is long, and a
+    # string like '/opus2/' or '/f' in it is a fragment far more often than a
+    # file. Before this rule nothing in a heredoc program was judged at all.
+    for m in EMBEDDED_PATH_RE.finditer(contents):
+        w = Word(m.group(1), m.group(1), expands=False, bare_var=False, literal=quoted)
+        paths, _ = _shell_paths(w, root, shellwords.Scope(outer=env))
+        for p in paths:
+            v = sensitive_verdict(p, root)
+            if v:
+                return v[0], f"path in heredoc run by {verb}: {v[1]}"
+    for tok in _tokens(contents):
+        m = QUOTED_DENY_RE.search(tok) if WS_IN_TOKEN.search(tok) else None
+        if m:
+            return "escalate", f"heredoc run by {verb} contains {m.group(0)!r}"
+    return None
+
+
 def decide_auto(command: str, root: Path, cwd: Path | str | None = None, _depth: int = 0,
-                extra_roots: tuple[str, ...] = ()) -> tuple[str, str]:
+                extra_roots: tuple[str, ...] = (), _env: dict | None = None,
+                _code: bool = False, _subs: dict | None = None) -> tuple[str, str]:
     """`root` is the repo boundary; `cwd` is where relative paths resolve from.
 
     They default to the same thing, which is how this behaved before - and why
@@ -782,7 +918,43 @@ def decide_auto(command: str, root: Path, cwd: Path | str | None = None, _depth:
     for rx, why in ESCALATE:
         if rx.search(command):
             return "escalate", why
-    wrapped = _wrapped_verdict(command, root, _depth, cwd, extra_roots)
+    # `_code`: this is a python/node/... payload, re-read as shell text only to
+    # find paths in it. Its own quoting is not shell quoting and the outer
+    # shell has already done every expansion it was going to.
+    if _depth == 0:
+        shellwords.begin_decision()
+    subs = dict(_subs or {})
+    if _code:
+        text, bodies, payloads = command, [], []
+    else:
+        scanned = shellwords.scan(command)
+        text, bodies, payloads = scanned.text, scanned.bodies, scanned.payloads
+        subs.update(scanned.subs)
+    if (bodies or payloads) and _depth >= MAX_WRAP_DEPTH:
+        return "escalate", "command substitution or heredoc nested too deep to judge"
+    tokens = _tokens(text)
+    words = None if _code else shellwords.split(text)
+    if words is None or len(words) != len(tokens):
+        words = shellwords.words_for(tokens)
+        if _code:
+            words = [dataclasses.replace(w, literal=True) for w in words]
+    else:
+        tokens = [w.text for w in words]   # the same split, with $'\x2f' decoded as the shell does
+    sc = shellwords.scope(words, _depth, _env, str(cwd or root), subs)
+    env = sc.flat()
+    # A substitution runs wherever it sits - inside a quoted argument, a
+    # commit message, a path - so its body is judged as the command it is.
+    # Before the wrapped scan, so a credential read inside one is a deny and
+    # not a keyword escalation.
+    for body in bodies:
+        d, why = decide_auto(body, root, cwd, _depth=_depth + 1, extra_roots=extra_roots, _env=env)
+        if d != "allow-auto":
+            return d, f"command substitution: {why}"
+    for verb, contents, quoted in payloads:
+        v = _payload_verdict(verb, contents, quoted, root, cwd, _depth, extra_roots, env)
+        if v:
+            return v
+    wrapped = _wrapped_verdict(text, root, _depth, cwd, extra_roots, sc)
     if wrapped:
         return wrapped
     # One pass, not two. _loopback_url and _path_ok judge disjoint token
@@ -790,8 +962,8 @@ def decide_auto(command: str, root: Path, cwd: Path | str | None = None, _depth:
     # URL - so merging cannot change which reason a given token produces. It
     # only reports whichever offending token comes first when a command has
     # both, and either way the verdict is escalate.
-    tokens = _tokens(command)
-    bases = _token_bases(tokens, Path(cwd) if cwd else root)
+    bases = _token_bases(tokens, Path(cwd) if cwd else root, words, sc)
+    inert = _inert_positions(tokens)
     for i, (tok, role) in enumerate(zip(tokens, roles(tokens))):
         if role is URL:
             # A known sink is denied outright rather than escalated: there is
@@ -801,9 +973,17 @@ def decide_auto(command: str, root: Path, cwd: Path | str | None = None, _depth:
             if sink:
                 return "deny", f"known exfil sink ({sink}): {tok}"
             return "escalate", f"non-loopback URL: {tok}"
+        if role is OTHER and bases[i] == UNKNOWN_BASE and tok and not tok.startswith("-") \
+                and not WS_IN_TOKEN.search(tok):
+            # After a cd the gate could not follow, a bare `id_rsa` could be anything.
+            return "escalate", f"relative word after a cd the gate cannot follow: {tok}"
         if role is not PATH:
             continue  # VERB or PATTERN: not a file this command reads or writes
-        verdict = _judge_path(tok, root, bases[i], extra_roots)
+        if i in inert and "\x00" in tok:
+            # A commit message or packet body built by $(...): its body was
+            # judged above as the command it is; its output is text, not a path.
+            continue
+        verdict = _judge_path(tok, root, bases[i], extra_roots, words[i], sc, i)
         if verdict:
             return verdict
     return "allow-auto", "in-repo, no deny match"

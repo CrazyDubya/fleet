@@ -20,10 +20,15 @@ class DecisionsWidgetTests(unittest.TestCase):
         self.open_path = Path(self.tmp.name) / "OPEN.md"
         self.p1 = mock.patch("fleet.decisions.DECISIONS_PATH", self.decisions_path)
         self.p2 = mock.patch("fleet.decisions.OPEN_PATH", self.open_path)
-        self.p1.start(); self.p2.start()
+        # The live fleet's state/v2/watchdog-ALERT exists whenever the fleet is
+        # stuck, and read_watchdog_alert() reads it: without this the "absent
+        # by default" test failed on exactly the days the alert mattered.
+        self.p3 = mock.patch("fleet.decisions.WATCHDOG_ALERT_PATH",
+                             Path(self.tmp.name) / "no-watchdog-ALERT")
+        self.p1.start(); self.p2.start(); self.p3.start()
 
     def tearDown(self):
-        self.p1.stop(); self.p2.stop(); self.tmp.cleanup()
+        self.p1.stop(); self.p2.stop(); self.p3.stop(); self.tmp.cleanup()
 
     def test_get_is_read_only_shaped(self):
         # No POST route exists at all - this is the whole point of the
