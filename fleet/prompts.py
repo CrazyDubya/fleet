@@ -1207,3 +1207,57 @@ def wait_decision(path: Path, timeout: float, sleep=time.sleep) -> str | None:
             path.unlink()
         except FileNotFoundError:
             pass
+
+
+# --- Option B measurement (dirs-hardening) -----------------------------
+#
+# Pure observation, called only for an already-allowed command: it decides
+# nothing and its answer never feeds back into decide_auto or path_verdict.
+# See ledger/handoffs/opus2/20260913T030809Z-case-symlink-bypass-fixed.md
+# ("B's measurement... should start regardless") and
+# ledger/handoffs/opus2/20260912T235441Z-tool-tier-read-hole-options.md.
+
+def _top_level_root(resolved: str, home: str) -> str:
+    """Bucket an outside-root path to something narrow enough to be a future
+    `dirs` entry: "$HOME/muse" rather than "$HOME/muse/deep/file.py", "/tmp"
+    rather than "/tmp/x/y". Home-relative paths bucket one level under HOME
+    (that is the granularity a `dirs` grant is actually written at); anything
+    else buckets on its first path segment.
+    """
+    if resolved == home:
+        return home
+    if resolved.startswith(home + "/"):
+        rest = resolved[len(home) + 1:]
+        return f"{home}/{rest.split('/', 1)[0]}"
+    parts = resolved.strip("/").split("/", 1)
+    return "/" + parts[0] if parts[0] else "/"
+
+
+def outside_top_roots(command: str, root: Path, cwd: Path | str | None = None,
+                      home: Path | None = None) -> list[str]:
+    """The top-level directories OUTSIDE `root` that an already-allowed Bash
+    command's path-like tokens resolve under - e.g. ["/Users/pup/muse"] for
+    `ls /Users/pup/muse/pipeline` - so a future narrowed `dirs` grant for the
+    tool tier can be derived from real usage instead of guessed.
+
+    Deliberately reuses only the plain text/normpath helpers `_tokens`,
+    `_is_path_candidate`, `_resolve` - no shell substitution, no
+    quoting/Word/Scope machinery, no symlink or case-folding realpath work.
+    That precision is what decide_auto and path_verdict need because their
+    answer gates a command; this only buckets a command decide_auto has
+    ALREADY allowed, for a usage count - a missed or misbucketed token here
+    costs one log line, never a security decision, and skipping the heavier
+    machinery is what keeps this near-zero-cost on every gate call.
+    """
+    base = Path(cwd) if cwd else root
+    home_s = str(home) if home is not None else str(HOME)
+    root_s = str(root)
+    found: set[str] = set()
+    for tok in _tokens(command):
+        if not _is_path_candidate(tok):
+            continue
+        p = _resolve(tok, base)
+        if p == root_s or p.startswith(root_s + "/"):
+            continue
+        found.add(_top_level_root(p, home_s))
+    return sorted(found)

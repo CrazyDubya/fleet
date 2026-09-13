@@ -220,5 +220,40 @@ class SendLaneChoicesTests(unittest.TestCase):
             cli._build_parser().parse_args(["send", "muse2", "x", "--lane", "verifyy"])
 
 
+class OutsideRootLoggingTests(unittest.TestCase):
+    """Option B's dirs-narrowing measurement: cmd_perm_check logs the
+    outside-root touch for an allow-auto Bash command on a tool-tier thread,
+    and only there. Observation only - decide_auto is mocked so these tests
+    aren't also exercising the gate's own path judging."""
+
+    def _run(self, command, thread, verdict="allow-auto", why="in-repo, no deny match"):
+        events = []
+        with mock.patch.object(cli, "ledger") as fake_ledger, \
+             mock.patch("fleet.prompts.decide_auto", return_value=(verdict, why)):
+            fake_ledger.event.side_effect = lambda *a, **k: events.append(k)
+            with redirect_stdout(io.StringIO()):
+                cli.cmd_perm_check(SimpleNamespace(command=command, thread=thread, cwd=None))
+        return [e for e in events if e.get("decision") == "outside-root"]
+
+    def test_tool_tier_outside_path_logs_the_root(self):
+        # haiku-fs2 is tier="tool" and grants dirs=["/Users/pup"] in fleet.toml.
+        outside = self._run("ls /Users/pup/muse", "haiku-fs2")
+        self.assertEqual(len(outside), 1)
+        self.assertEqual(outside[0]["why"], "/Users/pup/muse")
+        self.assertEqual(outside[0]["hook"], "gate")
+        self.assertEqual(outside[0]["thread"], "haiku-fs2")
+
+    def test_hot_tier_thread_logs_nothing(self):
+        # sonnet2 is tier="hot" - not who this measurement is about.
+        self.assertFalse(self._run("ls /Users/pup/muse", "sonnet2"))
+
+    def test_in_repo_only_command_logs_nothing_extra(self):
+        self.assertFalse(self._run("ls", "haiku-fs2"))
+
+    def test_non_allow_verdict_logs_nothing(self):
+        self.assertFalse(self._run("cat /etc/hosts", "haiku-fs2", verdict="escalate",
+                                   why="path outside repo: /etc/hosts"))
+
+
 if __name__ == "__main__":
     unittest.main()

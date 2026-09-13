@@ -1061,3 +1061,37 @@ class TokenRoleTests(unittest.TestCase):
 
     def test_plain_words_are_not_paths(self):
         self.assertEqual(dict(self._roles("ls -la here"))["here"], prompts.OTHER)
+
+
+class OutsideTopRootsTests(unittest.TestCase):
+    """Option B's dirs-narrowing measurement - observation only, never fed
+    back into decide_auto or path_verdict."""
+
+    ROOT = Path("/Users/pup/fleet")
+    HOME = "/Users/pup"
+
+    def _roots(self, command, cwd=None):
+        return prompts.outside_top_roots(command, self.ROOT, cwd, home=self.HOME)
+
+    def test_in_repo_path_reports_nothing(self):
+        self.assertEqual(self._roots("ls /Users/pup/fleet/foo"), [])
+
+    def test_plain_in_repo_command_reports_nothing(self):
+        self.assertEqual(self._roots("ls"), [])
+
+    def test_home_relative_path_buckets_one_level_under_home(self):
+        self.assertEqual(self._roots("ls /Users/pup/muse/pipeline/status.md"),
+                         ["/Users/pup/muse"])
+
+    def test_tilde_expands_before_bucketing(self):
+        self.assertEqual(self._roots("ls ~/games/pinball-lab"), ["/Users/pup/games"])
+
+    def test_non_home_path_buckets_on_first_segment(self):
+        self.assertEqual(self._roots("cat /etc/hosts"), ["/etc"])
+
+    def test_multiple_outside_roots_all_reported_sorted(self):
+        self.assertEqual(self._roots("cat /Users/pup/muse/a /tmp/b"),
+                         ["/Users/pup/muse", "/tmp"])
+
+    def test_home_itself_is_its_own_bucket(self):
+        self.assertEqual(self._roots("ls /Users/pup"), ["/Users/pup"])

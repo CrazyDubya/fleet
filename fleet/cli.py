@@ -382,11 +382,43 @@ def cmd_perm_check(args):
     from . import prompts as prompts_mod
     from .paths import ROOT
     thread = getattr(args, "thread", None)
-    d, why = prompts_mod.decide_auto(args.command, ROOT, getattr(args, "cwd", None) or None,
+    cwd = getattr(args, "cwd", None) or None
+    d, why = prompts_mod.decide_auto(args.command, ROOT, cwd,
                                      extra_roots=_gate_roots(thread))
     verdict = "ok" if d == "allow-auto" else d
     print(f"{verdict} {'prompt' if _operator_fallthrough(thread) else 'none'} {why}")
+    _log_outside_roots(thread, d, args.command, ROOT, cwd)
     return 0
+
+
+def _log_outside_roots(thread: str | None, verdict: str, command: str, root: Path,
+                       cwd: str | None) -> None:
+    """Option B's dirs-narrowing measurement (see
+    ledger/handoffs/opus2/20260913T030809Z-case-symlink-bypass-fixed.md and
+    ledger/handoffs/sonnet2/20260913T193000Z-dirs-hardening-option-b-measurement.md):
+    for an allow-auto Bash command on a tool-tier thread, log the top-level
+    directories outside `root` it touched, so a future `dirs` grant can be
+    narrowed from real usage.
+
+    Observation only - this never influences `verdict`, runs after it is
+    already printed, and only appends a ledger line when there is something
+    outside `root` to report (an in-repo-only command logs nothing new here;
+    the existing `gate allow` event already counts it). One extra Path/regex
+    pass and one `ledger.event` file-append inside the same already-running
+    perm-check process - no new subprocess, so no added latency on the
+    gate's ~150ms budget.
+    """
+    if verdict != "allow-auto" or not command:
+        return
+    t = _gate_thread(thread)
+    if not t or t.tier != "tool":
+        return
+    from . import prompts as prompts_mod
+    roots = prompts_mod.outside_top_roots(command, root, cwd)
+    if not roots:
+        return
+    ledger.event("hook", hook="gate", thread=thread, decision="outside-root", ms=0,
+                 why=",".join(roots)[:300])
 
 
 def cmd_path_check(args):
