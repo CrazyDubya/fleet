@@ -389,6 +389,26 @@ def cmd_perm_check(args):
     return 0
 
 
+def cmd_path_check(args):
+    """The file-tool gate's oracle: same "<verdict> <fallthrough> <why>" as
+    perm-check, for a tool that hands over a path instead of a command.
+
+    Read/Edit/Write/NotebookEdit reach the filesystem without passing through
+    decide_auto at all, and under bypassPermissions --add-dir does not confine
+    them either (verified: a tool thread read /etc/hosts on request). Asking
+    the same policy here is what keeps the two channels from disagreeing -
+    a credential refused to `cat` should not be one Read call away.
+    """
+    from . import prompts as prompts_mod
+    from .paths import ROOT
+    thread = getattr(args, "thread", None)
+    d, why = prompts_mod.path_verdict(args.path, ROOT, getattr(args, "cwd", None) or None,
+                                      extra_roots=_gate_roots(thread))
+    verdict = "ok" if d == "allow-auto" else d
+    print(f"{verdict} {'prompt' if _operator_fallthrough(thread) else 'none'} {why}")
+    return 0
+
+
 def cmd_web_check(args):
     """Egress oracle for hooks/v2/web.sh: "deny <host>" or "ok".
 
@@ -496,6 +516,10 @@ def _build_parser():
     pc.add_argument("--cwd", help="where the command's relative paths resolve from")
     pc.set_defaults(fn=cmd_perm_check)
     wc = sub.add_parser("web-check"); wc.add_argument("url"); wc.set_defaults(fn=cmd_web_check)
+    ph = sub.add_parser("path-check"); ph.add_argument("path")
+    ph.add_argument("--thread", help="whose policy roots and permission mode to judge by")
+    ph.add_argument("--cwd", help="where a relative path resolves from")
+    ph.set_defaults(fn=cmd_path_check)
     b = sub.add_parser("bench"); bs = b.add_subparsers(dest="bench_cmd", required=True)
     br = bs.add_parser("run"); br.add_argument("task"); br.add_argument("--arms", default="fable,sonnet,fleet")
     br.add_argument("--repeat", type=int, default=1); br.set_defaults(fn=cmd_bench)

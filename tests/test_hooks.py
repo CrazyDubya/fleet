@@ -286,6 +286,65 @@ class WebHookTests(unittest.TestCase):
                              [str(ROOT / "hooks" / "v2" / "web.sh")], name)
 
 
+class FileGateTests(unittest.TestCase):
+    """Read/Edit/Write/NotebookEdit reach the filesystem without passing
+    through decide_auto, and under bypassPermissions --add-dir does not confine
+    them either - verified live before this hook existed, by asking a tool
+    thread to Read /etc/hosts and getting the file. Closing only the Bash
+    channel would have been a green pass over an open door."""
+
+    HOME = str(Path.home())
+
+    def _files(self, thread, path, tool="Read", key="file_path"):
+        return run("files.sh", {"cwd": str(ROOT / thread), "tool_name": tool,
+                                "tool_input": {key: path}})
+
+    def test_an_in_repo_read_is_allowed_and_logged(self):
+        r = self._files("haiku-fs2", str(ROOT / "fleet.toml"))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        ev = ledger.read_events()[-1]
+        self.assertEqual((ev["hook"], ev["decision"], ev["thread"]), ("files", "allow", "haiku-fs2"))
+
+    def test_a_credential_is_blocked_for_every_tier(self):
+        for thread in ("haiku-fs2", "sonnet2"):
+            r = self._files(thread, f"{self.HOME}/.ssh/id_rsa")
+            self.assertEqual(r.returncode, 2, thread)
+            self.assertIn("credential store", r.stderr)
+
+    def test_a_home_dot_entry_blocks_only_where_no_operator_is_behind_it(self):
+        self.assertEqual(self._files("haiku-fs2", f"{self.HOME}/.codex/auth.json").returncode, 2)
+        self.assertEqual(self._files("sonnet2", f"{self.HOME}/.codex/auth.json").returncode, 0)
+
+    def test_transcripts_stay_readable(self):
+        p = f"{self.HOME}/.claude/projects/-Users-pup-fleet-sonnet2/a.jsonl"
+        self.assertEqual(self._files("haiku-fs2", p).returncode, 0)
+
+    def test_write_and_notebookedit_are_judged_too(self):
+        self.assertEqual(self._files("haiku-fs2", f"{self.HOME}/.aws/credentials",
+                                     tool="Write").returncode, 2)
+        self.assertEqual(self._files("haiku-fs2", f"{self.HOME}/.aws/credentials",
+                                     tool="NotebookEdit", key="notebook_path").returncode, 2)
+
+    def test_another_tool_is_a_noop(self):
+        self.assertEqual(self._files("haiku-fs2", "x", tool="Bash").returncode, 0)
+
+    def test_registered_for_every_v2_settings_file(self):
+        for name in ("hot.json", "warm.json", "tool.json", "project-muse.json"):
+            cfg = json.loads((ROOT / "settings" / "v2" / name).read_text())
+            hooks = [h for m in cfg["hooks"]["PreToolUse"]
+                     if m.get("matcher") == "Read|Edit|Write|NotebookEdit" for h in m["hooks"]]
+            self.assertEqual([h["command"] for h in hooks],
+                             [str(ROOT / "hooks" / "v2" / "files.sh")], name)
+
+    def test_the_fleets_own_secrets_are_denied_to_the_read_tool_in_every_tier(self):
+        # hot/warm carried these three; tool.json never did, and the tool tier
+        # is the one with no operator behind it.
+        for name in ("hot.json", "warm.json", "tool.json", "project-muse.json"):
+            deny = json.loads((ROOT / "settings" / "v2" / name).read_text())["permissions"]["deny"]
+            for rel in ("state/gui-token", "mail/token.json", "mail/oauth_client.json"):
+                self.assertIn(f"Read(/{ROOT / rel})", deny, f"{name}: {rel}")
+
+
 class PermBrowserNavigate(unittest.TestCase):
     cwd = str(ROOT / "sonnet2")
 

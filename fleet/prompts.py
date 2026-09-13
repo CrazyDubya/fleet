@@ -208,6 +208,13 @@ WS_IN_TOKEN = re.compile(r"\s")
 # is a pattern by position and a deletion in fact, so a token carrying one of
 # these is judged even where a plain pattern is exempt.
 SUBST_RE = re.compile(r"\$\(|`|\$\{")
+# A quoted absolute (or ~) path inside a code payload. shlex sees
+# `print(open('/Users/pup/.aws/credentials').read())` as ONE token with no
+# whitespace, _resolve normpaths that whole string into gibberish under the
+# cwd, and the containment check calls the result in-repo - so the payload's
+# real path was never judged at all. Covers the three shapes that matter:
+# open('...'), Path('...'), and a subprocess argument list.
+EMBEDDED_PATH_RE = re.compile(r"""['"]([~/][^'"\n]{0,512})['"]""")
 
 # Deny-class content inside a single quoted argument. A multi-word token is
 # NOT a path and never reaches _path_ok, so `sh -c "..."`, `eval "..."` and
@@ -356,29 +363,146 @@ def _token_bases(tokens: list[str], cwd: Path) -> list[str]:
     return bases
 
 
-def _path_ok(tok: str, root: Path, base: Path | str | None = None, extra_roots: tuple[str, ...] = ()) -> bool:
+HOME = Path.home()
+
+# Credential stores. Denied, not escalated: there is no version of a fleet
+# thread reading one that an operator should be asked to approve, and on the
+# tool tier "escalate" has nobody to ask.
+#
+# Home-level subtrees, whole:
+SECRET_HOME_DIRS = (".ssh", ".aws", ".gnupg", ".kube")
+# Basenames that are a credential wherever they appear:
+SECRET_BASENAMES = (".netrc", ".pgpass", ".git-credentials", ".htpasswd")
+# Specific files under a home-level dot-directory that is otherwise only
+# escalated (see the dotdir rule below):
+SECRET_HOME_FILES = (".docker/config.json", ".claude/.credentials.json")
+# The fleet's own, relative to `root`: the mail thread's OAuth material, which
+# authenticates to an outside service. state/gui-token is deliberately NOT
+# here - three of the ten commands in the recorded prompt corpus read it to
+# curl the loopback GUI, it is a bearer token for 127.0.0.1 only, and the
+# egress rules already stand between it and anywhere else. It stays denied to
+# the Read tool in settings, where a tool-specific rule belongs.
+SECRET_FLEET_FILES = ("mail/token.json", "mail/oauth_client.json")
+# .env is a credential; a checked-in template is not.
+ENV_TEMPLATE_SUFFIXES = (".example", ".sample", ".template", ".dist")
+# Transcripts, not credentials, and the fleet reads its own: `fleet cost`,
+# `status`, `activity`, `outstanding` and sonnet4's whole remit are built on
+# them. The one carve-out in the dot-directory rule, and deliberately narrow -
+# ~/.claude/.credentials.json above is denied, not carved out.
+DOTDIR_EXCEPTIONS = (".claude/projects",)
+
+
+def sensitive_verdict(path: str, root: Path, home: Path | None = None) -> tuple[str, str] | None:
+    """What a path IS, judged before where it sits. None if it is ordinary.
+
+    Containment answers "may this thread work here". It cannot answer "is this
+    a private key", and a grant of /Users/pup makes ~/.ssh/id_rsa containment
+    clean - which is exactly how a tool-tier thread could read it with no
+    prompt, no operator and no ledger line.
+
+    The second tier is a RULE, not a list: any home-level dot-entry escalates.
+    This machine carries 88 of them - .codex, .cursor, .gemini, .grok,
+    .windsurf, .cloudflared - and an enumeration would have covered none of
+    them. A tool that ships next month with a token in ~/.newthing is covered
+    on arrival; that is the whole argument for the shape.
+    """
+    home = str(home or HOME)
+    parts = Path(path).parts
+    name = parts[-1] if parts else ""
+
+    if name in SECRET_BASENAMES:
+        return "deny", f"credential file: {path}"
+    if name == ".env" or (name.startswith(".env.") and not name.endswith(ENV_TEMPLATE_SUFFIXES)):
+        return "deny", f"credential file: {path}"
+    for rel in SECRET_FLEET_FILES:
+        if path == str(root / rel):
+            return "deny", f"fleet credential: {path}"
+
+    if path != home and not path.startswith(home + "/"):
+        return None                                   # not under this home
+    rel_parts = Path(path).relative_to(home).parts
+    if not rel_parts:
+        return None
+    top = rel_parts[0]
+    rel = "/".join(rel_parts)
+
+    if top in SECRET_HOME_DIRS:
+        return "deny", f"credential store (~/{top}): {path}"
+    if rel_parts[:2] == ("Library", "Keychains"):
+        return "deny", f"credential store (~/Library/Keychains): {path}"
+    if any(rel == f or rel.startswith(f + "/") for f in SECRET_HOME_FILES):
+        return "deny", f"credential file: {path}"
+    if not top.startswith("."):
+        return None
+    if any(rel == e or rel.startswith(e + "/") for e in DOTDIR_EXCEPTIONS):
+        return None
+    return "escalate", f"home-level dot-entry (~/{top}): {path}"
+
+
+def _contained(p: str, root: Path, extra_roots: tuple[str, ...]) -> bool:
+    """`extra_roots` are the directories THIS thread legitimately works in
+    besides the fleet repo - a [[project]] thread's own dir, and at the gate
+    every dir its spec grants. Without them a thread steering an outside repo
+    escalates on literally every command it runs there, which is not a guard,
+    it is a thread that cannot work. Containment only: delete rules stay
+    anchored on the fleet root, so widening reads never widens `rm`.
+    """
+    inside = (str(root), "/tmp", "/private/tmp", *extra_roots)
+    return any(p == b or p.startswith(b + "/") for b in inside)
+
+
+def path_verdict(path: str, root: Path, cwd: Path | str | None = None,
+                 extra_roots: tuple[str, ...] = ()) -> tuple[str, str]:
+    """Judge one path, for a caller that already knows it has one.
+
+    The Bash gate reaches this through _judge_path, which has to decide FIRST
+    whether a token is even a path. A file tool hands over a path outright, so
+    it must not go through that filter: Read's `file_path` is a path whether or
+    not it contains a slash, and `_is_path_candidate("notes.md")` is False.
+    Same rules, same order, one implementation.
+    """
+    p = _resolve(path, Path(cwd) if cwd is not None else root)
+    if p in DEV_OK:
+        return "allow-auto", "device"
+    v = sensitive_verdict(p, root)
+    if v:
+        return v
+    if not _contained(p, root, extra_roots):
+        return "escalate", f"path outside repo: {path}"
+    return "allow-auto", "in-repo, no deny match"
+
+
+def _judge_path(tok: str, root: Path, base: Path | str | None = None,
+                extra_roots: tuple[str, ...] = ()) -> tuple[str, str] | None:
+    """The verdict for one PATH-role token, or None if it is fine (or not a path).
+
+    Relative paths resolve against the thread's CWD; containment is judged
+    against the repo ROOT. Those are different questions and conflating them
+    was a live false positive: sonnet2 runs in games/pinball-lab, so `ls
+    ../e4/` resolved to /Users/e4 and escalated a read of a directory that is
+    in fact inside the repo.
+    """
     # strip shell decorations: redirections, option=paths, trailing punctuation
     tok = tok.lstrip("<>=").rstrip(";&|)")
     if "=" in tok and not tok.startswith("/"):
         tok = tok.split("=", 1)[1]
     if not _is_path_candidate(tok):
-        return True  # not a path
-    # Relative paths resolve against the thread's CWD; containment is judged
-    # against the repo ROOT. Those are different questions and conflating them
-    # was a live false positive: sonnet2 runs in games/pinball-lab, so `ls
-    # ../e4/` resolved to /Users/e4 and escalated a read of a directory that is
-    # in fact inside the repo.
+        return None  # not a path
     p = _resolve(tok, Path(base) if base is not None else root)
     if p in DEV_OK:
-        return True
-    # `extra_roots` are the directories THIS thread legitimately works in
-    # besides the fleet repo - a [[project]] thread's own dir. Without them a
-    # thread steering an outside repo escalates on literally every command it
-    # runs there, which is not a guard, it is a thread that cannot work.
-    # Containment only: delete rules below stay anchored on the fleet root, so
-    # widening reads never widens `rm`.
-    inside = (str(root), "/tmp", "/private/tmp", *extra_roots)
-    return any(p == b or p.startswith(b + "/") for b in inside)
+        return None
+    v = sensitive_verdict(p, root)
+    if v:
+        return v
+    if not _contained(p, root, extra_roots):
+        return "escalate", f"path outside repo: {tok}"
+    return None
+
+
+def _path_ok(tok: str, root: Path, base: Path | str | None = None, extra_roots: tuple[str, ...] = ()) -> bool:
+    """Containment-only view of _judge_path, kept for the delete rules."""
+    v = _judge_path(tok, root, base, extra_roots)
+    return v is None
 
 
 def _rm_flags_and_args(tokens: list[str]) -> tuple[bool, bool, list[str]]:
@@ -608,6 +732,17 @@ def _wrapped_verdict(command: str, root: Path, depth: int, cwd: Path | str | Non
             d, why = decide_auto(tok, root, cwd, _depth=depth + 1, extra_roots=extra_roots)
             if d != "allow-auto":
                 return d, f"wrapped code ({prev}): {why}"
+        if is_code:
+            # The recursion above re-tokenizes; this reads the payload as text,
+            # because that is the only way a path inside a function call is
+            # seen as a path. Absolute and ~ forms only - a computed path
+            # (open(os.environ["HOME"] + "/.aws/credentials")) is still beyond
+            # anything that reads text rather than watching behaviour, and this
+            # is not sold as more than it is.
+            for m in EMBEDDED_PATH_RE.finditer(tok):
+                v = _judge_path(m.group(1), root, root, extra_roots)
+                if v:
+                    return v[0], f"path in code payload ({prev}): {v[1]}"
         # A search/program operand opens nothing and executes nothing:
         # `grep -rn "rm -rf" .` is a read. roles() has classified this token
         # since the PATTERN role was added; this scan simply never asked, and
@@ -668,8 +803,9 @@ def decide_auto(command: str, root: Path, cwd: Path | str | None = None, _depth:
             return "escalate", f"non-loopback URL: {tok}"
         if role is not PATH:
             continue  # VERB or PATTERN: not a file this command reads or writes
-        if not _path_ok(tok, root, bases[i], extra_roots):
-            return "escalate", f"path outside repo: {tok}"
+        verdict = _judge_path(tok, root, bases[i], extra_roots)
+        if verdict:
+            return verdict
     return "allow-auto", "in-repo, no deny match"
 
 

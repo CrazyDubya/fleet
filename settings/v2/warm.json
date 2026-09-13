@@ -7,6 +7,9 @@
       "Bash(/Users/pup/fleet/bin/fleet status *)",
       "Read(//Users/pup/fleet/**)",
       "Edit(//Users/pup/fleet/ledger/handoffs/**)",
+      "Edit(//Users/pup/fleet/hooks/**)",
+      "Edit(//Users/pup/fleet/settings/**)",
+      "Edit(//Users/pup/fleet/fleet/**)",
       "Bash(node *)",
       "Bash(python3 *)",
       "Bash(git log *)",
@@ -48,9 +51,6 @@
       "Bash(rm *)",
       "Bash(curl *)",
       "Bash(wget *)",
-      "Edit(//Users/pup/fleet/hooks/**)",
-      "Edit(//Users/pup/fleet/settings/**)",
-      "Edit(//Users/pup/fleet/fleet/**)",
       "Read(//Users/pup/fleet/state/gui-token)",
       "Read(//Users/pup/fleet/mail/token.json)",
       "Read(//Users/pup/fleet/mail/oauth_client.json)",
@@ -88,6 +88,16 @@
           {
             "type": "command",
             "command": "/Users/pup/fleet/hooks/v2/web.sh",
+            "timeout": 3
+          }
+        ]
+      },
+      {
+        "matcher": "Read|Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/pup/fleet/hooks/v2/files.sh",
             "timeout": 3
           }
         ]

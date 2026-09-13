@@ -367,6 +367,121 @@ class UrlsAreNotInRepoPaths(unittest.TestCase):
 
 # Spelled around so this file is not itself a deny-class payload.
 _DEL = "r" + "m -rf"
+_HOME = Path.home()
+
+
+class SensitivePathsAreJudgedByWhatTheyAre(unittest.TestCase):
+    """Containment cannot answer "is this a private key".
+
+    A grant of /Users/pup made ~/.ssh/id_rsa containment-clean, so a tool-tier
+    thread - the tier with no PermissionRequest behind the gate - could read it
+    with no prompt, no operator and no ledger line. Measured, not supposed:
+    every one of these was `allow-auto` before this rule existed.
+    """
+
+    def _v(self, cmd):
+        return prompts.decide_auto(cmd, _ROOT, extra_roots=(str(_HOME),))
+
+    def test_credential_stores_are_denied(self):
+        for rel in (".ssh/id_rsa", ".aws/credentials", ".gnupg/secring.gpg",
+                    ".kube/config", "Library/Keychains/login.keychain-db",
+                    ".claude/.credentials.json", ".docker/config.json"):
+            d, why = self._v(f"cat {_HOME / rel}")
+            self.assertEqual(d, "deny", f"{rel}: {why}")
+
+    def test_tilde_is_the_same_path(self):
+        self.assertEqual(self._v("cat ~/.ssh/id_rsa")[0], "deny")
+
+    def test_credential_basenames_anywhere(self):
+        for p in ("/Users/pup/proj/.env", "/Users/pup/fleet/.git-credentials",
+                  f"{_HOME}/.netrc"):
+            self.assertEqual(self._v(f"cat {p}")[0], "deny", p)
+
+    def test_a_template_is_not_a_credential(self):
+        self.assertEqual(self._v("cat /Users/pup/fleet/.env.example")[0], "allow-auto")
+
+    def test_the_mail_threads_oauth_material_is_denied(self):
+        for rel in ("mail/token.json", "mail/oauth_client.json"):
+            self.assertEqual(self._v(f"cat {_ROOT / rel}")[0], "deny", rel)
+
+    def test_the_gui_token_is_not_in_the_deny_class(self):
+        # Three of the ten recorded prompts read it to curl the loopback GUI.
+        # It is a bearer token for 127.0.0.1 and the egress rules stand between
+        # it and anywhere else; denying it would break a routine workflow to
+        # protect a secret that cannot travel.
+        self.assertEqual(self._v("TOKEN=$(cat state/gui-token); echo $TOKEN")[0], "allow-auto")
+
+    def test_home_level_dot_entries_escalate_as_a_rule_not_a_list(self):
+        # 88 of these exist on this machine. The point of the rule is the ones
+        # nobody has heard of yet, so the test uses names that are on no list.
+        for rel in (".codex/auth.json", ".cursor/x", ".gemini/y", ".notyetinvented/z",
+                    ".gitconfig"):
+            d, why = self._v(f"cat {_HOME / rel}")
+            self.assertEqual(d, "escalate", f"{rel}: {why}")
+
+    def test_transcripts_are_the_one_carve_out(self):
+        # fleet cost/status/activity and sonnet4's whole remit read these.
+        d, why = self._v(f"wc -l {_HOME}/.claude/projects/-Users-pup-fleet-sonnet2/a.jsonl")
+        self.assertEqual(d, "allow-auto", why)
+
+    def test_a_project_dotfile_is_not_a_home_dot_entry(self):
+        for p in ("/Users/pup/fleet/.gitignore", "/Users/pup/fleet/.github/workflows/x.yml"):
+            self.assertEqual(self._v(f"cat {p}")[0], "allow-auto", p)
+
+    def test_ordinary_paths_are_untouched(self):
+        self.assertEqual(self._v("cat /Users/pup/muse/harness.py")[0], "allow-auto")
+
+
+class PathsHiddenInCodePayloads(unittest.TestCase):
+    """F3: shlex sees `print(open('/Users/pup/.aws/credentials').read())` as one
+    whitespace-free token, _resolve normpaths it into gibberish under the cwd,
+    and containment calls the result in-repo. The payload's real path was never
+    judged - under any grant, however narrow."""
+
+    def _v(self, cmd):
+        return prompts.decide_auto(cmd, _ROOT, extra_roots=(str(_HOME),))
+
+    def test_open_inside_a_python_payload(self):
+        d, why = self._v(f"""python3 -c "print(open('{_HOME}/.aws/credentials').read())" """)
+        self.assertEqual(d, "deny", why)
+        self.assertIn("code payload", why)
+
+    def test_pathlib_and_subprocess_shapes(self):
+        for payload in (f"""p = Path('{_HOME}/.ssh/id_rsa'); print(p.read_text())""",
+                        f"""subprocess.run(['cat', '{_HOME}/.ssh/id_rsa'])"""):
+            self.assertEqual(self._v(f'python3 -c "{payload}"')[0], "deny", payload)
+
+    def test_a_path_outside_the_roots_inside_a_payload(self):
+        d, why = prompts.decide_auto("""python3 -c "print(open('/etc/hosts').read())" """, _ROOT)
+        self.assertEqual(d, "escalate", why)
+
+    def test_an_ordinary_payload_still_passes(self):
+        cmd = 'python3 -c "from fleet import status; print(status.resolve_pending())"'
+        self.assertEqual(prompts.decide_auto(cmd, _ROOT)[0], "allow-auto")
+
+    def test_an_in_repo_path_inside_a_payload_passes(self):
+        cmd = """python3 -c "print(open('/Users/pup/fleet/fleet.toml').read())" """
+        self.assertEqual(prompts.decide_auto(cmd, _ROOT)[0], "allow-auto")
+
+
+class PathVerdictIsTheSameOracle(unittest.TestCase):
+    """The file tools hand over a path, not a command. Same rules, same order -
+    a credential refused to `cat` must not be one Read call away."""
+
+    def test_a_bare_filename_is_still_judged(self):
+        # _is_path_candidate("notes.md") is False, so the command-side filter
+        # must not stand between a file tool and containment.
+        d, why = prompts.path_verdict("notes.md", _ROOT, cwd="/etc")
+        self.assertEqual(d, "escalate", why)
+
+    def test_it_agrees_with_the_command_side(self):
+        for rel, expected in ((".ssh/id_rsa", "deny"), (".codex/auth.json", "escalate"),
+                              (".claude/projects/p/a.jsonl", "allow-auto")):
+            p = str(_HOME / rel)
+            self.assertEqual(prompts.path_verdict(p, _ROOT, extra_roots=(str(_HOME),))[0],
+                             expected, p)
+            self.assertEqual(prompts.decide_auto(f"cat {p}", _ROOT, extra_roots=(str(_HOME),))[0],
+                             "allow-auto" if expected == "allow-auto" else expected, p)
 
 
 class SearchPatternsAreNotPayloads(unittest.TestCase):

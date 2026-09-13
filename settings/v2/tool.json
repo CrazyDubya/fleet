@@ -24,11 +24,15 @@
              "Bash(git reset --hard*)", "Bash(git clean -f*)",
              "Bash(curl -X POST*)", "Bash(curl -X PUT*)", "Bash(curl --data*)",
              "Read(//Users/pup/.ssh/**)", "Read(//Users/pup/.aws/**)", "Read(**/.env)",
+             "Read(//Users/pup/fleet/state/gui-token)",
+             "Read(//Users/pup/fleet/mail/token.json)",
+             "Read(//Users/pup/fleet/mail/oauth_client.json)",
              "Edit(//Users/pup/fleet/fleet.toml)"]
   },
   "hooks": {
     "PreToolUse": [{"matcher": "SendMessage|Bash", "hooks": [{"type": "command", "command": "/Users/pup/fleet/hooks/v2/gate.sh", "timeout": 3}]},
-                   {"matcher": "WebFetch|WebSearch", "hooks": [{"type": "command", "command": "/Users/pup/fleet/hooks/v2/web.sh", "timeout": 3}]}],
+                   {"matcher": "WebFetch|WebSearch", "hooks": [{"type": "command", "command": "/Users/pup/fleet/hooks/v2/web.sh", "timeout": 3}]},
+                   {"matcher": "Read|Edit|Write|NotebookEdit", "hooks": [{"type": "command", "command": "/Users/pup/fleet/hooks/v2/files.sh", "timeout": 3}]}],
     "Stop": [{"hooks": [{"type": "command", "command": "/Users/pup/fleet/hooks/v2/hold.sh", "timeout": 3}]}],
     "PermissionRequest": [{"matcher": "Bash|mcp__playwright__browser_navigate",
       "hooks": [{"type": "command", "command": "/Users/pup/fleet/hooks/v2/perm.sh", "timeout": 300}]}]

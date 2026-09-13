@@ -172,6 +172,39 @@ class PermCheckTests(unittest.TestCase):
         self.assertEqual(self._verdict("cat /etc/hosts", "haiku-fs2"), "escalate")
 
 
+class PathCheckTests(unittest.TestCase):
+    """The file-tool gate's oracle. Same output shape as perm-check, because
+    the hook that consumes it makes the same three decisions."""
+
+    def _check(self, path, thread=None, cwd=None):
+        out = io.StringIO()
+        with redirect_stdout(out), redirect_stderr(io.StringIO()):
+            cli.cmd_path_check(SimpleNamespace(path=path, thread=thread, cwd=cwd))
+        return out.getvalue().strip()
+
+    def _head(self, path, thread=None, cwd=None):
+        return " ".join(self._check(path, thread, cwd).split()[:2])
+
+    def test_in_repo_is_ok(self):
+        self.assertEqual(self._head("/Users/pup/fleet/fleet.toml", "haiku-fs2"), "ok none")
+
+    def test_a_credential_is_denied_for_an_attended_thread_too(self):
+        line = self._check(str(Path.home() / ".ssh" / "id_rsa"), "sonnet2")
+        self.assertTrue(line.startswith("deny prompt "), line)
+
+    def test_a_home_dot_entry_escalates(self):
+        self.assertEqual(self._head(str(Path.home() / ".codex" / "auth.json"), "sonnet2"),
+                         "escalate prompt")
+        self.assertEqual(self._head(str(Path.home() / ".codex" / "auth.json"), "haiku-fs2"),
+                         "escalate none")
+
+    def test_a_granted_dir_is_in_bounds(self):
+        self.assertEqual(self._head("/Users/pup/muse/x.py", "haiku-fs2"), "ok none")
+
+    def test_outside_every_root_escalates(self):
+        self.assertEqual(self._head("/etc/hosts", "haiku-fs2"), "escalate none")
+
+
 class SendLaneChoicesTests(unittest.TestCase):
     """The plumbing for the verify lane (MUSE-FLEET-MEMBER): --lane must
     accept "verify" the same way it accepts the other five, and must
